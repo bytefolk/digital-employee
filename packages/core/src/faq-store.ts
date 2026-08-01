@@ -3,6 +3,7 @@ import {
   sanitizeDetails,
   validateFeedback,
 } from "./contracts.js"
+import type { SafeValue, UnknownRecord } from "./contracts.js"
 import { lexicalSimilarity } from "./lexical-retriever.js"
 
 const UNSAFE_PATTERNS = [
@@ -12,18 +13,31 @@ const UNSAFE_PATTERNS = [
   /重置.{0,8}(角色|身份|指令)/u,
 ]
 
-function unsafe(text) {
+function unsafe(text: string): boolean {
   return UNSAFE_PATTERNS.some((pattern) => pattern.test(text))
 }
 
 export class VerifiedFaqStore {
-  #entries = new Map()
+  #entries = new Map<string, {
+    id: string
+    question: string
+    answer: string
+    feedback: ReturnType<typeof validateFeedback>
+    citations: SafeValue[]
+    hits: number
+    createdAt: number
+    updatedAt: number
+  }>()
   #maxEntries
   #minScore
   #clock
   #nextId = 1
 
-  constructor(options = {}) {
+  constructor(options: {
+    maxEntries?: number
+    minScore?: number
+    clock?: () => number
+  } = {}) {
     this.#maxEntries = options.maxEntries ?? 100
     this.#minScore = options.minScore ?? 0.3
     this.#clock = options.clock ?? (() => Date.now())
@@ -39,7 +53,7 @@ export class VerifiedFaqStore {
     }
   }
 
-  add(input) {
+  add(input: unknown) {
     if (
       input === null ||
       typeof input !== "object" ||
@@ -47,14 +61,15 @@ export class VerifiedFaqStore {
     ) {
       throw new ValidationError("FAQ entry must be an object")
     }
-    const feedback = validateFeedback(input.feedback ?? {})
+    const entryInput = input as UnknownRecord
+    const feedback = validateFeedback(entryInput.feedback ?? {})
     if (!feedback.verified) {
       return { stored: false, reason: "unverified_feedback" }
     }
 
     const question =
-      typeof input.question === "string" ? input.question.trim() : ""
-    const answer = typeof input.answer === "string" ? input.answer.trim() : ""
+      typeof entryInput.question === "string" ? entryInput.question.trim() : ""
+    const answer = typeof entryInput.answer === "string" ? entryInput.answer.trim() : ""
     if (!question || !answer) {
       throw new ValidationError(
         "FAQ question and answer must be non-empty strings",
@@ -76,22 +91,22 @@ export class VerifiedFaqStore {
     if (existing) {
       existing.entry.answer = answer
       existing.entry.feedback = feedback
-      existing.entry.citations = this.#normalizeCitations(input.citations)
+      existing.entry.citations = this.#normalizeCitations(entryInput.citations)
       existing.entry.updatedAt = now
       existing.entry.hits += 1
       return { stored: true, id: existing.entry.id, updated: true }
     }
 
     const id =
-      typeof input.id === "string" && input.id.trim()
-        ? input.id.trim()
+      typeof entryInput.id === "string" && entryInput.id.trim()
+        ? entryInput.id.trim()
         : `faq-${this.#nextId++}`
     this.#entries.set(id, {
       id,
       question,
       answer,
       feedback,
-      citations: this.#normalizeCitations(input.citations),
+      citations: this.#normalizeCitations(entryInput.citations),
       hits: 0,
       createdAt: now,
       updatedAt: now,
@@ -100,14 +115,14 @@ export class VerifiedFaqStore {
     return { stored: true, id, updated: false }
   }
 
-  addVerified(input) {
+  addVerified(input: UnknownRecord) {
     return this.add({
       ...input,
       feedback: { ...(input.feedback ?? {}), verified: true },
     })
   }
 
-  search(query, options = {}) {
+  search(query: unknown, options: { minScore?: number; limit?: number } = {}) {
     if (typeof query !== "string" || !query.trim()) return []
     const minScore = options.minScore ?? this.#minScore
     const limit = options.limit ?? 3
@@ -163,14 +178,14 @@ export class VerifiedFaqStore {
     }
   }
 
-  #normalizeCitations(citations) {
+  #normalizeCitations(citations: unknown): SafeValue[] {
     if (!Array.isArray(citations)) return []
     return citations
       .filter(
         (citation) =>
           citation &&
           typeof citation === "object" &&
-          typeof citation.id === "string",
+          "id" in citation && typeof citation.id === "string",
       )
       .map((citation) => sanitizeDetails(citation))
   }

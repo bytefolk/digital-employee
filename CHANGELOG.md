@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - npm releases now use GitHub Actions OIDC trusted publishing instead of a long-lived repository token.
+- Shipped runtime, connector, profile, application, and test sources now use
+  strict TypeScript; npm and CLI entry points execute generated ESM from
+  `dist/` with declarations and source maps.
 
 ## [0.1.0] - 2026-08-01
 

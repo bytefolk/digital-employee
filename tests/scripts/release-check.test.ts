@@ -14,10 +14,20 @@ const manifest = {
   name: "@fullstack-ai-infra/digital-employee",
   version: "0.1.0",
   publishConfig: { access: "public" },
-  bin: { "digital-employee": "./apps/cli/bin.js" },
-  files: ["apps", "packages"]
+  bin: { "digital-employee": "./dist/apps/cli/bin.js" },
+  types: "./dist/packages/core/index.d.ts",
+  exports: {
+    ".": { import: "./dist/packages/core/index.js" }
+  },
+  files: ["dist", "README.md", "LICENSE"]
 };
-const coreManifest = { version: "0.1.0" };
+const coreManifest = {
+  version: "0.1.0",
+  main: "./dist/index.js",
+  types: "./dist/index.d.ts",
+  exports: { ".": { import: "./dist/index.js" } },
+  files: ["dist"]
+};
 const changelog = "# Changelog\n\n## [0.1.0] - 2026-08-01\n";
 
 test("release check accepts aligned public release metadata", () => {
@@ -30,7 +40,7 @@ test("release check accepts aligned public release metadata", () => {
 test("release check rejects a mismatched tag and package versions", () => {
   const errors = validateRelease({
     manifest,
-    coreManifest: { version: "0.0.9" },
+    coreManifest: { ...coreManifest, version: "0.0.9" },
     changelog,
     tag: "v0.2.0"
   });
@@ -57,7 +67,8 @@ test("release check rejects private or incomplete packages", () => {
     "root package must be publishable",
     "publishConfig.access must be public",
     "digital-employee CLI entry point is missing",
-    "published files must include the application entry points",
+    "published files must include compiled distribution artifacts",
+    "published files must not include duplicate TypeScript source trees",
     "CHANGELOG.md must contain a dated 0.1.0 release heading"
   ]);
 });

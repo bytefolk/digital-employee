@@ -14,10 +14,79 @@ const TEXT_REDACTIONS = [
     /([?&](?:access_token|api_key|key|secret|signature|token)=)[^&#\s]+/gi,
     "$1[REDACTED]",
   ],
-]
+] as const
+
+export type UnknownRecord = Record<string, unknown>
+export type SafeValue =
+  | null
+  | undefined
+  | string
+  | number
+  | boolean
+  | SafeValue[]
+  | { [key: string]: SafeValue }
+
+export interface CoreErrorOptions {
+  cause?: unknown
+  retryable?: boolean
+  status?: number
+  details?: unknown
+}
+
+export interface AnswerRequest {
+  requestId?: string
+  actorId: string
+  sessionId: string
+  message: string
+  metadata: { [key: string]: SafeValue }
+}
+
+export interface DocumentSource {
+  type: string
+  uri: string
+  id?: string
+  name?: string
+  updatedAt?: SafeValue
+}
+
+export interface Document {
+  id: string
+  text: string
+  title: string
+  source: DocumentSource
+  metadata: { [key: string]: SafeValue }
+}
+
+export interface ToolCall {
+  id: string
+  name: string
+  input: SafeValue
+}
+
+export interface ModelResponse {
+  answer: string | null
+  confidence: number | null
+  citationIds: string[]
+  toolCalls: ToolCall[]
+  escalate: boolean
+  escalationReason?: string
+}
+
+export interface Tool {
+  name: string
+  description: string
+  mode: "read" | "write"
+  execute: (input: SafeValue, context?: UnknownRecord) => unknown | Promise<unknown>
+  inputSchema?: SafeValue
+}
 
 export class CoreError extends Error {
-  constructor(code, message, options = {}) {
+  code: string
+  retryable: boolean
+  status: number
+  details: unknown
+
+  constructor(code: string, message: string, options: CoreErrorOptions = {}) {
     super(message, options.cause ? { cause: options.cause } : undefined)
     this.name = "CoreError"
     this.code = code || "CORE_ERROR"
@@ -28,7 +97,7 @@ export class CoreError extends Error {
 }
 
 export class ValidationError extends CoreError {
-  constructor(message, details) {
+  constructor(message: string, details?: unknown) {
     super("VALIDATION_ERROR", message, {
       status: 400,
       retryable: false,
@@ -38,7 +107,10 @@ export class ValidationError extends CoreError {
   }
 }
 
-export function assertPlainObject(value, label = "value") {
+export function assertPlainObject(
+  value: unknown,
+  label = "value",
+): asserts value is UnknownRecord {
   if (
     value === null ||
     typeof value !== "object" ||
@@ -47,10 +119,9 @@ export function assertPlainObject(value, label = "value") {
   ) {
     throw new ValidationError(`${label} must be a plain object`)
   }
-  return value
 }
 
-function validateOptionalId(value, label) {
+function validateOptionalId(value: unknown, label: string): string | undefined {
   if (value === undefined || value === null) return undefined
   if (
     typeof value !== "string" ||
@@ -65,13 +136,19 @@ function validateOptionalId(value, label) {
   return value.trim()
 }
 
-function cloneMetadata(value, label = "metadata") {
+function cloneMetadata(
+  value: unknown,
+  label = "metadata",
+): { [key: string]: SafeValue } {
   if (value === undefined) return {}
   assertPlainObject(value, label)
-  return sanitizeDetails(value)
+  return sanitizeDetails(value) as { [key: string]: SafeValue }
 }
 
-export function validateAnswerRequest(input, options = {}) {
+export function validateAnswerRequest(
+  input: unknown,
+  options: { maxMessageLength?: number } = {},
+): AnswerRequest {
   assertPlainObject(input, "request")
   const maxMessageLength =
     options.maxMessageLength ?? DEFAULT_MAX_MESSAGE_LENGTH
@@ -103,7 +180,7 @@ export function validateAnswerRequest(input, options = {}) {
   }
 }
 
-export function validateDocument(input) {
+export function validateDocument(input: unknown): Document {
   assertPlainObject(input, "document")
   const id = validateOptionalId(input.id, "document.id")
   if (!id) throw new ValidationError("document.id is required")
@@ -115,7 +192,7 @@ export function validateDocument(input) {
     })
   }
 
-  let source
+  let source: DocumentSource
   if (typeof input.source === "string") {
     source = { type: "unknown", uri: input.source }
   } else {
@@ -163,7 +240,7 @@ export function validateDocument(input) {
   }
 }
 
-export function validateFeedback(input) {
+export function validateFeedback(input: unknown) {
   assertPlainObject(input, "feedback")
   return {
     verified: input.verified === true,
@@ -175,7 +252,7 @@ export function validateFeedback(input) {
   }
 }
 
-export function validateModelResponse(input) {
+export function validateModelResponse(input: unknown): ModelResponse {
   if (typeof input === "string") {
     const answer = input.trim()
     if (!answer) {
@@ -197,7 +274,7 @@ export function validateModelResponse(input) {
       ? rawAnswer.trim()
       : null
 
-  let confidence = null
+  let confidence: number | null = null
   if (input.confidence !== undefined && input.confidence !== null) {
     if (
       typeof input.confidence !== "number" ||
@@ -217,14 +294,17 @@ export function validateModelResponse(input) {
     throw new ValidationError("model response citations must be an array")
   }
   const citationIds = rawCitationIds
-    .map((citation) =>
+    .map((citation: unknown) =>
       typeof citation === "string"
         ? citation
-        : citation && typeof citation.id === "string"
+        : citation &&
+            typeof citation === "object" &&
+            "id" in citation &&
+            typeof citation.id === "string"
           ? citation.id
           : null,
     )
-    .filter(Boolean)
+    .filter((value): value is string => Boolean(value))
 
   const toolCalls = input.toolCalls ?? []
   if (!Array.isArray(toolCalls)) {
@@ -254,17 +334,21 @@ export function validateModelResponse(input) {
     answer,
     confidence,
     citationIds,
-    toolCalls: toolCalls.map((call, index) => ({
+    toolCalls: toolCalls.map((rawCall, index) => {
+      assertPlainObject(rawCall, `model response toolCalls[${index}]`)
+      const call = rawCall
+      return {
       id:
         typeof call.id === "string" && call.id.trim()
           ? call.id.trim()
           : `tool-call-${index + 1}`,
-      name: call.name.trim(),
+      name: String(call.name).trim(),
       input:
         call.input && typeof call.input === "object"
           ? sanitizeDetails(call.input)
           : {},
-    })),
+      }
+    }),
     escalate: input.escalate === true || input.needsHuman === true,
     escalationReason:
       typeof input.escalationReason === "string"
@@ -273,7 +357,7 @@ export function validateModelResponse(input) {
   }
 }
 
-export function validateTool(input) {
+export function validateTool(input: unknown): Tool {
   assertPlainObject(input, "tool")
   const name = validateOptionalId(input.name, "tool.name")
   if (!name) throw new ValidationError("tool.name is required")
@@ -289,7 +373,7 @@ export function validateTool(input) {
     description:
       typeof input.description === "string" ? input.description.trim() : "",
     mode,
-    execute: input.execute,
+    execute: input.execute as Tool["execute"],
     inputSchema:
       input.inputSchema &&
       typeof input.inputSchema === "object" &&
@@ -299,7 +383,7 @@ export function validateTool(input) {
   }
 }
 
-export function redactText(value) {
+export function redactText(value: unknown): string {
   let text = String(value ?? "")
   for (const [pattern, replacement] of TEXT_REDACTIONS) {
     text = text.replace(pattern, replacement)
@@ -307,7 +391,10 @@ export function redactText(value) {
   return text
 }
 
-export function sanitizeDetails(value, seen = new WeakSet()) {
+export function sanitizeDetails(
+  value: unknown,
+  seen = new WeakSet<object>(),
+): SafeValue {
   if (value === null || value === undefined) return value
   if (typeof value === "string") return redactText(value)
   if (typeof value === "number" || typeof value === "boolean") return value
@@ -323,7 +410,7 @@ export function sanitizeDetails(value, seen = new WeakSet()) {
     return value.map((item) => sanitizeDetails(item, seen))
   }
 
-  const output = {}
+  const output: { [key: string]: SafeValue } = {}
   for (const [key, item] of Object.entries(value)) {
     if (SECRET_KEY_PATTERN.test(key)) {
       output[key] = "[REDACTED]"
@@ -335,7 +422,7 @@ export function sanitizeDetails(value, seen = new WeakSet()) {
   return output
 }
 
-export function structuredError(error) {
+export function structuredError(error: unknown) {
   if (error instanceof CoreError) {
     return {
       code: error.code,

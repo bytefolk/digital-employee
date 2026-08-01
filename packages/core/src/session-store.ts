@@ -1,15 +1,38 @@
 import { ValidationError, sanitizeDetails } from "./contracts.js"
+import type { SafeValue, UnknownRecord } from "./contracts.js"
 
 const ALLOWED_ROLES = new Set(["user", "assistant", "tool", "system"])
+type SessionRole = "user" | "assistant" | "tool" | "system"
+interface SessionMessage {
+  role: SessionRole
+  content: string
+  name?: string
+  metadata?: SafeValue
+  at: number
+}
+interface Session {
+  id: string
+  state: string
+  messages: SessionMessage[]
+  metadata: SafeValue
+  createdAt: number
+  lastActiveAt: number
+}
+interface SessionOptions {
+  ttlMs?: number
+  maxSessions?: number
+  maxMessages?: number
+  clock?: () => number
+}
 
 export class SessionStore {
   #ttlMs
   #maxSessions
   #maxMessages
   #clock
-  #sessions = new Map()
+  #sessions = new Map<string, Session>()
 
-  constructor(options = {}) {
+  constructor(options: SessionOptions = {}) {
     this.#ttlMs = this.#validatePositive(
       options.ttlMs ?? 5 * 60_000,
       "ttlMs",
@@ -25,7 +48,7 @@ export class SessionStore {
     this.#clock = options.clock ?? (() => Date.now())
   }
 
-  get(sessionId) {
+  get(sessionId: unknown): Session | null {
     const id = this.#validateId(sessionId)
     const session = this.#sessions.get(id)
     if (!session) return null
@@ -36,7 +59,7 @@ export class SessionStore {
     return this.#copy(session)
   }
 
-  getOrCreate(sessionId, metadata = {}) {
+  getOrCreate(sessionId: unknown, metadata: unknown = {}): Session {
     const id = this.#validateId(sessionId)
     this.prune()
     let session = this.#sessions.get(id)
@@ -56,7 +79,7 @@ export class SessionStore {
     return this.#copy(session)
   }
 
-  append(sessionId, message) {
+  append(sessionId: unknown, message: unknown): Session {
     const id = this.#validateId(sessionId)
     if (
       message === null ||
@@ -65,26 +88,28 @@ export class SessionStore {
     ) {
       throw new ValidationError("message must be an object")
     }
-    if (!ALLOWED_ROLES.has(message.role)) {
+    const candidate = message as UnknownRecord
+    if (typeof candidate.role !== "string" || !ALLOWED_ROLES.has(candidate.role)) {
       throw new ValidationError(
         `message.role must be one of: ${[...ALLOWED_ROLES].join(", ")}`,
       )
     }
     if (
-      typeof message.content !== "string" ||
-      message.content.trim().length === 0
+      typeof candidate.content !== "string" ||
+      candidate.content.trim().length === 0
     ) {
       throw new ValidationError("message.content must be a non-empty string")
     }
 
     this.getOrCreate(id)
     const session = this.#sessions.get(id)
+    if (!session) throw new ValidationError("session could not be created")
     session.messages.push({
-      role: message.role,
-      content: message.content.trim(),
-      ...(message.name ? { name: String(message.name) } : {}),
-      ...(message.metadata
-        ? { metadata: sanitizeDetails(message.metadata) }
+      role: candidate.role as SessionRole,
+      content: candidate.content.trim(),
+      ...(candidate.name ? { name: String(candidate.name) } : {}),
+      ...(candidate.metadata
+        ? { metadata: sanitizeDetails(candidate.metadata) }
         : {}),
       at: this.#clock(),
     })
@@ -98,19 +123,20 @@ export class SessionStore {
     return this.#copy(session)
   }
 
-  setState(sessionId, state) {
+  setState(sessionId: unknown, state: unknown): Session {
     const id = this.#validateId(sessionId)
     if (typeof state !== "string" || !state.trim()) {
       throw new ValidationError("state must be a non-empty string")
     }
     this.getOrCreate(id)
     const session = this.#sessions.get(id)
+    if (!session) throw new ValidationError("session could not be created")
     session.state = state.trim()
     session.lastActiveAt = this.#clock()
     return this.#copy(session)
   }
 
-  history(sessionId, limit = this.#maxMessages) {
+  history(sessionId: unknown, limit = this.#maxMessages): SessionMessage[] {
     if (!Number.isInteger(limit) || limit < 0) {
       throw new ValidationError("history limit must be a non-negative integer")
     }
@@ -119,7 +145,7 @@ export class SessionStore {
     return session.messages.slice(-limit)
   }
 
-  lastExchange(sessionId) {
+  lastExchange(sessionId: unknown) {
     const session = this.get(sessionId)
     if (!session) return null
     for (let index = session.messages.length - 1; index > 0; index -= 1) {
@@ -136,7 +162,7 @@ export class SessionStore {
     return null
   }
 
-  close(sessionId) {
+  close(sessionId: unknown): boolean {
     return this.#sessions.delete(this.#validateId(sessionId))
   }
 
@@ -158,7 +184,7 @@ export class SessionStore {
 
   #ensureCapacity() {
     if (this.#sessions.size < this.#maxSessions) return
-    let oldest
+    let oldest: Session | undefined
     for (const session of this.#sessions.values()) {
       if (!oldest || session.lastActiveAt < oldest.lastActiveAt) {
         oldest = session
@@ -167,11 +193,11 @@ export class SessionStore {
     if (oldest) this.#sessions.delete(oldest.id)
   }
 
-  #isExpired(session) {
+  #isExpired(session: Session): boolean {
     return this.#clock() - session.lastActiveAt >= this.#ttlMs
   }
 
-  #copy(session) {
+  #copy(session: Session): Session {
     return {
       ...session,
       metadata: sanitizeDetails(session.metadata),
@@ -184,15 +210,15 @@ export class SessionStore {
     }
   }
 
-  #validateId(value) {
+  #validateId(value: unknown): string {
     if (typeof value !== "string" || !value.trim()) {
       throw new ValidationError("sessionId must be a non-empty string")
     }
     return value.trim()
   }
 
-  #validatePositive(value, name) {
-    if (!Number.isInteger(value) || value < 1) {
+  #validatePositive(value: unknown, name: string): number {
+    if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
       throw new ValidationError(`${name} must be a positive integer`)
     }
     return value

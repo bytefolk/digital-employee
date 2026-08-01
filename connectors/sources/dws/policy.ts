@@ -19,15 +19,40 @@ const RESERVED_GLOBAL_FLAGS = new Set([
   "yes"
 ]);
 
-function stringFlag(options = {}) {
+interface FlagSpecification {
+  type: "string" | "integer"
+  values?: string[]
+  min?: number
+  max?: number
+  csvMax?: number
+  csvValues?: string[]
+}
+interface PolicyDefinition {
+  path: string
+  service: string
+  required?: string[]
+  requireOneOf?: string[]
+  flags: Record<string, Readonly<FlagSpecification>>
+  validate?: (values: Map<string, string>, queryName: string) => void
+}
+interface CompiledPolicy extends PolicyDefinition { tokens: readonly string[] }
+export interface ApprovedQuery {
+  name: string
+  service: string
+  commandPath: string
+  command: readonly string[]
+  args: readonly string[]
+}
+
+function stringFlag(options: Omit<FlagSpecification, "type"> = {}) {
   return Object.freeze({ type: "string", ...options });
 }
 
-function integerFlag(options = {}) {
+function integerFlag(options: Omit<FlagSpecification, "type"> = {}) {
   return Object.freeze({ type: "integer", ...options });
 }
 
-const POLICIES = new Map(
+const POLICY_DEFINITIONS: PolicyDefinition[] =
   [
     {
       path: "doc read",
@@ -42,7 +67,7 @@ const POLICIES = new Map(
         "end-block-id": stringFlag(),
         tags: stringFlag({ csvMax: 50 })
       },
-      validate(values, queryName) {
+      validate(values: Map<string, string>, queryName: string) {
         const scope = values.get("scope");
         if (scope && values.get("content-format") !== "jsonml") {
           invalidQuery(queryName, "dws_query_scope_requires_jsonml", "scope");
@@ -225,7 +250,10 @@ const POLICIES = new Map(
         cursor: stringFlag()
       }
     }
-  ].map((policy) => [
+  ];
+
+const POLICIES = new Map<string, Readonly<CompiledPolicy>>(
+  POLICY_DEFINITIONS.map((policy) => [
     policy.path,
     Object.freeze({
       ...policy,
@@ -237,15 +265,15 @@ const POLICIES = new Map(
 
 export const DWS_READ_COMMANDS = Object.freeze([...POLICIES.keys()]);
 
-function invalidQuery(queryName, code, flag) {
+function invalidQuery(queryName: string, code: string, flag?: string): never {
   throw dwsError(code, {
     query: queryName,
     ...(flag ? { flag: `--${flag}` } : {})
   });
 }
 
-function normalizeCommand(command, queryName) {
-  let tokens;
+function normalizeCommand(command: unknown, queryName: string): string[] {
+  let tokens: unknown[];
   if (Array.isArray(command)) {
     tokens = command;
   } else if (typeof command === "string") {
@@ -265,10 +293,15 @@ function normalizeCommand(command, queryName) {
   ) {
     invalidQuery(queryName, "dws_query_invalid_command_path");
   }
-  return tokens;
+  return tokens as string[];
 }
 
-function validateFlagValue(value, specification, queryName, flag) {
+function validateFlagValue(
+  value: unknown,
+  specification: Readonly<FlagSpecification>,
+  queryName: string,
+  flag: string,
+): void {
   if (
     typeof value !== "string" ||
     value.length === 0 ||
@@ -307,14 +340,18 @@ function validateFlagValue(value, specification, queryName, flag) {
     }
     if (
       specification.csvValues &&
-      values.some((item) => !specification.csvValues.includes(item))
+      values.some((item) => !specification.csvValues?.includes(item))
     ) {
       invalidQuery(queryName, "dws_query_flag_value_not_allowed", flag);
     }
   }
 }
 
-function validateArguments(args, policy, queryName) {
+function validateArguments(
+  args: unknown,
+  policy: Readonly<CompiledPolicy>,
+  queryName: string,
+): readonly string[] {
   if (!Array.isArray(args)) {
     invalidQuery(queryName, "dws_query_args_must_be_array");
   }
@@ -322,7 +359,7 @@ function validateArguments(args, policy, queryName) {
     invalidQuery(queryName, "dws_query_invalid_argument_count");
   }
 
-  const values = new Map();
+  const values = new Map<string, string>();
   for (let index = 0; index < args.length; index += 2) {
     const rawFlag = args[index];
     const value = args[index + 1];
@@ -347,7 +384,7 @@ function validateArguments(args, policy, queryName) {
       invalidQuery(queryName, "dws_query_duplicate_flag", flag);
     }
     validateFlagValue(value, specification, queryName, flag);
-    values.set(flag, value);
+    values.set(flag, value as string);
   }
 
   for (const flag of policy.required ?? []) {
@@ -362,10 +399,10 @@ function validateArguments(args, policy, queryName) {
     invalidQuery(queryName, "dws_query_missing_required_scope");
   }
   policy.validate?.(values, queryName);
-  return Object.freeze([...args]);
+  return Object.freeze([...(args as string[])]);
 }
 
-export function compileApprovedQueries(approvedQueries) {
+export function compileApprovedQueries(approvedQueries: unknown): readonly ApprovedQuery[] {
   if (
     !Array.isArray(approvedQueries) ||
     approvedQueries.length === 0 ||
@@ -376,17 +413,18 @@ export function compileApprovedQueries(approvedQueries) {
     });
   }
 
-  const names = new Set();
+  const names = new Set<string>();
   return Object.freeze(
-    approvedQueries.map((query, index) => {
+    approvedQueries.map((rawQuery, index) => {
       const fallbackName = `query-${index + 1}`;
       if (
-        !query ||
-        typeof query !== "object" ||
-        Array.isArray(query)
+        !rawQuery ||
+        typeof rawQuery !== "object" ||
+        Array.isArray(rawQuery)
       ) {
         invalidQuery(fallbackName, "dws_query_must_be_object");
       }
+      const query = rawQuery as Record<string, unknown>;
       const unknownKeys = Object.keys(query).filter(
         (key) => !["name", "command", "args"].includes(key)
       );

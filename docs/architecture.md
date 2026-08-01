@@ -52,15 +52,22 @@ exchanges are never promoted.
 ## Package layout
 
 ```text
-apps/                         CLI and HTTP entry points
-packages/core/                Runtime, sessions, queue, retrieval, feedback
-connectors/channels/          Console and DingTalk
-connectors/sources/           Filesystem, Git and optional DWS
-connectors/models/            Extractive and OpenAI-compatible providers
-profiles/answer-agent/        First role profile
+apps/                         TypeScript CLI and HTTP entry points
+packages/core/                TypeScript runtime, sessions, queue, retrieval, feedback
+connectors/channels/          TypeScript Console and DingTalk channels
+connectors/sources/           TypeScript Filesystem, Git and optional DWS sources
+connectors/models/            TypeScript Extractive and OpenAI-compatible providers
+profiles/answer-agent/        First TypeScript role profile
 configs/                      Public, credential-free examples
 examples/knowledge/           Reproducible public fixture
+dist/                         Generated ESM, declarations, source maps, public assets
 ```
+
+`tsconfig.json` is the shared strict contract and `tsconfig.build.json` emits
+the deployable ESM graph. Tests are TypeScript executed by `tsx` against the
+same source contracts. npm exports, workspace package exports, the CLI, and
+the container all execute compiled JavaScript. Files in `scripts/*.js` are
+non-runtime build, security, and release helpers.
 
 ## Digital employee versus answer agent
 

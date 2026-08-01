@@ -7,9 +7,18 @@ Thank you for helping make digital employees safer and easier to reuse.
 Requirements: Node.js 20 or newer and npm 10 or newer.
 
 ```bash
-npm install
+npm ci
+npm run typecheck
+npm run build
 npm run check
 ```
+
+Write shipped application, package, connector, profile, and test code in
+strict TypeScript. Keep ESM import specifiers ending in `.js`; TypeScript's
+NodeNext resolution maps those specifiers to source `.ts` files and preserves
+valid imports in compiled output. Do not hand-edit or commit generated
+`dist/` files. JavaScript in `scripts/` is limited to build/release automation
+and must never become a runtime dependency.
 
 Create a focused branch, add tests for user-visible behavior, and open a pull
 request against `main`. Keep generated data and credentials out of commits.

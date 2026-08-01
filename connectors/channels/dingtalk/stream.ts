@@ -5,8 +5,54 @@ export const DEFAULT_STREAM_CONNECT_TIMEOUT_MS = 20_000
 export const DEFAULT_STREAM_RECONNECT_ATTEMPTS = 3
 export const DEFAULT_STREAM_RECONNECT_BACKOFF_MS = 5_000
 
+interface DingTalkConnectionErrorOptions extends ErrorOptions {
+  code?: string
+  attempts?: number | null
+}
+
+export interface DingTalkStreamClient {
+  connect: () => unknown | Promise<unknown>
+  disconnect?: () => unknown | Promise<unknown>
+  connected?: boolean
+  heartbeat?: (...args: unknown[]) => unknown
+  onDownStream?: (...args: unknown[]) => unknown
+  [key: string]: unknown
+}
+
+type StreamLogger = Record<string, ((event: string, details?: unknown) => void) | undefined>
+
+interface StreamSupervisorOptions {
+  now?: () => number
+  sleep?: (ms: number) => Promise<unknown>
+  logger?: StreamLogger
+  onError?: (error: unknown, context: { stage: string }) => void
+  startTimer?: boolean
+  watchdogIntervalMs?: number
+  staleAfterMs?: number
+  wakeDriftMs?: number
+  connectTimeoutMs?: number
+  reconnectAttempts?: number
+  reconnectBackoffMs?: number
+  setIntervalImpl?: typeof setInterval
+  clearIntervalImpl?: typeof clearInterval
+}
+
+export interface DingTalkStreamSupervisor {
+  start: () => Promise<void>
+  stop: () => Promise<void>
+  connect: () => Promise<void>
+  forceReconnect: (trigger?: string) => Promise<boolean>
+  watchdogTick: () => Promise<boolean>
+  markAlive: () => void
+  readonly state: "stopped" | "reconnecting" | "running" | "idle"
+  readonly lastAliveAt: number
+}
+
 export class DingTalkConnectionError extends Error {
-  constructor(message, options = {}) {
+  code: string
+  attempts: number | null
+
+  constructor(message: string, options: DingTalkConnectionErrorOptions = {}) {
     super(message, options)
     this.name = "DingTalkConnectionError"
     this.code = options.code ?? "DINGTALK_CONNECTION_ERROR"
@@ -18,7 +64,10 @@ export class DingTalkConnectionError extends Error {
  * Add lifecycle, activity tracking, timeout, and bounded reconnect behavior to
  * an injected dingtalk-stream client without importing SDK internals.
  */
-export function createDingTalkStreamSupervisor(client, options = {}) {
+export function createDingTalkStreamSupervisor(
+  client: DingTalkStreamClient,
+  options: StreamSupervisorOptions = {},
+): DingTalkStreamSupervisor {
   if (!client || typeof client.connect !== "function") {
     throw new TypeError("client.connect must be a function")
   }
@@ -54,22 +103,22 @@ export function createDingTalkStreamSupervisor(client, options = {}) {
 
   let stopped = false
   let started = false
-  let timer = null
-  let reconnectPromise = null
-  let connectPromise = null
+  let timer: ReturnType<typeof setInterval> | null = null
+  let reconnectPromise: Promise<boolean> | null = null
+  let connectPromise: Promise<void> | null = null
   let generation = 0
   let lastAliveAt = now()
   let lastTickAt = lastAliveAt
-  const restorers = []
+  const restorers: Array<() => void> = []
 
   wrapActivityMethod("heartbeat")
   wrapActivityMethod("onDownStream")
 
-  function markAlive() {
+  function markAlive(): void {
     if (!stopped) lastAliveAt = now()
   }
 
-  async function connectOnce() {
+  async function connectOnce(): Promise<void> {
     if (stopped) {
       throw new DingTalkConnectionError("DingTalk Stream supervisor is stopped", {
         code: "DINGTALK_STREAM_STOPPED",
@@ -104,9 +153,10 @@ export function createDingTalkStreamSupervisor(client, options = {}) {
       return await connectPromise
     } catch (error) {
       if (error instanceof DingTalkConnectionError) throw error
+      const errorCode = safeErrorCode(error)
       throw new DingTalkConnectionError("DingTalk Stream connect failed", {
-        code: error?.code === "DINGTALK_CONNECT_TIMEOUT"
-          ? error.code
+        code: errorCode === "DINGTALK_CONNECT_TIMEOUT"
+          ? errorCode
           : "DINGTALK_CONNECT_FAILED",
         cause: error,
       })
@@ -115,7 +165,7 @@ export function createDingTalkStreamSupervisor(client, options = {}) {
     }
   }
 
-  async function start() {
+  async function start(): Promise<void> {
     if (started && !stopped) return
     if (stopped) {
       throw new DingTalkConnectionError(
@@ -135,7 +185,7 @@ export function createDingTalkStreamSupervisor(client, options = {}) {
     safeLog(logger, "info", "dingtalk.stream.connected")
   }
 
-  async function forceReconnect(trigger = "manual") {
+  async function forceReconnect(trigger = "manual"): Promise<boolean> {
     if (stopped) return false
     if (reconnectPromise) return reconnectPromise
 
@@ -144,7 +194,7 @@ export function createDingTalkStreamSupervisor(client, options = {}) {
       safeDisconnect(client)
       safeLog(logger, "warn", "dingtalk.stream.reconnecting", { trigger })
 
-      let lastError = null
+      let lastError: unknown = null
       for (let attempt = 1; attempt <= reconnectAttempts; attempt++) {
         if (stopped) return false
         try {
@@ -181,7 +231,7 @@ export function createDingTalkStreamSupervisor(client, options = {}) {
     }
   }
 
-  async function watchdogTick() {
+  async function watchdogTick(): Promise<boolean> {
     if (stopped || reconnectPromise) return false
     const timestamp = now()
     const drift = timestamp - lastTickAt - watchdogIntervalMs
@@ -200,7 +250,7 @@ export function createDingTalkStreamSupervisor(client, options = {}) {
     return false
   }
 
-  async function stop() {
+  async function stop(): Promise<void> {
     if (stopped) return
     stopped = true
     generation++
@@ -213,10 +263,13 @@ export function createDingTalkStreamSupervisor(client, options = {}) {
     safeLog(logger, "info", "dingtalk.stream.stopped")
   }
 
-  function wrapActivityMethod(name) {
+  function wrapActivityMethod(name: "heartbeat" | "onDownStream"): void {
     if (typeof client[name] !== "function") return
-    const original = client[name]
-    const wrapped = function wrappedActivityMethod(...args) {
+    const original = client[name] as (...args: unknown[]) => unknown
+    const wrapped = function wrappedActivityMethod(
+      this: unknown,
+      ...args: unknown[]
+    ): unknown {
       markAlive()
       return Reflect.apply(original, this, args)
     }
@@ -226,7 +279,7 @@ export function createDingTalkStreamSupervisor(client, options = {}) {
     })
   }
 
-  function reportError(error, stage) {
+  function reportError(error: unknown, stage: string): void {
     safeLog(logger, "error", "dingtalk.stream.error", {
       stage,
       errorCode: safeErrorCode(error),
@@ -255,9 +308,9 @@ export function createDingTalkStreamSupervisor(client, options = {}) {
   }
 }
 
-function withTimeout(promise, timeoutMs) {
-  let timer
-  const timeout = new Promise((_, reject) => {
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
       reject(new DingTalkConnectionError(
         `DingTalk Stream connect timed out after ${timeoutMs}ms`,
@@ -265,14 +318,21 @@ function withTimeout(promise, timeoutMs) {
       ))
     }, timeoutMs)
   })
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer)
+  })
 }
 
-function safeDisconnect(client) {
+function safeDisconnect(client: DingTalkStreamClient): unknown {
   try {
     const result = client.disconnect?.()
-    if (result && typeof result.catch === "function") {
-      result.catch(() => {})
+    if (
+      result &&
+      (typeof result === "object" || typeof result === "function") &&
+      "catch" in result &&
+      typeof result.catch === "function"
+    ) {
+      result.catch(() => undefined)
     }
     return result
   } catch {
@@ -280,30 +340,41 @@ function safeDisconnect(client) {
   }
 }
 
-function safeErrorCode(error) {
-  if (typeof error?.code === "string" && error.code.length > 0) {
+function safeErrorCode(error: unknown): string {
+  if (
+    error !== null &&
+    typeof error === "object" &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    error.code.length > 0
+  ) {
     return error.code
   }
   return "DINGTALK_UNKNOWN_ERROR"
 }
 
-function safeLog(logger, level, event, details) {
+function safeLog(
+  logger: StreamLogger | undefined,
+  level: string,
+  event: string,
+  details?: unknown,
+): void {
   try {
     logger?.[level]?.(event, details)
   } catch {}
 }
 
-function defaultSleep(ms) {
+function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function requirePositiveInteger(value, name) {
+function requirePositiveInteger(value: number, name: string): void {
   if (!Number.isInteger(value) || value <= 0) {
     throw new RangeError(`${name} must be a positive integer`)
   }
 }
 
-function requireNonNegativeInteger(value, name) {
+function requireNonNegativeInteger(value: number, name: string): void {
   if (!Number.isInteger(value) || value < 0) {
     throw new RangeError(`${name} must be a non-negative integer`)
   }

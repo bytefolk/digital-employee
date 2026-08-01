@@ -16,40 +16,54 @@
     "access": "public"
   },
   "bin": {
-    "digital-employee": "./apps/cli/bin.js"
+    "digital-employee": "./dist/apps/cli/bin.js"
+  },
+  "types": "./dist/packages/core/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/packages/core/index.d.ts",
+      "import": "./dist/packages/core/index.js"
+    },
+    "./core": {
+      "types": "./dist/packages/core/index.d.ts",
+      "import": "./dist/packages/core/index.js"
+    }
   },
   "workspaces": [
     "packages/*"
   ],
   "files": [
-    "apps",
-    "packages",
-    "connectors",
-    "profiles",
-    "configs",
-    "examples",
+    "dist",
     "README.md",
     "README.zh-CN.md",
     "LICENSE",
     "NOTICE"
   ],
   "scripts": {
-    "ask": "node ./apps/cli/bin.js ask",
-    "demo": "node ./apps/cli/bin.js ask --config ./configs/demo.json",
-    "serve": "node ./apps/cli/bin.js serve",
-    "start": "node ./apps/cli/bin.js start",
-    "sync": "node ./apps/cli/bin.js sync",
-    "test": "node --test",
-    "test:coverage": "node --test --experimental-test-coverage",
+    "build": "tsc --project tsconfig.build.json && node ./scripts/copy-build-assets.js",
+    "typecheck": "tsc --project tsconfig.json",
+    "ask": "npm run build --silent && node ./dist/apps/cli/bin.js ask",
+    "demo": "npm run build --silent && node ./dist/apps/cli/bin.js ask --config ./dist/configs/demo.json",
+    "serve": "npm run build --silent && node ./dist/apps/cli/bin.js serve",
+    "start": "npm run build --silent && node ./dist/apps/cli/bin.js start",
+    "sync": "npm run build --silent && node ./dist/apps/cli/bin.js sync",
+    "test": "tsx --test tests/**/*.test.ts",
+    "test:coverage": "tsx --test --experimental-test-coverage tests/**/*.test.ts",
     "security:check": "node ./scripts/security-check.js",
     "release:check": "node ./scripts/release-check.js",
-    "prepublishOnly": "npm run release:check && npm run check",
-    "check": "npm test && npm run security:check"
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run check && npm run release:check",
+    "check": "npm run typecheck && npm run build && npm test && npm run security:check"
   },
   "engines": {
     "node": ">=20"
   },
   "optionalDependencies": {
     "dingtalk-stream": "2.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.3.0",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3"
   }
 }

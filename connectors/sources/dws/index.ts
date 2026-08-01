@@ -1,15 +1,23 @@
 import { extractDwsDocuments } from "./extract.js";
 import { compileApprovedQueries, DWS_READ_COMMANDS } from "./policy.js";
 import { runDwsJson } from "./runner.js";
+import type { SpawnFunction } from "./runner.js";
+import type { ApprovedQuery } from "./policy.js";
+import type { DwsDocument } from "./extract.js";
 import { DwsConnectorError, dwsError } from "./errors.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
 const DEFAULT_MAX_DOCUMENTS_PER_QUERY = 500;
 
-function boundedInteger(value, fallback, { name, min, max }) {
+function boundedInteger(
+  value: unknown,
+  fallback: number,
+  { name, min, max }: { name: string; min: number; max: number }
+): number {
   const resolved = value ?? fallback;
   if (
+    typeof resolved !== "number" ||
     !Number.isInteger(resolved) ||
     resolved < min ||
     resolved > max
@@ -19,7 +27,7 @@ function boundedInteger(value, fallback, { name, min, max }) {
   return resolved;
 }
 
-function validateProfile(profile) {
+function validateProfile(profile: unknown): string {
   if (
     typeof profile !== "string" ||
     !profile.trim() ||
@@ -31,7 +39,7 @@ function validateProfile(profile) {
   return profile;
 }
 
-function validateExecutable(executable) {
+function validateExecutable(executable: unknown): string {
   if (
     typeof executable !== "string" ||
     !executable.trim() ||
@@ -43,15 +51,16 @@ function validateExecutable(executable) {
   return executable;
 }
 
-function validateLogger(logger) {
+type DwsLogger = (event: Readonly<Record<string, unknown>>) => void;
+function validateLogger(logger: unknown): DwsLogger | undefined {
   if (logger === undefined) return undefined;
   if (typeof logger !== "function") {
     throw dwsError("dws_logger_must_be_function");
   }
-  return logger;
+  return logger as DwsLogger;
 }
 
-function defaultDwsEnvironment(environment) {
+function defaultDwsEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const allowedNames = new Set([
     "APPDATA",
     "HOME",
@@ -81,7 +90,30 @@ function defaultDwsEnvironment(environment) {
 
 export { DWS_READ_COMMANDS, DwsConnectorError };
 
+interface DwsSourceOptions {
+  id?: string
+  profile?: unknown
+  executable?: unknown
+  approvedQueries?: unknown
+  timeoutMs?: unknown
+  maxOutputBytes?: unknown
+  maxDocumentsPerQuery?: unknown
+  env?: NodeJS.ProcessEnv
+  logger?: unknown
+}
+
 export class DwsKnowledgeSource {
+  id: string
+  profile: string
+  executable: string
+  queries: readonly ApprovedQuery[]
+  timeoutMs: number
+  maxOutputBytes: number
+  maxDocumentsPerQuery: number
+  env: NodeJS.ProcessEnv
+  logger?: DwsLogger
+  spawnImpl?: SpawnFunction
+
   constructor(
     {
       id = "dws",
@@ -93,8 +125,8 @@ export class DwsKnowledgeSource {
       maxDocumentsPerQuery,
       env = defaultDwsEnvironment(process.env),
       logger
-    } = {},
-    dependencies = {}
+    }: DwsSourceOptions = {},
+    dependencies: { spawn?: SpawnFunction } = {}
   ) {
     if (typeof id !== "string" || !id.trim() || id.length > 256) {
       throw dwsError("dws_source_requires_id");
@@ -141,7 +173,7 @@ export class DwsKnowledgeSource {
     this.spawnImpl = dependencies.spawn;
   }
 
-  #emit(event) {
+  #emit(event: Record<string, unknown>): void {
     try {
       this.logger?.(Object.freeze({ ...event }));
     } catch {
@@ -149,8 +181,8 @@ export class DwsKnowledgeSource {
     }
   }
 
-  async load() {
-    const documents = [];
+  async load(): Promise<DwsDocument[]> {
+    const documents: DwsDocument[] = [];
 
     for (const query of this.queries) {
       const startedAt = Date.now();
@@ -160,7 +192,7 @@ export class DwsKnowledgeSource {
         command: query.commandPath
       });
 
-      let payload;
+      let payload: unknown;
       try {
         payload = await runDwsJson({
           executable: this.executable,

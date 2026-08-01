@@ -1,8 +1,16 @@
-function documentFromContext(context) {
+interface ExtractiveContext {
+  id?: string
+  title?: string
+  text?: string
+  score?: number
+  document?: ExtractiveContext
+}
+
+function documentFromContext(context?: ExtractiveContext): ExtractiveContext | undefined {
   return context?.document || context;
 }
 
-function compact(text, maxChars = 900) {
+function compact(text: unknown, maxChars = 900): string {
   const normalized = String(text || "").replace(/\s+/g, " ").trim();
   if (normalized.length <= maxChars) return normalized;
   return `${normalized.slice(0, maxChars - 1).trimEnd()}…`;
@@ -36,8 +44,8 @@ const STOP_WORDS = new Set([
   "you"
 ]);
 
-function keywordTokens(input) {
-  const tokens = new Set();
+function keywordTokens(input: unknown): Set<string> {
+  const tokens = new Set<string>();
   const text = String(input || "").toLowerCase();
   for (const match of text.matchAll(/[a-z0-9][a-z0-9_-]*/g)) {
     let token = match[0];
@@ -52,7 +60,7 @@ function keywordTokens(input) {
   return tokens;
 }
 
-function sectionCandidates(text) {
+function sectionCandidates(text: unknown): string[] {
   const byHeading = String(text || "")
     .split(/(?=^#{1,6}\s)/m)
     .map((section) => section.trim())
@@ -65,9 +73,9 @@ function sectionCandidates(text) {
   return paragraphs.length ? paragraphs : [String(text || "")];
 }
 
-function bestExtract(question, text) {
+function bestExtract(question: unknown, text: string) {
   const queryTokens = keywordTokens(question);
-  if (queryTokens.size === 0) return { text, coverage: 0 };
+  if (queryTokens.size === 0) return { text, matches: 0, coverage: 0 };
   let best = { text, matches: 0, coverage: 0 };
   for (const candidate of sectionCandidates(text)) {
     const candidateTokens = keywordTokens(candidate);
@@ -87,11 +95,16 @@ function bestExtract(question, text) {
 }
 
 export class ExtractiveModel {
-  constructor({ prefix = "Based on the approved source" } = {}) {
+  prefix: string
+
+  constructor({ prefix = "Based on the approved source" }: { prefix?: string } = {}) {
     this.prefix = prefix;
   }
 
-  async generate({ question = "", contexts = [] }) {
+  async generate({
+    question = "",
+    contexts = []
+  }: { question?: string; contexts?: ExtractiveContext[] }) {
     const best = documentFromContext(contexts[0]);
     if (!best?.text) {
       return {

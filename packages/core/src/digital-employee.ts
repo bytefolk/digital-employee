@@ -10,36 +10,81 @@ import {
   validateModelResponse,
   validateTool,
 } from "./contracts.js"
+import type {
+  AnswerRequest,
+  ModelResponse,
+  SafeValue,
+  Tool,
+  ToolCall,
+  UnknownRecord,
+} from "./contracts.js"
 import { EscalationPolicy } from "./escalation-policy.js"
 import { VerifiedFaqStore } from "./faq-store.js"
 import { JobRunner } from "./job-runner.js"
 import { LexicalRetriever } from "./lexical-retriever.js"
 import { SessionStore } from "./session-store.js"
 
+interface RuntimeProfile extends UnknownRecord {
+  id: string
+  instructions: string
+}
+interface ModelProvider {
+  generate: (input: UnknownRecord) => unknown | Promise<unknown>
+}
+interface Evidence {
+  id: string
+  title?: string
+  text: string
+  score?: number
+  citation?: SafeValue
+  [key: string]: unknown
+}
+interface SearchProvider {
+  search: (query: string, options?: { limit?: number }) => unknown[] | Promise<unknown[]>
+}
+interface EmployeeOptions {
+  id?: string
+  instructions?: string
+  profile?: UnknownRecord
+  model?: ModelProvider | ModelProvider["generate"]
+  retriever?: SearchProvider
+  faqStore?: VerifiedFaqStore
+  sessionStore?: SessionStore
+  escalationPolicy?: EscalationPolicy
+  jobRunner?: JobRunner
+  tools?: unknown[]
+  readOnly?: boolean
+  maxSteps?: number
+  maxHistory?: number
+  maxEvidence?: number
+  logger?: { error: (event: string, details: unknown) => void } | null
+  authorizeFeedback?: ((context: UnknownRecord) => boolean) | null
+}
+
 export class DigitalEmployee {
   #id
   #instructions
-  #profile
-  #model
-  #retriever
-  #faqStore
-  #sessionStore
-  #escalationPolicy
-  #jobRunner
-  #tools
+  #profile: RuntimeProfile
+  #model: ModelProvider
+  #retriever: SearchProvider
+  #faqStore: VerifiedFaqStore
+  #sessionStore: SessionStore
+  #escalationPolicy: EscalationPolicy
+  #jobRunner: JobRunner
+  #tools: Map<string, Tool>
   #readOnly
   #maxSteps
   #maxHistory
   #maxEvidence
-  #logger
-  #authorizeFeedback
+  #logger: EmployeeOptions["logger"]
+  #authorizeFeedback: EmployeeOptions["authorizeFeedback"]
 
-  constructor(options = {}) {
+  constructor(options: EmployeeOptions = {}) {
     this.#profile = this.#normalizeProfile(options)
     this.#id = this.#profile.id
     this.#instructions = this.#profile.instructions
     this.#model = this.#normalizeModel(options.model)
-    this.#retriever = options.retriever ?? new LexicalRetriever()
+    this.#retriever = (options.retriever ?? new LexicalRetriever()) as SearchProvider
     this.#faqStore = options.faqStore ?? new VerifiedFaqStore()
     this.#sessionStore = options.sessionStore ?? new SessionStore()
     this.#escalationPolicy =
@@ -51,7 +96,7 @@ export class DigitalEmployee {
     this.#maxEvidence = options.maxEvidence ?? 5
     this.#logger = options.logger ?? null
     this.#authorizeFeedback = options.authorizeFeedback ?? null
-    this.#tools = new Map()
+    this.#tools = new Map<string, Tool>()
 
     if (typeof this.#readOnly !== "boolean") {
       throw new ValidationError("readOnly must be a boolean")
@@ -109,25 +154,31 @@ export class DigitalEmployee {
     for (const tool of options.tools ?? []) this.registerTool(tool)
   }
 
-  registerTool(input) {
+  registerTool(input: unknown): this {
     const tool = validateTool(input)
     this.#tools.set(tool.name, tool)
     return this
   }
 
-  unregisterTool(name) {
+  unregisterTool(name: string): boolean {
     return this.#tools.delete(name)
   }
 
-  async answer(input) {
-    let request
+  async answer(input: unknown) {
+    let request: AnswerRequest
     try {
       request = validateAnswerRequest(input)
     } catch (error) {
       return this.#failureResult(
         {
-          requestId: input?.requestId,
-          sessionId: input?.sessionId,
+          requestId:
+            input && typeof input === "object" && "requestId" in input
+              ? input.requestId
+              : undefined,
+          sessionId:
+            input && typeof input === "object" && "sessionId" in input
+              ? input.sessionId
+              : undefined,
         },
         error,
       )
@@ -144,7 +195,7 @@ export class DigitalEmployee {
     }
   }
 
-  recordFeedback(input, authorizationContext) {
+  recordFeedback(input: unknown, authorizationContext?: unknown) {
     try {
       if (
         input === null ||
@@ -153,12 +204,13 @@ export class DigitalEmployee {
       ) {
         throw new ValidationError("feedback request must be an object")
       }
+      const feedbackInput = input as UnknownRecord
       const sessionId =
-        typeof input.sessionId === "string" ? input.sessionId.trim() : ""
+        typeof feedbackInput.sessionId === "string" ? feedbackInput.sessionId.trim() : ""
       if (!sessionId) {
         throw new ValidationError("sessionId is required")
       }
-      const feedback = validateFeedback(input)
+      const feedback = validateFeedback(feedbackInput)
       if (!feedback.verified) {
         return { stored: false, reason: "unverified_feedback" }
       }
@@ -168,23 +220,29 @@ export class DigitalEmployee {
         typeof this.#sessionStore.get === "function"
           ? this.#sessionStore.get(sessionId)
           : null
+      const answerMetadata =
+        exchange.answerMetadata &&
+        typeof exchange.answerMetadata === "object" &&
+        !Array.isArray(exchange.answerMetadata)
+          ? exchange.answerMetadata
+          : {}
       if (
         session?.state !== "idle" ||
-        exchange.answerMetadata?.outcome !== "answered"
+        answerMetadata.outcome !== "answered"
       ) {
         return { stored: false, reason: "exchange_not_answered" }
       }
       if (
-        this.#authorizeFeedback === null ||
+        !this.#authorizeFeedback ||
         this.#authorizeFeedback({
           sessionId,
-          requestId: exchange.answerMetadata?.requestId ?? null,
+          requestId: answerMetadata.requestId ?? null,
           feedback,
           authorization: authorizationContext,
           exchange: sanitizeDetails({
             question: exchange.question,
             answer: exchange.answer,
-            citations: exchange.answerMetadata?.citations ?? [],
+            citations: answerMetadata.citations ?? [],
           }),
         }) !== true
       ) {
@@ -194,14 +252,14 @@ export class DigitalEmployee {
         question: exchange.question,
         answer: exchange.answer,
         feedback,
-        citations: exchange.answerMetadata?.citations,
+        citations: answerMetadata.citations,
       })
     } catch (error) {
       return { stored: false, error: structuredError(error) }
     }
   }
 
-  async #runAnswerLoop(request) {
+  async #runAnswerLoop(request: AnswerRequest) {
     const previousHistory = this.#sessionStore.history(
       request.sessionId,
       this.#maxHistory,
@@ -213,9 +271,9 @@ export class DigitalEmployee {
     })
     this.#sessionStore.setState(request.sessionId, "working")
 
-    let evidence = []
-    let response = null
-    const toolResults = []
+    let evidence: Evidence[] = []
+    let response: ModelResponse | null = null
+    const toolResults: UnknownRecord[] = []
 
     try {
       const [faqEvidence, retrievedEvidence] = await Promise.all([
@@ -226,7 +284,10 @@ export class DigitalEmployee {
           limit: this.#maxEvidence,
         }),
       ])
-      evidence = this.#mergeEvidence(faqEvidence, retrievedEvidence)
+      evidence = this.#mergeEvidence(
+        faqEvidence as Evidence[],
+        retrievedEvidence as Evidence[],
+      )
 
       for (let step = 0; step < this.#maxSteps; step += 1) {
         const contexts = evidence.map((item) => ({
@@ -279,7 +340,7 @@ export class DigitalEmployee {
         }
       }
 
-      if (response?.toolCalls.length > 0 && !response.answer) {
+      if (response && response.toolCalls.length > 0 && !response.answer) {
         throw new CoreError(
           "MAX_STEPS_EXCEEDED",
           "The employee did not produce a final answer within the step limit.",
@@ -365,7 +426,7 @@ export class DigitalEmployee {
     }
   }
 
-  async #executeTool(call, request) {
+  async #executeTool(call: ToolCall, request: AnswerRequest): Promise<UnknownRecord> {
     const tool = this.#tools.get(call.name)
     if (!tool) {
       return {
@@ -421,7 +482,7 @@ export class DigitalEmployee {
     }
   }
 
-  #resolveCitations(citationIds, evidence) {
+  #resolveCitations(citationIds: string[], evidence: Evidence[]): SafeValue[] {
     if (citationIds.length === 0) return []
     const requested = new Set(citationIds)
     return evidence
@@ -429,8 +490,8 @@ export class DigitalEmployee {
       .map((item) => sanitizeDetails(item.citation))
   }
 
-  #mergeEvidence(...groups) {
-    const results = new Map()
+  #mergeEvidence(...groups: Array<Evidence[] | undefined>): Evidence[] {
+    const results = new Map<string, Evidence>()
     for (const group of groups) {
       for (const item of group ?? []) {
         if (
@@ -451,7 +512,7 @@ export class DigitalEmployee {
       .slice(0, this.#maxEvidence)
   }
 
-  #normalizeModel(model) {
+  #normalizeModel(model: EmployeeOptions["model"]): ModelProvider {
     if (typeof model === "function") return { generate: model }
     if (model && typeof model.generate === "function") return model
     throw new ValidationError(
@@ -459,7 +520,7 @@ export class DigitalEmployee {
     )
   }
 
-  #normalizeProfile(options) {
+  #normalizeProfile(options: EmployeeOptions): RuntimeProfile {
     const input = options.profile
     if (
       input !== undefined &&
@@ -481,10 +542,13 @@ export class DigitalEmployee {
         typeof instructionsCandidate === "string"
           ? instructionsCandidate.trim()
           : "",
-    })
+    }) as RuntimeProfile
   }
 
-  #failureResult(request, error) {
+  #failureResult(
+    request: { requestId?: unknown; sessionId?: unknown } | undefined,
+    error: unknown,
+  ) {
     return {
       ok: false,
       status:

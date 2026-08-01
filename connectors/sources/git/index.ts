@@ -4,18 +4,18 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { FileSystemSource } from "../filesystem/index.js";
 
-function cacheKey(value) {
+function cacheKey(value: string): string {
   return createHash("sha256").update(value).digest("hex").slice(0, 24);
 }
 
-function validateRef(ref) {
+function validateRef(ref: string): string {
   if (!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/.test(ref)) {
     throw new TypeError("git_source_invalid_ref");
   }
   return ref;
 }
 
-function validateRemote(remote) {
+function validateRemote(remote: string): string {
   const url = new URL(remote);
   if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
     throw new TypeError("git_source_requires_public_https_url_without_credentials");
@@ -23,7 +23,7 @@ function validateRemote(remote) {
   return url.toString();
 }
 
-function isolatedGitEnvironment() {
+function isolatedGitEnvironment(): NodeJS.ProcessEnv {
   const env = { ...process.env };
   for (const name of Object.keys(env)) {
     if (
@@ -43,7 +43,11 @@ function isolatedGitEnvironment() {
   };
 }
 
-function runGit(args, { cwd, timeoutMs = 60_000, maxOutputBytes = 64 * 1024 } = {}) {
+function runGit(
+  args: string[],
+  { cwd, timeoutMs = 60_000, maxOutputBytes = 64 * 1024 }:
+    { cwd?: string; timeoutMs?: number; maxOutputBytes?: number } = {}
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn("git", ["-c", "credential.helper=", "-c", "core.askPass=", ...args], {
       cwd,
@@ -56,7 +60,7 @@ function runGit(args, { cwd, timeoutMs = 60_000, maxOutputBytes = 64 * 1024 } = 
     let bytes = 0;
     let settled = false;
 
-    const capture = (kind) => (chunk) => {
+    const capture = (kind: "stdout" | "stderr") => (chunk: Buffer) => {
       if (bytes >= maxOutputBytes) return;
       const remaining = maxOutputBytes - bytes;
       const value = chunk.toString("utf8", 0, remaining);
@@ -94,7 +98,7 @@ function runGit(args, { cwd, timeoutMs = 60_000, maxOutputBytes = 64 * 1024 } = 
   });
 }
 
-async function exists(target) {
+async function exists(target: string): Promise<boolean> {
   try {
     await access(target);
     return true;
@@ -104,6 +108,16 @@ async function exists(target) {
 }
 
 export class GitSource {
+  id: string
+  remote: string
+  ref: string
+  cacheDir: string
+  checkout: string
+  subdirectory: string
+  include?: unknown[]
+  publicBaseUrl?: string
+  timeoutMs?: number
+
   constructor({
     id,
     remote,
@@ -113,6 +127,15 @@ export class GitSource {
     include,
     publicBaseUrl,
     timeoutMs
+  }: {
+    id: string
+    remote: string
+    ref?: string
+    cacheDir?: string
+    subdirectory?: string
+    include?: unknown[]
+    publicBaseUrl?: string
+    timeoutMs?: number
   }) {
     if (!id || !remote) throw new TypeError("git_source_requires_id_and_remote");
     this.id = String(id);
@@ -126,7 +149,7 @@ export class GitSource {
     this.timeoutMs = timeoutMs;
   }
 
-  async sync() {
+  async sync(): Promise<void> {
     await mkdir(this.cacheDir, { recursive: true, mode: 0o700 });
     const gitDirectory = path.join(this.checkout, ".git");
     if (!(await exists(gitDirectory))) {
@@ -147,7 +170,7 @@ export class GitSource {
     });
   }
 
-  async load() {
+  async load(): Promise<unknown[]> {
     await this.sync();
     const requested = path.resolve(this.checkout, this.subdirectory);
     const relative = path.relative(this.checkout, requested);
@@ -161,7 +184,11 @@ export class GitSource {
       publicBaseUrl: this.publicBaseUrl
     });
     const documents = await source.load();
-    return documents.map((document) => ({
+    return documents.map((rawDocument) => {
+      const document = rawDocument as Record<string, unknown> & {
+        source: Record<string, unknown>
+      };
+      return {
       ...document,
       source: {
         ...document.source,
@@ -169,6 +196,7 @@ export class GitSource {
         repository: this.remote,
         ref: this.ref
       }
-    }));
+      };
+    });
   }
 }

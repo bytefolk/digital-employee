@@ -7,8 +7,73 @@ export const DEFAULT_DINGTALK_SEGMENT_LENGTH = 3_500
 export const DEFAULT_DINGTALK_REQUEST_TIMEOUT_MS = 10_000
 export const DEFAULT_DINGTALK_RESPONSE_PREVIEW_BYTES = 2_048
 
+interface DingTalkWebhookErrorOptions extends ErrorOptions {
+  code?: string
+  status?: number | null
+  bodyPreview?: string
+  bodyTruncated?: boolean
+}
+
+interface WebhookResponse {
+  ok: boolean
+  status: number
+  body?: { getReader: () => ReadableStreamDefaultReader<Uint8Array> } | null
+  text?: () => Promise<string>
+}
+
+export type DingTalkFetch = (
+  input: string | URL,
+  init: RequestInit,
+) => Promise<WebhookResponse>
+
+type DingTalkLogger = Record<string, ((event: string, details: unknown) => void) | undefined>
+
+interface WebhookUrlOptions {
+  allowedHosts?: readonly string[]
+}
+
+interface WebhookPostOptions extends WebhookUrlOptions {
+  webhookUrl?: string
+  payload?: unknown
+  fetchImpl?: DingTalkFetch
+  timeoutMs?: number
+  responsePreviewBytes?: number
+}
+
+export interface DingTalkAtOptions {
+  atUserIds?: unknown
+  atDingtalkIds?: unknown
+  isAtAll?: boolean
+}
+
+interface ReplierOptions extends WebhookPostOptions {
+  logger?: DingTalkLogger
+  maxLength?: number
+  segmentDelayMs?: number
+  sleep?: (ms: number) => Promise<unknown>
+}
+
+export interface DingTalkWebhookResult {
+  ok: true
+  status: number
+}
+
+export interface DingTalkReplier {
+  replyText: (text: string, at?: DingTalkAtOptions) => Promise<DingTalkWebhookResult[]>
+  replyMarkdown: (
+    title: string,
+    text: string,
+    at?: DingTalkAtOptions,
+  ) => Promise<DingTalkWebhookResult[]>
+}
+
 export class DingTalkWebhookError extends Error {
-  constructor(message, options = {}) {
+  code: string
+  status: number | null
+  bodyPreview: string
+  bodyTruncated: boolean
+
+  constructor(message: string, options: DingTalkWebhookErrorOptions = {}) {
     super(message, options)
     this.name = "DingTalkWebhookError"
     this.code = options.code ?? "DINGTALK_WEBHOOK_ERROR"
@@ -21,7 +86,10 @@ export class DingTalkWebhookError extends Error {
 /**
  * Strictly validate a session webhook before any network access.
  */
-export function parseDingTalkWebhookUrl(value, options = {}) {
+export function parseDingTalkWebhookUrl(
+  value: unknown,
+  options: WebhookUrlOptions = {},
+): URL {
   if (typeof value !== "string" || value.length === 0) {
     throw invalidWebhookError()
   }
@@ -50,7 +118,10 @@ export function parseDingTalkWebhookUrl(value, options = {}) {
   return parsed
 }
 
-export function isDingTalkWebhookUrlAllowed(value, options = {}) {
+export function isDingTalkWebhookUrlAllowed(
+  value: unknown,
+  options: WebhookUrlOptions = {},
+): boolean {
   try {
     parseDingTalkWebhookUrl(value, options)
     return true
@@ -62,7 +133,10 @@ export function isDingTalkWebhookUrlAllowed(value, options = {}) {
 /**
  * Split by Unicode code points, preferring a newline in the latter half.
  */
-export function splitDingTalkText(value, maxLength = DEFAULT_DINGTALK_SEGMENT_LENGTH) {
+export function splitDingTalkText(
+  value: unknown,
+  maxLength = DEFAULT_DINGTALK_SEGMENT_LENGTH,
+): string[] {
   if (typeof value !== "string") {
     throw new TypeError("reply text must be a string")
   }
@@ -73,7 +147,7 @@ export function splitDingTalkText(value, maxLength = DEFAULT_DINGTALK_SEGMENT_LE
   const points = Array.from(value)
   if (points.length <= maxLength) return [value]
 
-  const chunks = []
+  const chunks: string[] = []
   let start = 0
   while (start < points.length) {
     let end = Math.min(start + maxLength, points.length)
@@ -95,11 +169,13 @@ export function splitDingTalkText(value, maxLength = DEFAULT_DINGTALK_SEGMENT_LE
 /**
  * POST one already-constructed DingTalk webhook payload.
  */
-export async function postDingTalkWebhook(options) {
+export async function postDingTalkWebhook(
+  options: WebhookPostOptions,
+): Promise<DingTalkWebhookResult> {
   const {
     webhookUrl,
     payload,
-    fetchImpl = globalThis.fetch,
+    fetchImpl = globalThis.fetch as DingTalkFetch,
     allowedHosts = DINGTALK_WEBHOOK_HOSTS,
     timeoutMs = DEFAULT_DINGTALK_REQUEST_TIMEOUT_MS,
     responsePreviewBytes = DEFAULT_DINGTALK_RESPONSE_PREVIEW_BYTES,
@@ -157,10 +233,10 @@ export async function postDingTalkWebhook(options) {
   }, timeoutMs)
 }
 
-export function createDingTalkReplier(options) {
+export function createDingTalkReplier(options: ReplierOptions): DingTalkReplier {
   const {
     webhookUrl,
-    fetchImpl = globalThis.fetch,
+    fetchImpl = globalThis.fetch as DingTalkFetch,
     logger,
     allowedHosts = DINGTALK_WEBHOOK_HOSTS,
     maxLength = DEFAULT_DINGTALK_SEGMENT_LENGTH,
@@ -175,8 +251,11 @@ export function createDingTalkReplier(options) {
   requireNonNegativeInteger(segmentDelayMs, "segmentDelayMs")
   splitDingTalkText("", maxLength)
 
-  async function sendSegments(segments, makePayload) {
-    const results = []
+  async function sendSegments(
+    segments: string[],
+    makePayload: (content: string, index: number) => unknown,
+  ): Promise<DingTalkWebhookResult[]> {
+    const results: DingTalkWebhookResult[] = []
     for (let index = 0; index < segments.length; index++) {
       const payload = makePayload(segments[index], index)
       const result = await postDingTalkWebhook({
@@ -204,7 +283,7 @@ export function createDingTalkReplier(options) {
     async replyText(text, at = {}) {
       const segments = splitDingTalkText(text, maxLength)
       return sendSegments(segments, (content, index) => {
-        const payload = {
+        const payload: Record<string, unknown> = {
           msgtype: "text",
           text: { content },
         }
@@ -220,7 +299,7 @@ export function createDingTalkReplier(options) {
       }
       const segments = splitDingTalkText(text, maxLength)
       return sendSegments(segments, (content, index) => {
-        const payload = {
+        const payload: Record<string, unknown> = {
           msgtype: "markdown",
           markdown: { title, text: content },
         }
@@ -232,10 +311,13 @@ export function createDingTalkReplier(options) {
   }
 }
 
-async function runWithTimeout(task, timeoutMs) {
+async function runWithTimeout<T>(
+  task: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+): Promise<T> {
   const controller = new AbortController()
-  let timer
-  const timeout = new Promise((_, reject) => {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
       controller.abort()
       reject(timeoutError(timeoutMs))
@@ -248,16 +330,19 @@ async function runWithTimeout(task, timeoutMs) {
       timeout,
     ])
   } finally {
-    clearTimeout(timer)
+    if (timer) clearTimeout(timer)
   }
 }
 
-async function readResponsePreview(response, maxBytes) {
+async function readResponsePreview(
+  response: WebhookResponse,
+  maxBytes: number,
+): Promise<{ text: string; truncated: boolean }> {
   if (maxBytes === 0) return { text: "", truncated: true }
 
   if (response.body && typeof response.body.getReader === "function") {
     const reader = response.body.getReader()
-    const chunks = []
+    const chunks: Uint8Array[] = []
     let size = 0
     let truncated = false
     try {
@@ -304,7 +389,7 @@ async function readResponsePreview(response, maxBytes) {
   return { text: "", truncated: false }
 }
 
-function buildAtPayload(value) {
+function buildAtPayload(value: DingTalkAtOptions) {
   const atUserIds = cleanIdList(value?.atUserIds)
   const atDingtalkIds = cleanIdList(value?.atDingtalkIds)
   const isAtAll = value?.isAtAll === true
@@ -312,20 +397,24 @@ function buildAtPayload(value) {
     return null
   }
 
-  const result = { isAtAll }
+  const result: {
+    isAtAll: boolean
+    atUserIds?: string[]
+    atDingtalkIds?: string[]
+  } = { isAtAll }
   if (atUserIds.length > 0) result.atUserIds = atUserIds
   if (atDingtalkIds.length > 0) result.atDingtalkIds = atDingtalkIds
   return result
 }
 
-function cleanIdList(value) {
+function cleanIdList(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return [...new Set(value.filter((item) => (
     typeof item === "string" && item.length > 0
   )))]
 }
 
-function concatBytes(chunks, totalLength) {
+function concatBytes(chunks: Uint8Array[], totalLength: number): Uint8Array {
   const output = new Uint8Array(totalLength)
   let offset = 0
   for (const chunk of chunks) {
@@ -335,13 +424,13 @@ function concatBytes(chunks, totalLength) {
   return output
 }
 
-function invalidWebhookError() {
+function invalidWebhookError(): DingTalkWebhookError {
   return new DingTalkWebhookError("DingTalk webhook URL is not allowed", {
     code: "DINGTALK_WEBHOOK_URL_REJECTED",
   })
 }
 
-function timeoutError(timeoutMs, cause) {
+function timeoutError(timeoutMs: number, cause?: unknown): DingTalkWebhookError {
   return new DingTalkWebhookError(
     `DingTalk webhook timed out after ${timeoutMs}ms`,
     {
@@ -351,23 +440,28 @@ function timeoutError(timeoutMs, cause) {
   )
 }
 
-function safeLog(logger, level, event, details) {
+function safeLog(
+  logger: DingTalkLogger | undefined,
+  level: string,
+  event: string,
+  details: unknown,
+): void {
   try {
     logger?.[level]?.(event, details)
   } catch {}
 }
 
-function defaultSleep(ms) {
+function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function requirePositiveInteger(value, name) {
+function requirePositiveInteger(value: number, name: string): void {
   if (!Number.isInteger(value) || value <= 0) {
     throw new RangeError(`${name} must be a positive integer`)
   }
 }
 
-function requireNonNegativeInteger(value, name) {
+function requireNonNegativeInteger(value: number, name: string): void {
   if (!Number.isInteger(value) || value < 0) {
     throw new RangeError(`${name} must be a non-negative integer`)
   }

@@ -10,11 +10,11 @@ const SENSITIVE_NAMES = [
   /(?:^|[._-])private[._-]?key(?:[._-]|$)/i
 ];
 
-function stableId(...parts) {
+function stableId(...parts: string[]): string {
   return createHash("sha256").update(parts.join("\0")).digest("hex").slice(0, 24);
 }
 
-function normalizeExtensions(values) {
+function normalizeExtensions(values?: unknown[]): Set<string> {
   const source = Array.isArray(values) && values.length ? values : [...DEFAULT_EXTENSIONS];
   return new Set(
     source.map((value) => {
@@ -24,20 +24,23 @@ function normalizeExtensions(values) {
   );
 }
 
-function isSensitiveName(name) {
+function isSensitiveName(name: string): boolean {
   return SENSITIVE_NAMES.some((pattern) => pattern.test(name));
 }
 
-function isHiddenSegment(relativePath) {
+function isHiddenSegment(relativePath: string): boolean {
   return relativePath.split(path.sep).some((segment) => segment.startsWith("."));
 }
 
-function titleFromText(text, fallback) {
+function titleFromText(text: string, fallback: string): string {
   const heading = text.match(/^\s*#\s+(.+?)\s*$/m);
   return heading?.[1]?.trim() || fallback;
 }
 
-export function chunkText(text, { maxChars = 1800, overlapChars = 180 } = {}) {
+export function chunkText(
+  text: unknown,
+  { maxChars = 1800, overlapChars = 180 }: { maxChars?: number; overlapChars?: number } = {},
+): string[] {
   const normalized = String(text).replace(/\r\n?/g, "\n").trim();
   if (!normalized) return [];
 
@@ -60,7 +63,15 @@ export function chunkText(text, { maxChars = 1800, overlapChars = 180 } = {}) {
   return chunks;
 }
 
-async function collectFiles(root, options, directory = root, depth = 0, output = []) {
+interface CollectedFile { absolute: string; relative: string }
+interface CollectionOptions { maxDepth: number; maxFiles: number; extensions: Set<string> }
+async function collectFiles(
+  root: string,
+  options: CollectionOptions,
+  directory = root,
+  depth = 0,
+  output: CollectedFile[] = [],
+): Promise<CollectedFile[]> {
   if (depth > options.maxDepth || output.length >= options.maxFiles) return output;
   const entries = await readdir(directory, { withFileTypes: true });
 
@@ -82,7 +93,7 @@ async function collectFiles(root, options, directory = root, depth = 0, output =
   return output;
 }
 
-function sourceUri(sourceId, relativePath, publicBaseUrl) {
+function sourceUri(sourceId: string, relativePath: string, publicBaseUrl?: string): string {
   const normalized = relativePath.split(path.sep).join("/");
   if (publicBaseUrl) {
     const base = new URL(publicBaseUrl.endsWith("/") ? publicBaseUrl : `${publicBaseUrl}/`);
@@ -95,6 +106,15 @@ function sourceUri(sourceId, relativePath, publicBaseUrl) {
 }
 
 export class FileSystemSource {
+  id: string
+  root: string
+  publicBaseUrl?: string
+  options: CollectionOptions & {
+    maxFileBytes: number
+    chunkChars: number
+    overlapChars: number
+  }
+
   constructor({
     id,
     root,
@@ -105,6 +125,16 @@ export class FileSystemSource {
     maxFileBytes = 2 * 1024 * 1024,
     chunkChars = 1_800,
     overlapChars = 180
+  }: {
+    id: string
+    root: string
+    include?: unknown[]
+    publicBaseUrl?: string
+    maxDepth?: number
+    maxFiles?: number
+    maxFileBytes?: number
+    chunkChars?: number
+    overlapChars?: number
   }) {
     if (!id || !root) throw new TypeError("filesystem_source_requires_id_and_root");
     this.id = String(id);
@@ -120,13 +150,13 @@ export class FileSystemSource {
     };
   }
 
-  async load() {
+  async load(): Promise<unknown[]> {
     const root = await realpath(this.root);
     const rootStat = await lstat(root);
     if (!rootStat.isDirectory()) throw new TypeError("filesystem_source_root_must_be_directory");
 
     const files = await collectFiles(root, this.options);
-    const documents = [];
+    const documents: unknown[] = [];
 
     for (const file of files) {
       const stat = await lstat(file.absolute);

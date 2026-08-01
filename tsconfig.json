@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noImplicitOverride": true,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": [
+    "apps/**/*.ts",
+    "connectors/**/*.ts",
+    "packages/**/*.ts",
+    "profiles/**/*.ts",
+    "types/**/*.d.ts"
+  ]
+}

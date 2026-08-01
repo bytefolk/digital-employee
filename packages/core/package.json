@@ -3,9 +3,19 @@
   "version": "0.1.0",
   "description": "Dependency-free runtime primitives for building self-hosted digital employees.",
   "type": "module",
-  "main": "./index.js",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./index.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "prepack": "npm --prefix ../.. run build"
   },
   "engines": {
     "node": ">=20"

@@ -10,14 +10,39 @@ const DEFAULTS = {
   maxTrackedActors: 1_000,
 }
 
-function positiveInteger(value, name, { allowZero = false } = {}) {
+function positiveInteger(
+  value: unknown,
+  name: string,
+  { allowZero = false }: { allowZero?: boolean } = {},
+): number {
   const minimum = allowZero ? 0 : 1
-  if (!Number.isInteger(value) || value < minimum) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < minimum) {
     throw new ValidationError(
       `${name} must be an integer greater than or equal to ${minimum}`,
     )
   }
   return value
+}
+
+interface JobIdentity { actorId: string; jobId?: string }
+interface JobRunnerOptions {
+  maxConcurrent?: number
+  maxQueueSize?: number
+  queueTimeoutMs?: number
+  cooldownMs?: number
+  dedupeWindowMs?: number
+  maxSeenJobs?: number
+  maxTrackedActors?: number
+  clock?: () => number
+  setTimer?: typeof setTimeout
+  clearTimer?: typeof clearTimeout
+}
+interface QueueEntry {
+  identity: JobIdentity
+  task: () => unknown | Promise<unknown>
+  resolve: (value: unknown) => void
+  reject: (reason?: unknown) => void
+  timer: ReturnType<typeof setTimeout> | null
 }
 
 export class JobRunner {
@@ -32,14 +57,14 @@ export class JobRunner {
   #setTimer
   #clearTimer
   #running = 0
-  #runningActors = new Set()
-  #queuedActors = new Set()
-  #queue = []
-  #seenJobs = new Map()
-  #lastStartedByActor = new Map()
+  #runningActors = new Set<string>()
+  #queuedActors = new Set<string>()
+  #queue: QueueEntry[] = []
+  #seenJobs = new Map<string, number>()
+  #lastStartedByActor = new Map<string, number>()
   #closed = false
 
-  constructor(options = {}) {
+  constructor(options: JobRunnerOptions = {}) {
     this.#maxConcurrent = positiveInteger(
       options.maxConcurrent ?? DEFAULTS.maxConcurrent,
       "maxConcurrent",
@@ -76,7 +101,7 @@ export class JobRunner {
     this.#clearTimer = options.clearTimer ?? clearTimeout
   }
 
-  run(identity, task) {
+  run<T>(identity: unknown, task: () => T | Promise<T>): Promise<T> {
     if (this.#closed) {
       return Promise.reject(
         new CoreError("RUNNER_CLOSED", "The job runner is closed.", {
@@ -113,7 +138,7 @@ export class JobRunner {
       )
     }
     this.#recordJob(normalized.jobId)
-    return this.#enqueue(normalized, task)
+    return this.#enqueue(normalized, task) as Promise<T>
   }
 
   snapshot() {
@@ -130,7 +155,7 @@ export class JobRunner {
     if (this.#closed) return
     this.#closed = true
     for (const entry of this.#queue.splice(0)) {
-      this.#clearTimer(entry.timer)
+      if (entry.timer) this.#clearTimer(entry.timer)
       this.#queuedActors.delete(entry.identity.actorId)
       entry.reject(
         new CoreError("RUNNER_CLOSED", "The job runner is closed.", {
@@ -141,7 +166,7 @@ export class JobRunner {
     }
   }
 
-  #validateIdentity(identity) {
+  #validateIdentity(identity: unknown): JobIdentity {
     if (
       identity === null ||
       typeof identity !== "object" ||
@@ -149,24 +174,25 @@ export class JobRunner {
     ) {
       throw new ValidationError("job identity must be an object")
     }
+    const candidate = identity as Record<string, unknown>
     const actorId =
-      typeof identity.actorId === "string" && identity.actorId.trim()
-        ? identity.actorId.trim()
+      typeof candidate.actorId === "string" && candidate.actorId.trim()
+        ? candidate.actorId.trim()
         : "anonymous"
     const jobId =
-      typeof identity.jobId === "string" && identity.jobId.trim()
-        ? identity.jobId.trim()
+      typeof candidate.jobId === "string" && candidate.jobId.trim()
+        ? candidate.jobId.trim()
         : undefined
     return { actorId, jobId }
   }
 
-  #assertAccepted({ actorId, jobId }) {
+  #assertAccepted({ actorId, jobId }: JobIdentity): void {
     const now = this.#clock()
     if (
       jobId &&
       this.#dedupeWindowMs > 0 &&
       this.#seenJobs.has(jobId) &&
-      now - this.#seenJobs.get(jobId) < this.#dedupeWindowMs
+      now - (this.#seenJobs.get(jobId) ?? now) < this.#dedupeWindowMs
     ) {
       throw new CoreError("DUPLICATE_REQUEST", "Duplicate request ignored.", {
         status: 409,
@@ -202,9 +228,9 @@ export class JobRunner {
     }
   }
 
-  #enqueue(identity, task) {
-    return new Promise((resolve, reject) => {
-      const entry = { identity, task, resolve, reject, timer: null }
+  #enqueue(identity: JobIdentity, task: () => unknown | Promise<unknown>) {
+    return new Promise<unknown>((resolve, reject) => {
+      const entry: QueueEntry = { identity, task, resolve, reject, timer: null }
       entry.timer = this.#setTimer(() => {
         const index = this.#queue.indexOf(entry)
         if (index < 0) return
@@ -223,7 +249,7 @@ export class JobRunner {
     })
   }
 
-  async #start(identity, task) {
+  async #start<T>(identity: JobIdentity, task: () => T | Promise<T>): Promise<T> {
     this.#running += 1
     this.#runningActors.add(identity.actorId)
     if (this.#cooldownMs > 0) {
@@ -250,7 +276,8 @@ export class JobRunner {
       this.#queue.length > 0
     ) {
       const entry = this.#queue.shift()
-      this.#clearTimer(entry.timer)
+      if (!entry) continue
+      if (entry.timer) this.#clearTimer(entry.timer)
       this.#queuedActors.delete(entry.identity.actorId)
       this.#start(entry.identity, entry.task).then(
         entry.resolve,
@@ -273,7 +300,7 @@ export class JobRunner {
     }
   }
 
-  #recordJob(jobId) {
+  #recordJob(jobId?: string): void {
     if (jobId && this.#dedupeWindowMs > 0) {
       this.#setBounded(
         this.#seenJobs,
@@ -284,11 +311,17 @@ export class JobRunner {
     }
   }
 
-  #setBounded(map, key, value, maximum) {
+  #setBounded(
+    map: Map<string, number>,
+    key: string,
+    value: number,
+    maximum: number,
+  ): void {
     map.delete(key)
     map.set(key, value)
     while (map.size > maximum) {
-      map.delete(map.keys().next().value)
+      const oldest = map.keys().next().value
+      if (oldest !== undefined) map.delete(oldest)
     }
   }
 }

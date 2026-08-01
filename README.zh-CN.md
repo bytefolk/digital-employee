@@ -175,8 +175,15 @@ Digital Employee 负责消息入口、岗位策略、问答编排、引用、反
 
 ```bash
 npm ci
+npm run typecheck
+npm run build
 npm run check
 npm audit --omit=dev --audit-level=high
 ```
+
+应用、运行时包、连接器、岗位配置与测试均以 TypeScript 作为唯一源码。
+`npm run build` 会在 `dist/` 生成可执行 ESM、类型声明、source map 和公开
+demo 资源；npm 包导出和 CLI 只执行这些编译产物。`scripts/` 目录中的
+JavaScript 仅用于构建、安全与发布自动化，不在运行时 import 链路中。
 
 贡献方式见 [CONTRIBUTING.md](CONTRIBUTING.md)。项目采用 [Apache-2.0](LICENSE) 许可证。

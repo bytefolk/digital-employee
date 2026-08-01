@@ -1,7 +1,8 @@
 import { ValidationError, validateDocument } from "./contracts.js"
+import type { Document, SafeValue } from "./contracts.js"
 
-export function tokenize(input) {
-  const tokens = new Set()
+export function tokenize(input: unknown): Set<string> {
+  const tokens = new Set<string>()
   const text = String(input ?? "").toLowerCase()
 
   for (const match of text.matchAll(/[a-z0-9][a-z0-9_-]*/g)) {
@@ -20,7 +21,7 @@ export function tokenize(input) {
   return tokens
 }
 
-export function lexicalSimilarity(left, right) {
+export function lexicalSimilarity(left: unknown, right: unknown): number {
   const leftTokens = left instanceof Set ? left : tokenize(left)
   const rightTokens = right instanceof Set ? right : tokenize(right)
   if (leftTokens.size === 0 || rightTokens.size === 0) return 0
@@ -32,7 +33,18 @@ export function lexicalSimilarity(left, right) {
   return overlap / Math.sqrt(leftTokens.size * rightTokens.size)
 }
 
-function citationFor(document) {
+interface IndexedDocument extends Document { tokens: Set<string> }
+export interface RetrievedEvidence {
+  id: string
+  title: string
+  text: string
+  source: Document["source"]
+  metadata: { [key: string]: SafeValue }
+  score: number
+  citation: ReturnType<typeof citationFor>
+}
+
+function citationFor(document: Document) {
   return {
     id: document.id,
     label: document.title,
@@ -48,11 +60,14 @@ function citationFor(document) {
 }
 
 export class LexicalRetriever {
-  #documents = new Map()
+  #documents = new Map<string, IndexedDocument>()
   #defaultLimit
   #minScore
 
-  constructor(documents = [], options = {}) {
+  constructor(
+    documents: unknown[] = [],
+    options: { limit?: number; minScore?: number } = {},
+  ) {
     if (!Array.isArray(documents)) {
       throw new ValidationError("documents must be an array")
     }
@@ -73,7 +88,7 @@ export class LexicalRetriever {
     this.addMany(documents)
   }
 
-  add(input) {
+  add(input: unknown): this {
     const document = validateDocument(input)
     this.#documents.set(document.id, {
       ...document,
@@ -84,12 +99,12 @@ export class LexicalRetriever {
     return this
   }
 
-  addMany(documents) {
+  addMany(documents: unknown[]): this {
     for (const document of documents) this.add(document)
     return this
   }
 
-  remove(id) {
+  remove(id: string): boolean {
     return this.#documents.delete(id)
   }
 
@@ -97,7 +112,10 @@ export class LexicalRetriever {
     this.#documents.clear()
   }
 
-  search(query, options = {}) {
+  search(
+    query: unknown,
+    options: { limit?: number; minScore?: number } = {},
+  ): RetrievedEvidence[] {
     if (typeof query !== "string" || !query.trim()) return []
     const limit = options.limit ?? this.#defaultLimit
     const minScore = options.minScore ?? this.#minScore

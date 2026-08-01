@@ -5,17 +5,114 @@ import {
 import {
   createDingTalkReplier,
 } from "./reply.js"
+import type {
+  DingTalkAtOptions,
+  DingTalkFetch,
+  DingTalkReplier,
+} from "./reply.js"
 import {
   createDingTalkStreamSupervisor,
   DingTalkConnectionError,
 } from "./stream.js"
+import type {
+  DingTalkStreamClient,
+  DingTalkStreamSupervisor,
+} from "./stream.js"
+import type { DingTalkNormalizedMessage } from "./message.js"
+
+type UnknownRecord = Record<string, unknown>
+type ChannelLogger = Record<string, ((event: string, details?: unknown) => void) | undefined>
+type ChannelState = "idle" | "starting" | "running" | "failed" | "stopping" | "stopped"
+
+interface DingTalkDependencyErrorOptions extends ErrorOptions {
+  code?: string
+}
+
+interface RuntimeChannelMessage {
+  id: string
+  threadId: string
+  actorId: string
+  text: string
+  channel: "dingtalk"
+  metadata: { messageType: string; quotedText: string | null }
+}
+
+type RuntimeMessageHandler = (message: RuntimeChannelMessage) => unknown | Promise<unknown>
+
+interface DingTalkSdk {
+  TOPIC_ROBOT?: unknown
+  EventAck?: { SUCCESS?: unknown }
+  DWClient?: new (config: ClientFactoryConfig) => DingTalkClient
+}
+
+interface DingTalkClient extends DingTalkStreamClient {
+  registerCallbackListener?: (topic: unknown, listener: EnvelopeListener) => unknown
+  unregisterCallbackListener?: (topic: unknown, listener: EnvelopeListener) => unknown
+  off?: (topic: unknown, listener: EnvelopeListener) => unknown
+  removeListener?: (topic: unknown, listener: EnvelopeListener) => unknown
+  socketCallBackResponse?: (messageId: unknown, ack: unknown) => unknown
+}
+
+interface ClientFactoryConfig {
+  clientId: string
+  clientSecret: string
+  autoReconnect: false
+  keepAlive: true
+  debug: false
+}
+
+type ClientFactory = (config: ClientFactoryConfig) => DingTalkClient
+type EnvelopeListener = (envelope: unknown) => Promise<void>
+
+interface DedupeCache {
+  claim: (key: string) => boolean
+  clear?: () => void
+}
+
+interface ChannelAdapterOptions {
+  clientId?: string
+  clientSecret?: string
+  sdk?: DingTalkSdk
+  client?: DingTalkClient
+  clientFactory?: ClientFactory
+  sdkLoader?: () => Promise<unknown>
+  onMessage: (
+    message: DingTalkNormalizedMessage,
+    context: { reply: DingTalkReplier | null },
+  ) => unknown | Promise<unknown>
+  onError?: (error: unknown, context: { stage: string }) => void
+  logger?: ChannelLogger
+  fetchImpl?: DingTalkFetch
+  dedupe?: DedupeCache
+  dedupeOptions?: Parameters<typeof createDingTalkDedupeCache>[0]
+  replierOptions?: Omit<Parameters<typeof createDingTalkReplier>[0], "webhookUrl">
+  supervisorOptions?: Omit<
+    Parameters<typeof createDingTalkStreamSupervisor>[1],
+    "logger" | "onError"
+  >
+  topic?: unknown
+  successAck?: unknown
+}
+
+interface ChannelOptions extends Omit<ChannelAdapterOptions, "onMessage"> {
+  onMessage?: RuntimeMessageHandler
+}
+
+interface ChannelAdapter {
+  start: () => Promise<ChannelAdapter>
+  stop: () => Promise<void>
+  readonly state: ChannelState
+  readonly client: DingTalkClient | null
+}
 
 export * from "./message.js"
 export * from "./reply.js"
 export * from "./stream.js"
 
 export class DingTalkDependencyError extends Error {
-  constructor(message, options = {}) {
+  code: string
+
+  constructor(message: string, options: DingTalkDependencyErrorOptions = {}) {
     super(message, options)
     this.name = "DingTalkDependencyError"
     this.code = options.code ?? "DINGTALK_DEPENDENCY_ERROR"
@@ -27,13 +124,17 @@ export class DingTalkDependencyError extends Error {
  * lifecycle while preserving the lower-level adapter for advanced use.
  */
 export class DingTalkChannel {
-  constructor(options = {}) {
+  options: ChannelOptions
+  adapter: ChannelAdapter | null
+  replyTargets: Map<string, { reply: DingTalkReplier | null; at: DingTalkAtOptions }>
+
+  constructor(options: ChannelOptions = {}) {
     this.options = { ...options }
     this.adapter = null
     this.replyTargets = new Map()
   }
 
-  async start(handler = this.options.onMessage) {
+  async start(handler: RuntimeMessageHandler | undefined = this.options.onMessage): Promise<this> {
     if (typeof handler !== "function") {
       throw new TypeError("DingTalk channel requires a message handler")
     }
@@ -48,7 +149,7 @@ export class DingTalkChannel {
     this.adapter = createDingTalkChannelAdapter({
       ...adapterOptions,
       onMessage: async (transportMessage, context) => {
-        const message = {
+        const message: RuntimeChannelMessage = {
           id: transportMessage.dedupeKey,
           threadId: transportMessage.threadKey,
           actorId: transportMessage.actorKey,
@@ -74,8 +175,11 @@ export class DingTalkChannel {
     return this
   }
 
-  async reply(message, result) {
-    const target = this.replyTargets.get(message?.id)
+  async reply(
+    message: { id?: string } | null | undefined,
+    result: unknown,
+  ) {
+    const target = message?.id ? this.replyTargets.get(message.id) : undefined
     if (!target?.reply) {
       throw new DingTalkConnectionError(
         "DingTalk reply target is unavailable",
@@ -89,7 +193,7 @@ export class DingTalkChannel {
     return target.reply.replyText(text, target.at)
   }
 
-  async stop() {
+  async stop(): Promise<void> {
     try {
       await this.adapter?.stop()
     } finally {
@@ -107,8 +211,8 @@ export class DingTalkChannel {
  * channel-only installations.
  */
 export async function loadDingTalkStreamSdk(
-  importer = () => import("dingtalk-stream"),
-) {
+  importer: () => Promise<unknown> = () => import("dingtalk-stream"),
+): Promise<unknown> {
   try {
     return await importer()
   } catch (error) {
@@ -127,7 +231,9 @@ export async function loadDingTalkStreamSdk(
  *
  * Tests may inject sdk, client, clientFactory, fetchImpl, clocks, and sleep.
  */
-export function createDingTalkChannelAdapter(options = {}) {
+export function createDingTalkChannelAdapter(
+  options: ChannelAdapterOptions,
+): ChannelAdapter {
   const {
     clientId,
     clientSecret,
@@ -138,7 +244,7 @@ export function createDingTalkChannelAdapter(options = {}) {
     onMessage,
     onError,
     logger,
-    fetchImpl = globalThis.fetch,
+    fetchImpl = globalThis.fetch as DingTalkFetch,
     dedupe = createDingTalkDedupeCache(options.dedupeOptions),
     replierOptions = {},
     supervisorOptions = {},
@@ -151,14 +257,14 @@ export function createDingTalkChannelAdapter(options = {}) {
     throw new TypeError("dedupe.claim must be a function")
   }
 
-  let state = "idle"
-  let client = null
-  let sdk = null
-  let supervisor = null
-  let unsubscribe = null
-  let listener = null
+  let state: ChannelState = "idle"
+  let client: DingTalkClient | null = null
+  let sdk: DingTalkSdk | null = null
+  let supervisor: DingTalkStreamSupervisor | null = null
+  let unsubscribe: (() => void) | null = null
+  let listener: EnvelopeListener | null = null
 
-  async function start() {
+  async function start(): Promise<ChannelAdapter> {
     if (state === "running") return adapter
     if (state !== "idle") {
       throw new DingTalkConnectionError(
@@ -172,7 +278,7 @@ export function createDingTalkChannelAdapter(options = {}) {
       sdk = injectedSdk ?? (
         (injectedClient || clientFactory) && options.topic
           ? {}
-          : await sdkLoader()
+          : await sdkLoader() as DingTalkSdk
       )
       client = injectedClient ?? createClient({
         sdk,
@@ -195,8 +301,9 @@ export function createDingTalkChannelAdapter(options = {}) {
         )
       }
 
+      const activeClient = client
       listener = async (envelope) => {
-        acknowledgeEnvelope(client, envelope, {
+        acknowledgeEnvelope(activeClient, envelope, {
           successAck: options.successAck ?? sdk?.EventAck?.SUCCESS,
           onError: (error) => reportError(error, "ack"),
         })
@@ -232,7 +339,9 @@ export function createDingTalkChannelAdapter(options = {}) {
       }
 
       const registration = client.registerCallbackListener(topic, listener)
-      if (typeof registration === "function") unsubscribe = registration
+      if (typeof registration === "function") {
+        unsubscribe = registration as () => void
+      }
 
       supervisor = createDingTalkStreamSupervisor(client, {
         logger,
@@ -256,7 +365,7 @@ export function createDingTalkChannelAdapter(options = {}) {
     }
   }
 
-  async function stop() {
+  async function stop(): Promise<void> {
     if (state === "stopped") return
     state = "stopping"
     safeUnsubscribe()
@@ -270,7 +379,7 @@ export function createDingTalkChannelAdapter(options = {}) {
     }
   }
 
-  function reportError(error, stage) {
+  function reportError(error: unknown, stage: string): void {
     safeLog(logger, "error", "dingtalk.channel.error", {
       stage,
       errorCode: safeErrorCode(error),
@@ -280,7 +389,7 @@ export function createDingTalkChannelAdapter(options = {}) {
     } catch {}
   }
 
-  function safeUnsubscribe() {
+  function safeUnsubscribe(): void {
     if (unsubscribe) {
       try {
         unsubscribe()
@@ -320,16 +429,27 @@ export function createDingTalkChannelAdapter(options = {}) {
   return adapter
 }
 
-function createClient({ sdk, clientId, clientSecret, clientFactory }) {
+function createClient({
+  sdk,
+  clientId,
+  clientSecret,
+  clientFactory,
+}: {
+  sdk: DingTalkSdk
+  clientId?: string
+  clientSecret?: string
+  clientFactory?: ClientFactory
+}): DingTalkClient {
   if (!clientId || !clientSecret) {
     throw new DingTalkDependencyError(
       "DingTalk client credentials are required when no client is injected",
       { code: "DINGTALK_CREDENTIALS_MISSING" },
     )
   }
+  const ClientConstructor = sdk.DWClient
   const factory = clientFactory ?? (
-    typeof sdk?.DWClient === "function"
-      ? (config) => new sdk.DWClient(config)
+    typeof ClientConstructor === "function"
+      ? (config: ClientFactoryConfig) => new ClientConstructor(config)
       : null
   )
   if (!factory) {
@@ -347,8 +467,14 @@ function createClient({ sdk, clientId, clientSecret, clientFactory }) {
   })
 }
 
-function acknowledgeEnvelope(client, envelope, options) {
-  const messageId = envelope?.headers?.messageId ?? envelope?.headers?.messageid
+function acknowledgeEnvelope(
+  client: DingTalkClient,
+  envelope: unknown,
+  options: { successAck: unknown; onError: (error: unknown) => void },
+): void {
+  const envelopeRecord = asRecord(envelope)
+  const headers = asRecord(envelopeRecord?.headers)
+  const messageId = headers?.messageId ?? headers?.messageid
   if (!messageId || typeof client.socketCallBackResponse !== "function") return
   try {
     const result = client.socketCallBackResponse(messageId, options.successAck)
@@ -358,25 +484,32 @@ function acknowledgeEnvelope(client, envelope, options) {
   }
 }
 
-function buildSenderAt(sender) {
+function buildSenderAt(sender: DingTalkNormalizedMessage["sender"]): DingTalkAtOptions {
   if (sender?.userId) return { atUserIds: [sender.userId] }
   if (sender?.encryptedId) return { atDingtalkIds: [sender.encryptedId] }
   return {}
 }
 
-function formatRuntimeReply(result) {
-  const answer = typeof result?.answer === "string" && result.answer.trim()
-    ? result.answer.trim()
-    : typeof result?.escalation?.message === "string"
-      ? result.escalation.message.trim()
+function formatRuntimeReply(result: unknown): string {
+  const resultRecord = asRecord(result)
+  const escalation = asRecord(resultRecord?.escalation)
+  const answer = typeof resultRecord?.answer === "string" && resultRecord.answer.trim()
+    ? resultRecord.answer.trim()
+    : typeof escalation?.message === "string"
+      ? escalation.message.trim()
       : ""
   if (!answer) return ""
 
-  const citations = Array.isArray(result?.citations)
-    ? result.citations
+  const citations = Array.isArray(resultRecord?.citations)
+    ? resultRecord.citations
       .map((citation) => {
-        const label = firstNonEmptyString(citation?.label, citation?.title, citation?.id)
-        const uri = firstNonEmptyString(citation?.uri)
+        const citationRecord = asRecord(citation)
+        const label = firstNonEmptyString(
+          citationRecord?.label,
+          citationRecord?.title,
+          citationRecord?.id,
+        )
+        const uri = firstNonEmptyString(citationRecord?.uri)
         if (!label && !uri) return null
         if (label && uri) return `- ${label}: ${uri}`
         return `- ${label ?? uri}`
@@ -388,22 +521,39 @@ function formatRuntimeReply(result) {
     : answer
 }
 
-function firstNonEmptyString(...values) {
+function firstNonEmptyString(...values: unknown[]): string | null {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) return value.trim()
   }
   return null
 }
 
-function safeErrorCode(error) {
-  if (typeof error?.code === "string" && error.code.length > 0) {
+function safeErrorCode(error: unknown): string {
+  if (
+    error !== null &&
+    typeof error === "object" &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    error.code.length > 0
+  ) {
     return error.code
   }
   return "DINGTALK_UNKNOWN_ERROR"
 }
 
-function safeLog(logger, level, event, details) {
+function safeLog(
+  logger: ChannelLogger | undefined,
+  level: string,
+  event: string,
+  details?: unknown,
+): void {
   try {
     logger?.[level]?.(event, details)
   } catch {}
+}
+
+function asRecord(value: unknown): UnknownRecord | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as UnknownRecord
+    : null
 }

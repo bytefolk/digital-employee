@@ -1,5 +1,12 @@
 import { spawn as nodeSpawn } from "node:child_process";
+import type { ChildProcessWithoutNullStreams, SpawnOptions } from "node:child_process";
 import { dwsError } from "./errors.js";
+
+export type SpawnFunction = (
+  executable: string,
+  args: string[],
+  options: SpawnOptions
+) => ChildProcessWithoutNullStreams;
 
 export function runDwsJson({
   executable,
@@ -7,10 +14,17 @@ export function runDwsJson({
   env,
   timeoutMs,
   maxOutputBytes,
-  spawnImpl = nodeSpawn
-}) {
+  spawnImpl = nodeSpawn as SpawnFunction
+}: {
+  executable: string
+  args: string[]
+  env: NodeJS.ProcessEnv
+  timeoutMs: number
+  maxOutputBytes: number
+  spawnImpl?: SpawnFunction
+}): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    let child;
+    let child: ChildProcessWithoutNullStreams;
     try {
       child = spawnImpl(executable, args, {
         shell: false,
@@ -24,23 +38,23 @@ export function runDwsJson({
 
     let settled = false;
     let outputBytes = 0;
-    const stdout = [];
+    const stdout: Buffer[] = [];
 
-    const finish = (operation) => {
+    const finish = (operation: () => void) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       operation();
     };
 
-    const failAndKill = (error) => {
+    const failAndKill = (error: unknown) => {
       finish(() => {
         child.kill("SIGKILL");
         reject(error);
       });
     };
 
-    const captureStdout = (chunk) => {
+    const captureStdout = (chunk: Buffer) => {
       if (settled) return;
       outputBytes += chunk.length;
       if (outputBytes > maxOutputBytes) {
@@ -54,7 +68,7 @@ export function runDwsJson({
       stdout.push(Buffer.from(chunk));
     };
 
-    const countStderr = (chunk) => {
+    const countStderr = (chunk: Buffer) => {
       if (settled) return;
       outputBytes += chunk.length;
       if (outputBytes > maxOutputBytes) {

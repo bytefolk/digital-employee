@@ -26,14 +26,35 @@ export function validateRelease({ manifest, coreManifest, changelog, tag }) {
   if (manifest.publishConfig?.access !== "public") {
     errors.push("publishConfig.access must be public");
   }
-  if (manifest.bin?.["digital-employee"] !== "./apps/cli/bin.js") {
+  if (manifest.bin?.["digital-employee"] !== "./dist/apps/cli/bin.js") {
     errors.push("digital-employee CLI entry point is missing");
   }
-  if (!Array.isArray(manifest.files) || !manifest.files.includes("apps")) {
-    errors.push("published files must include the application entry points");
+  if (manifest.types !== "./dist/packages/core/index.d.ts") {
+    errors.push("root package types must use compiled declarations");
+  }
+  if (manifest.exports?.["."]?.import !== "./dist/packages/core/index.js") {
+    errors.push("root package export must use compiled runtime output");
+  }
+  if (!Array.isArray(manifest.files) || !manifest.files.includes("dist")) {
+    errors.push("published files must include compiled distribution artifacts");
+  }
+  if (["apps", "packages", "connectors", "profiles"].some((entry) =>
+    manifest.files?.includes(entry)
+  )) {
+    errors.push("published files must not include duplicate TypeScript source trees");
   }
   if (coreManifest.version !== version) {
     errors.push("core and root package versions must match");
+  }
+  if (
+    coreManifest.main !== "./dist/index.js" ||
+    coreManifest.types !== "./dist/index.d.ts" ||
+    coreManifest.exports?.["."]?.import !== "./dist/index.js"
+  ) {
+    errors.push("core package entry points must use compiled output");
+  }
+  if (!Array.isArray(coreManifest.files) || !coreManifest.files.includes("dist")) {
+    errors.push("core package must publish compiled distribution artifacts");
   }
 
   const heading = new RegExp(

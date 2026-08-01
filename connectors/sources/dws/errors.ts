@@ -1,5 +1,8 @@
 export class DwsConnectorError extends Error {
-  constructor(code, details = {}) {
+  code: string
+  details: Record<string, unknown>
+
+  constructor(code: string, details: Record<string, unknown> = {}) {
     super(code);
     this.name = "DwsConnectorError";
     this.code = code;
@@ -7,6 +10,6 @@ export class DwsConnectorError extends Error {
   }
 }
 
-export function dwsError(code, details) {
+export function dwsError(code: string, details: Record<string, unknown> = {}) {
   return new DwsConnectorError(code, details);
 }

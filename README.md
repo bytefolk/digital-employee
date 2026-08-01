@@ -207,9 +207,18 @@ that memory plane.
 
 ```bash
 npm ci
+npm run typecheck
+npm run build
 npm run check
 npm audit --omit=dev --audit-level=high
 ```
+
+TypeScript is the source of truth for applications, runtime packages,
+connectors, profiles, and tests. `npm run build` creates executable ESM,
+declarations, source maps, and public demo assets under `dist/`; published
+package exports and the CLI use only that compiled output. The JavaScript
+files under `scripts/` are build, security, and release automation and are not
+part of the runtime import graph.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Licensed under
 [Apache-2.0](LICENSE).

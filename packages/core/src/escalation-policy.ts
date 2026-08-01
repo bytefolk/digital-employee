@@ -1,4 +1,34 @@
 import { ValidationError, sanitizeDetails } from "./contracts.js"
+import type { ModelResponse } from "./contracts.js"
+
+interface EscalationContext {
+  error?: unknown
+  response?: ModelResponse | null
+  evidence?: unknown[]
+  citations?: unknown[]
+  [key: string]: unknown
+}
+type EscalationRule = (
+  context: EscalationContext,
+) => boolean | { required: boolean; reason?: string; details?: unknown } | null
+interface EscalationOptions {
+  minConfidence?: number
+  minEvidence?: number
+  minCitations?: number
+  escalateOnError?: boolean
+  target?: string
+  message?: string
+  rules?: EscalationRule[]
+}
+export type EscalationDecision =
+  | { required: false }
+  | {
+      required: true
+      reason: string
+      target: string
+      message: string
+      details?: ReturnType<typeof sanitizeDetails>
+    }
 
 export class EscalationPolicy {
   #minConfidence
@@ -7,9 +37,9 @@ export class EscalationPolicy {
   #escalateOnError
   #target
   #message
-  #rules
+  #rules: EscalationRule[]
 
-  constructor(options = {}) {
+  constructor(options: EscalationOptions = {}) {
     this.#minConfidence = options.minConfidence ?? 0.55
     this.#minEvidence = options.minEvidence ?? 1
     this.#minCitations = options.minCitations ?? 1
@@ -45,9 +75,9 @@ export class EscalationPolicy {
     }
   }
 
-  evaluate(context = {}) {
-    let reason = null
-    let details
+  evaluate(context: EscalationContext = {}): EscalationDecision {
+    let reason: string | null = null
+    let details: unknown
 
     if (context.error && this.#escalateOnError) {
       reason = "execution_error"
@@ -96,9 +126,9 @@ export class EscalationPolicy {
       }
     }
 
-    if (!reason) return { required: false }
+    if (!reason) return { required: false as const }
     return {
-      required: true,
+      required: true as const,
       reason,
       target: this.#target,
       message: this.#message,

@@ -3,6 +3,11 @@ export function createAnswerAgentProfile({
   displayName = "Answer Agent",
   domain = "the configured team knowledge",
   instructions
+}: {
+  id?: string
+  displayName?: string
+  domain?: string
+  instructions?: string
 } = {}) {
   return Object.freeze({
     id,

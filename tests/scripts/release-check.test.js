@@ -70,7 +70,12 @@ test("release workflow has independently scoped jobs for all channels", async ()
   assert.match(workflow, /^\s{2}github-release:$/m);
   assert.match(workflow, /^\s{2}npm:$/m);
   assert.match(workflow, /^\s{2}ghcr:$/m);
-  assert.match(workflow, /npm publish --access public --provenance/);
+  assert.match(workflow, /^\s{6}id-token: write$/m);
+  assert.match(workflow, /npm install --global npm@11\.18\.0/);
+  assert.match(workflow, /npm publish --access public/);
+  assert.doesNotMatch(workflow, /NPM_TOKEN|NODE_AUTH_TOKEN/);
+  assert.match(workflow, /actions\/checkout@v6/);
+  assert.match(workflow, /actions\/setup-node@v6/);
   assert.match(workflow, /gh release (?:create|upload)/);
   assert.match(workflow, /docker push/);
 });

@@ -6,6 +6,29 @@ Digital Employee 是一个开源、自托管的数字员工运行时。它把岗
 
 首个已经交付的岗位是 `answer-agent`：一个默认只读、答案带出处、证据不足就转人工的团队答疑员工。
 
+## 安装正式版本
+
+同一个 `0.1.0` 版本通过三个公开渠道分发：
+
+| 渠道 | 安装或下载方式 |
+| --- | --- |
+| npm | `npm install --global @fullstack-ai-infra/digital-employee@0.1.0` |
+| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.1.0` |
+| GitHub Release | 从 [Releases](https://github.com/fullstack-ai-infra/digital-employee/releases) 下载软件包和校验文件 |
+
+npm 安装后，可以在任意目录运行无需凭证的演示：
+
+```bash
+digital-employee ask --question "What should I include in an incident report?"
+```
+
+也可以直接通过容器启动 HTTP 演示：
+
+```bash
+docker run --rm -p 3000:3000 \
+  ghcr.io/fullstack-ai-infra/digital-employee:0.1.0
+```
+
 ## 不是只开源一个机器人
 
 `answer-agent` 是岗位模板，不是整个产品。岗位模板负责定义：

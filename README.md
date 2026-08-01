@@ -9,6 +9,29 @@ The first shipped profile is `answer-agent`: a read-only team support employee
 that answers with citations, refuses unsupported claims, and escalates
 uncertainty to a human.
 
+## Install a release
+
+The same `0.1.0` release is distributed through three public channels:
+
+| Channel | Command or download |
+| --- | --- |
+| npm | `npm install --global @fullstack-ai-infra/digital-employee@0.1.0` |
+| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.1.0` |
+| GitHub Release | Download the package and checksum from [Releases](https://github.com/fullstack-ai-infra/digital-employee/releases) |
+
+After an npm install, run the zero-credential demo from any directory:
+
+```bash
+digital-employee ask --question "What should I include in an incident report?"
+```
+
+Or start the HTTP demo from the container:
+
+```bash
+docker run --rm -p 3000:3000 \
+  ghcr.io/fullstack-ai-infra/digital-employee:0.1.0
+```
+
 ## Why a runtime, not one bot
 
 `answer-agent` is a role profile, not the whole product. A profile defines an

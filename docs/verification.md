@@ -9,7 +9,7 @@ provider integration.
 | Path | Evidence | Result |
 | --- | --- | --- |
 | Local answer and escalation | Public example files, extractive model, real CLI process | Verified |
-| Automated suite | `npm run check` | 80 passed; security check passed |
+| Automated suite | `npm run check` | 84 passed; security check passed |
 | Dependency audit | `npm audit --omit=dev --audit-level=high` | 0 known vulnerabilities |
 | Container | Built `Dockerfile`, started the image, called `/health` and `/v1/ask` | Verified |
 | HTTP session isolation | Client-selected request, actor, and session IDs are rejected; each built-in HTTP call receives a server-generated isolated session | Verified by automated test |

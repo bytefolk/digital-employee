@@ -34,15 +34,15 @@ interface JobRunnerOptions {
   maxSeenJobs?: number
   maxTrackedActors?: number
   clock?: () => number
-  setTimer?: typeof setTimeout
-  clearTimer?: typeof clearTimeout
+  setTimer?: (callback: () => void, delayMs: number) => unknown
+  clearTimer?: (timer: unknown) => void
 }
 interface QueueEntry {
   identity: JobIdentity
   task: () => unknown | Promise<unknown>
   resolve: (value: unknown) => void
   reject: (reason?: unknown) => void
-  timer: ReturnType<typeof setTimeout> | null
+  timer: unknown | null
 }
 
 export class JobRunner {
@@ -97,8 +97,10 @@ export class JobRunner {
       "maxTrackedActors",
     )
     this.#clock = options.clock ?? (() => Date.now())
-    this.#setTimer = options.setTimer ?? setTimeout
-    this.#clearTimer = options.clearTimer ?? clearTimeout
+    this.#setTimer = options.setTimer ?? ((callback, delayMs) =>
+      setTimeout(callback, delayMs))
+    this.#clearTimer = options.clearTimer ?? ((timer) =>
+      clearTimeout(timer as ReturnType<typeof setTimeout>))
   }
 
   run<T>(identity: unknown, task: () => T | Promise<T>): Promise<T> {

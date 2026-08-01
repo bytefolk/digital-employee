@@ -42,6 +42,9 @@ interface Evidence {
 interface SearchProvider {
   search: (query: string, options?: { limit?: number }) => unknown[] | Promise<unknown[]>
 }
+interface EscalationEvaluator {
+  evaluate: EscalationPolicy["evaluate"]
+}
 interface EmployeeOptions {
   id?: string
   instructions?: string
@@ -50,7 +53,7 @@ interface EmployeeOptions {
   retriever?: SearchProvider
   faqStore?: VerifiedFaqStore
   sessionStore?: SessionStore
-  escalationPolicy?: EscalationPolicy
+  escalationPolicy?: EscalationEvaluator
   jobRunner?: JobRunner
   tools?: unknown[]
   readOnly?: boolean
@@ -69,7 +72,7 @@ export class DigitalEmployee {
   #retriever: SearchProvider
   #faqStore: VerifiedFaqStore
   #sessionStore: SessionStore
-  #escalationPolicy: EscalationPolicy
+  #escalationPolicy: EscalationEvaluator
   #jobRunner: JobRunner
   #tools: Map<string, Tool>
   #readOnly

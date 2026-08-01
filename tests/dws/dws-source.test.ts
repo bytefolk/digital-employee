@@ -7,15 +7,16 @@ import {
   DwsConnectorError,
   DwsKnowledgeSource
 } from "../../connectors/sources/dws/index.js";
+import type { DwsSourceOptions } from "../../connectors/sources/dws/index.js";
 
 const FIXTURE = new URL("./fixtures/fake-dws.mjs", import.meta.url).pathname;
 const PROFILE = "corp-id:user-id";
 
-function query(name, command, args) {
+function query(name: string, command: string | string[], args: string[]) {
   return { name, command, args };
 }
 
-function source(options = {}) {
+function source(options: DwsSourceOptions = {}) {
   return new DwsKnowledgeSource({
     profile: PROFILE,
     executable: FIXTURE,
@@ -25,6 +26,10 @@ function source(options = {}) {
     env: { ...process.env, FAKE_DWS_MODE: "ok" },
     ...options
   });
+}
+
+function hasDwsCode(error: unknown, code: string): boolean {
+  return error instanceof DwsConnectorError && error.code === code;
 }
 
 test("loads multiple explicitly approved DWS knowledge queries with provenance", async () => {
@@ -81,6 +86,7 @@ test("loads multiple explicitly approved DWS knowledge queries with provenance",
     )
   );
   const doc = documents.find((document) => document.source.id === "doc-42");
+  assert.ok(doc);
   assert.equal(doc.source.uri, "https://example.test/docs/doc-42");
   assert.equal(doc.source.updatedAt, "2026-07-30T08:30:00.000Z");
   assert.match(doc.text, /staged rollout/);
@@ -161,7 +167,7 @@ test("rejects non-allowlisted commands and unsafe argument overrides", () => {
           query("write", ["doc", "update"], ["--node", "doc-42"])
         ]
       }),
-    (error) => error.code === "dws_query_command_not_allowlisted"
+    (error: unknown) => hasDwsCode(error, "dws_query_command_not_allowlisted")
   );
   assert.throws(
     () =>
@@ -174,7 +180,7 @@ test("rejects non-allowlisted commands and unsafe argument overrides", () => {
           )
         ]
       }),
-    (error) => error.code === "dws_query_reserved_global_flag"
+    (error: unknown) => hasDwsCode(error, "dws_query_reserved_global_flag")
   );
   assert.throws(
     () =>
@@ -187,7 +193,7 @@ test("rejects non-allowlisted commands and unsafe argument overrides", () => {
           )
         ]
       }),
-    (error) => error.code === "dws_query_reserved_global_flag"
+    (error: unknown) => hasDwsCode(error, "dws_query_reserved_global_flag")
   );
   assert.throws(
     () =>
@@ -196,7 +202,7 @@ test("rejects non-allowlisted commands and unsafe argument overrides", () => {
           query("shortcut", ["doc", "+search"], ["--query", "handbook"])
         ]
       }),
-    (error) => error.code === "dws_query_invalid_command_path"
+    (error: unknown) => hasDwsCode(error, "dws_query_invalid_command_path")
   );
 });
 
@@ -208,7 +214,7 @@ test("requires an explicit scope instead of falling back to account-wide scans",
           query("recent-docs", ["doc", "search"], [])
         ]
       }),
-    (error) => error.code === "dws_query_missing_required_flag"
+    (error: unknown) => hasDwsCode(error, "dws_query_missing_required_flag")
   );
   assert.throws(
     () =>
@@ -228,7 +234,7 @@ test("requires an explicit scope instead of falling back to account-wide scans",
           )
         ]
       }),
-    (error) => error.code === "dws_query_missing_required_flag"
+    (error: unknown) => hasDwsCode(error, "dws_query_missing_required_flag")
   );
   assert.throws(
     () =>
@@ -237,7 +243,7 @@ test("requires an explicit scope instead of falling back to account-wide scans",
           query("my-drive-root", ["drive", "list"], [])
         ]
       }),
-    (error) => error.code === "dws_query_missing_required_scope"
+    (error: unknown) => hasDwsCode(error, "dws_query_missing_required_scope")
   );
 });
 
@@ -271,7 +277,7 @@ test("rejects failed, non-JSON, and oversized DWS output", async (t) => {
       source({
         env: { ...process.env, FAKE_DWS_MODE: "non-json" }
       }).load(),
-      (error) => error.code === "dws_command_returned_non_json"
+      (error: unknown) => hasDwsCode(error, "dws_command_returned_non_json")
     );
   });
   await t.test("output cap", async () => {
@@ -280,14 +286,14 @@ test("rejects failed, non-JSON, and oversized DWS output", async (t) => {
         maxOutputBytes: 1_024,
         env: { ...process.env, FAKE_DWS_MODE: "oversize" }
       }).load(),
-      (error) => error.code === "dws_process_output_too_large"
+      (error: unknown) => hasDwsCode(error, "dws_process_output_too_large")
     );
   });
 });
 
 test("does not copy profile, arguments, stdout, or stderr into errors and logs", async () => {
   const secret = "TOP-SECRET-VALUE";
-  const logs = [];
+  const logs: Array<Readonly<Record<string, unknown>>> = [];
   const dws = source({
     profile: `corp:${secret}`,
     approvedQueries: [
@@ -298,12 +304,12 @@ test("does not copy profile, arguments, stdout, or stderr into errors and logs",
       FAKE_DWS_MODE: "fail",
       FAKE_DWS_SECRET: secret
     },
-    logger(event) {
+    logger(event: Readonly<Record<string, unknown>>) {
       logs.push(event);
     }
   });
 
-  let failure;
+  let failure: unknown;
   try {
     await dws.load();
   } catch (error) {

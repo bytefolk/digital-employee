@@ -22,7 +22,9 @@ test("answer request validation normalizes IDs and redacts secret metadata", () 
   assert.equal(request.sessionId, "actor-1")
   assert.equal(request.message, "Where is the handbook?")
   assert.equal(request.metadata.apiKey, "[REDACTED]")
-  assert.equal(request.metadata.nested.note, "token=[REDACTED]")
+  const nested = request.metadata.nested
+  assert.ok(nested && typeof nested === "object" && !Array.isArray(nested))
+  assert.equal(nested.note, "token=[REDACTED]")
 })
 
 test("model response supports the public needsHuman contract", () => {

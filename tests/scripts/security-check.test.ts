@@ -12,7 +12,7 @@ const repositoryRoot = path.resolve(
 );
 const securityCheck = path.join(repositoryRoot, "scripts/security-check.js");
 
-function runSecurityCheck(cwd) {
+function runSecurityCheck(cwd: string) {
   return spawnSync(process.execPath, [securityCheck], {
     cwd,
     encoding: "utf8"

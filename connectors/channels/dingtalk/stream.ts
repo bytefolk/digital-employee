@@ -16,7 +16,6 @@ export interface DingTalkStreamClient {
   connected?: boolean
   heartbeat?: (...args: unknown[]) => unknown
   onDownStream?: (...args: unknown[]) => unknown
-  [key: string]: unknown
 }
 
 type StreamLogger = Record<string, ((event: string, details?: unknown) => void) | undefined>

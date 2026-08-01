@@ -9,6 +9,7 @@ import {
   postDingTalkWebhook,
   splitDingTalkText,
 } from "../../connectors/channels/dingtalk/reply.js"
+import type { DingTalkFetch } from "../../connectors/channels/dingtalk/reply.js"
 
 const VALID_WEBHOOK =
   "https://oapi.dingtalk.com/robot/sendBySession?session=example"
@@ -48,9 +49,9 @@ test("webhook validation accepts exact official hosts only", () => {
 })
 
 test("createDingTalkReplier sends ordered segments and mentions only on the first", async () => {
-  const requests = []
-  const sleeps = []
-  const fetchImpl = async (url, init) => {
+  const requests: Array<{ url: string; init: RequestInit }> = []
+  const sleeps: number[] = []
+  const fetchImpl: DingTalkFetch = async (url, init) => {
     requests.push({ url: String(url), init })
     return { ok: true, status: 200 }
   }
@@ -59,7 +60,7 @@ test("createDingTalkReplier sends ordered segments and mentions only on the firs
     fetchImpl,
     maxLength: 5,
     segmentDelayMs: 20,
-    sleep: async (ms) => sleeps.push(ms),
+    sleep: async (ms) => { sleeps.push(ms) },
   })
 
   const results = await replier.replyText("abcdefghijk", {
@@ -70,15 +71,15 @@ test("createDingTalkReplier sends ordered segments and mentions only on the firs
   assert.equal(requests.length, 3)
   assert.equal(
     requests
-      .map(({ init }) => JSON.parse(init.body).text.content)
+      .map(({ init }) => JSON.parse(String(init.body)).text.content)
       .join(""),
     "abcdefghijk",
   )
-  assert.deepEqual(JSON.parse(requests[0].init.body).at, {
+  assert.deepEqual(JSON.parse(String(requests[0]?.init.body)).at, {
     isAtAll: false,
     atUserIds: ["user-example"],
   })
-  assert.equal("at" in JSON.parse(requests[1].init.body), false)
+  assert.equal("at" in JSON.parse(String(requests[1]?.init.body)), false)
   assert.equal(requests.every(({ init }) => init.redirect === "manual"), true)
   assert.equal(requests.every(({ init }) => init.signal instanceof AbortSignal), true)
   assert.deepEqual(sleeps, [20, 20])
@@ -98,8 +99,9 @@ test("postDingTalkWebhook truncates an error response body", async () => {
       fetchImpl,
       responsePreviewBytes: 8,
     }),
-    (error) => {
+    (error: unknown) => {
       assert.equal(error instanceof DingTalkWebhookError, true)
+      if (!(error instanceof DingTalkWebhookError)) return false
       assert.equal(error.code, "DINGTALK_WEBHOOK_HTTP_ERROR")
       assert.equal(error.status, 502)
       assert.equal(error.bodyPreview, "01234567")
@@ -111,7 +113,7 @@ test("postDingTalkWebhook truncates an error response body", async () => {
 })
 
 test("postDingTalkWebhook times out even if an injected fetch ignores abort", async () => {
-  const fetchImpl = async () => new Promise(() => {})
+  const fetchImpl: DingTalkFetch = async () => new Promise(() => {})
 
   await assert.rejects(
     postDingTalkWebhook({
@@ -120,7 +122,8 @@ test("postDingTalkWebhook times out even if an injected fetch ignores abort", as
       fetchImpl,
       timeoutMs: 10,
     }),
-    (error) => {
+    (error: unknown) => {
+      if (!(error instanceof DingTalkWebhookError)) return false
       assert.equal(error.code, "DINGTALK_WEBHOOK_TIMEOUT")
       return true
     },
@@ -135,6 +138,7 @@ test("postDingTalkWebhook rejects a URL before invoking fetch", async () => {
       payload: {},
       fetchImpl: async () => {
         called = true
+        return { ok: true, status: 200 }
       },
     }),
     { code: "DINGTALK_WEBHOOK_URL_REJECTED" },

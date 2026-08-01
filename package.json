@@ -41,7 +41,7 @@
   ],
   "scripts": {
     "build": "tsc --project tsconfig.build.json && node ./scripts/copy-build-assets.js",
-    "typecheck": "tsc --project tsconfig.json",
+    "typecheck": "tsc --project tsconfig.json && tsc --project tsconfig.test.json",
     "ask": "npm run build --silent && node ./dist/apps/cli/bin.js ask",
     "demo": "npm run build --silent && node ./dist/apps/cli/bin.js ask --config ./dist/configs/demo.json",
     "serve": "npm run build --silent && node ./dist/apps/cli/bin.js serve",

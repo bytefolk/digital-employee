@@ -1,28 +1,30 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createHttpServer } from "../../apps/server/server.js";
+import type { Server } from "node:http";
+import type { AddressInfo } from "node:net";
 
-async function listen(server) {
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
+async function listen(server: Server): Promise<string> {
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address() as AddressInfo;
   return `http://127.0.0.1:${address.port}`;
 }
 
-async function close(server) {
-  await new Promise((resolve, reject) =>
+async function close(server: Server): Promise<void> {
+  await new Promise<void>((resolve, reject) =>
     server.close((error) => (error ? reject(error) : resolve()))
   );
 }
 
 test("HTTP server exposes health and protects ask with a token", async () => {
-  let receivedRequest;
+  let receivedRequest: Record<string, unknown> | undefined;
   const employee = {
-    answer: async (request) => {
+    answer: async (request: Record<string, unknown>) => {
       receivedRequest = request;
       return {
         ok: true,
         status: "answered",
-        answer: `answer:${request.message}`,
+        answer: `answer:${String(request.message)}`,
         citations: []
       };
     }
@@ -51,10 +53,13 @@ test("HTTP server exposes health and protects ask with a token", async () => {
       body: JSON.stringify({ message: "hello" })
     });
     assert.equal(response.status, 200);
-    assert.equal((await response.json()).answer, "answer:hello");
-    assert.match(receivedRequest.requestId, /^[0-9a-f-]{36}$/);
-    assert.equal(receivedRequest.sessionId, `http-${receivedRequest.requestId}`);
-    assert.equal(receivedRequest.actorId, `http-${receivedRequest.requestId}`);
+    const responseBody = await response.json() as { answer: string };
+    assert.equal(responseBody.answer, "answer:hello");
+    assert.ok(receivedRequest);
+    const requestId = String(receivedRequest.requestId);
+    assert.match(requestId, /^[0-9a-f-]{36}$/);
+    assert.equal(receivedRequest.sessionId, `http-${requestId}`);
+    assert.equal(receivedRequest.actorId, `http-${requestId}`);
 
     const clientSelectedSession = await fetch(`${base}/v1/ask`, {
       method: "POST",
@@ -77,15 +82,16 @@ test("HTTP server exposes health and protects ask with a token", async () => {
 });
 
 test("HTTP server isolates concurrent callers with unique actors", async () => {
-  const activeActors = new Set();
-  const actorIds = [];
+  const activeActors = new Set<string>();
+  const actorIds: string[] = [];
   const employee = {
-    answer: async (request) => {
-      if (activeActors.has(request.actorId)) throw new Error("actor_busy");
-      activeActors.add(request.actorId);
-      actorIds.push(request.actorId);
+    answer: async (request: Record<string, unknown>) => {
+      const actorId = String(request.actorId);
+      if (activeActors.has(actorId)) throw new Error("actor_busy");
+      activeActors.add(actorId);
+      actorIds.push(actorId);
       await new Promise((resolve) => setTimeout(resolve, 30));
-      activeActors.delete(request.actorId);
+      activeActors.delete(actorId);
       return { status: "answered", answer: "ok", citations: [] };
     }
   };

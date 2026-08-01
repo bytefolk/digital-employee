@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ExtractiveModel } from "../../connectors/models/extractive/index.js";
 import { OpenAICompatibleModel } from "../../connectors/models/openai-compatible/index.js";
+import type { OpenAICompatibleRequest } from "../../connectors/models/openai-compatible/index.js";
 
 test("extractive model returns the best approved context with its citation", async () => {
   const model = new ExtractiveModel();
@@ -95,7 +96,7 @@ test("OpenAI-compatible model rejects hostnames that resolve to private addresse
 });
 
 test("OpenAI-compatible model pins the validated IP and parses output", async () => {
-  let request;
+  let request: OpenAICompatibleRequest | undefined;
   const model = new OpenAICompatibleModel({
     baseUrl: "https://models.example.test/v1",
     apiKey: "test-key",
@@ -129,6 +130,8 @@ test("OpenAI-compatible model pins the validated IP and parses output", async ()
     profile: { instructions: "Answer from evidence." }
   });
 
+  assert.ok(request);
+
   assert.equal(
     String(request.endpoint),
     "https://models.example.test/v1/chat/completions"
@@ -156,6 +159,7 @@ test("OpenAI-compatible model does not surface provider error bodies", async () 
 
   await assert.rejects(
     () => model.generate({ question: "test", contexts: [] }),
-    (error) => error.message === "model_request_failed:401"
+    (error: unknown) =>
+      error instanceof Error && error.message === "model_request_failed:401"
   );
 });

@@ -18,7 +18,7 @@ function createPermissiveEscalationPolicy() {
 }
 
 test("DigitalEmployee answers with traceable citations and the public model contract", async () => {
-  let modelInput
+  let modelInput: Record<string, unknown> | undefined
   const retriever = new LexicalRetriever([
     {
       id: "handbook-leave",
@@ -67,11 +67,15 @@ test("DigitalEmployee answers with traceable citations and the public model cont
       metadata: { revision: "abc123" },
     },
   ])
+  assert.ok(modelInput)
+  const contexts = modelInput.contexts as Array<{ id: string }>
+  const profile = modelInput.profile as { id: string }
+  const employeeContext = modelInput.employee as { readOnly: boolean }
   assert.equal(modelInput.question, "When should I submit the leave form?")
-  assert.equal(modelInput.contexts[0].id, "handbook-leave")
-  assert.equal(modelInput.profile.id, "answer-agent")
+  assert.equal(contexts[0]?.id, "handbook-leave")
+  assert.equal(profile.id, "answer-agent")
   assert.deepEqual(modelInput.history, [])
-  assert.equal(modelInput.employee.readOnly, true)
+  assert.equal(employeeContext.readOnly, true)
 })
 
 test("DigitalEmployee escalates when a high-confidence answer has no valid citation", async () => {
@@ -109,6 +113,7 @@ test("DigitalEmployee escalates when a high-confidence answer has no valid citat
 
   assert.equal(result.ok, false)
   assert.equal(result.status, "escalated")
+  assert.ok(result.escalation)
   assert.equal(result.escalation.reason, "insufficient_citations")
   assert.equal(result.answer, "A maintainer must verify this answer.")
   assert.deepEqual(result.citations, [])
@@ -132,6 +137,7 @@ test("DigitalEmployee hands low-confidence and explicit needsHuman responses to 
     message: "What is the exception process?",
   })
   assert.equal(lowResult.status, "escalated")
+  assert.ok(lowResult.escalation)
   assert.equal(lowResult.escalation.reason, "low_confidence")
   assert.equal(lowResult.escalation.target, "support-queue")
 
@@ -147,9 +153,12 @@ test("DigitalEmployee hands low-confidence and explicit needsHuman responses to 
     message: "Can this exception be approved?",
   })
   assert.equal(explicitResult.status, "escalated")
+  assert.ok(explicitResult.escalation)
   assert.equal(explicitResult.escalation.reason, "model_requested")
+  const explicitDetails = explicitResult.escalation.details
+  assert.ok(explicitDetails && typeof explicitDetails === "object" && !Array.isArray(explicitDetails))
   assert.equal(
-    explicitResult.escalation.details.modelReason,
+    explicitDetails.modelReason,
     "Requires policy owner approval",
   )
 })
@@ -174,6 +183,7 @@ test("DigitalEmployee returns a redacted structured error and escalates model fa
     message: "Where is the handbook?",
   })
   assert.equal(result.status, "escalated")
+  assert.ok(result.escalation)
   assert.equal(result.escalation.reason, "execution_error")
   assert.deepEqual(result.error, {
     code: "PROVIDER_ERROR",
@@ -207,8 +217,11 @@ test("DigitalEmployee exposes JobRunner cooldown as a structured rejection", asy
     message: "Second question",
   })
   assert.equal(second.status, "rejected")
+  assert.ok(second.error)
   assert.equal(second.error.code, "RATE_LIMITED")
-  assert.equal(second.error.details.retryAfterMs, 900)
+  const errorDetails = second.error.details
+  assert.ok(errorDetails && typeof errorDetails === "object" && !Array.isArray(errorDetails))
+  assert.equal(errorDetails.retryAfterMs, 900)
 })
 
 test("DigitalEmployee is read-only by default and does not execute write tools", async () => {
@@ -239,9 +252,13 @@ test("DigitalEmployee is read-only by default and does not execute write tools",
           ],
         }
       }
-      assert.equal(input.toolResults[0].ok, false)
+      const toolResults = input.toolResults as Array<{
+        ok: boolean
+        error: { code: string }
+      }>
+      assert.equal(toolResults[0]?.ok, false)
       assert.equal(
-        input.toolResults[0].error.code,
+        toolResults[0]?.error.code,
         "READ_ONLY_VIOLATION",
       )
       return {
@@ -290,7 +307,7 @@ test("DigitalEmployee denies verified FAQ learning without an authorizer", async
 test("DigitalEmployee stores FAQ memory only after authorized verified feedback", async () => {
   const faqStore = new VerifiedFaqStore()
   const reviewerCapability = Object.freeze({ type: "faq-reviewer" })
-  let authorizationInput
+  let authorizationInput: Record<string, unknown> | undefined
   const employee = new DigitalEmployee({
     faqStore,
     escalationPolicy: createPermissiveEscalationPolicy(),
@@ -340,11 +357,16 @@ test("DigitalEmployee stores FAQ memory only after authorized verified feedback"
   )
   assert.equal(verified.stored, true)
   assert.equal(faqStore.stats().count, 1)
+  assert.ok(authorizationInput)
+  const exchange = authorizationInput.exchange as {
+    question: string
+    answer: string
+  }
   assert.equal(authorizationInput.authorization, reviewerCapability)
   assert.equal(authorizationInput.requestId, "request-feedback")
-  assert.equal(authorizationInput.exchange.question, "Where is the handbook?")
+  assert.equal(exchange.question, "Where is the handbook?")
   assert.equal(
-    authorizationInput.exchange.answer,
+    exchange.answer,
     "The handbook is in the shared repository.",
   )
 })

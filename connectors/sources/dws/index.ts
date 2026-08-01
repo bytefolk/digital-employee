@@ -90,7 +90,7 @@ function defaultDwsEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEn
 
 export { DWS_READ_COMMANDS, DwsConnectorError };
 
-interface DwsSourceOptions {
+export interface DwsSourceOptions {
   id?: string
   profile?: unknown
   executable?: unknown

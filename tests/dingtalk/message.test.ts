@@ -83,8 +83,9 @@ test("normalizeDingTalkMessage rejects malformed JSON without echoing payload", 
   const sensitiveFragment = "should-not-appear"
   assert.throws(
     () => normalizeDingTalkMessage(`{"value":"${sensitiveFragment}"`),
-    (error) => {
+    (error: unknown) => {
       assert.equal(error instanceof DingTalkPayloadError, true)
+      if (!(error instanceof DingTalkPayloadError)) return false
       assert.equal(error.code, "DINGTALK_INVALID_PAYLOAD")
       assert.equal(error.message.includes(sensitiveFragment), false)
       return true

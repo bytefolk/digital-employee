@@ -6,6 +6,9 @@ import { EscalationPolicy } from "../../packages/core/index.js"
 const answer = {
   answer: "Use the approved support flow.",
   confidence: 0.99,
+  citationIds: [],
+  toolCalls: [],
+  escalate: false,
 }
 
 test("EscalationPolicy requires evidence and a citation by default", () => {

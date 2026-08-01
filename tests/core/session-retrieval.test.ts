@@ -19,7 +19,7 @@ test("SessionStore expires inactive sessions by TTL", () => {
   assert.equal(sessions.size, 1)
 
   now += 99
-  assert.equal(sessions.get("session-1").messages.length, 1)
+  assert.equal(sessions.get("session-1")?.messages.length, 1)
   now += 1
   assert.equal(sessions.get("session-1"), null)
   assert.equal(sessions.size, 0)

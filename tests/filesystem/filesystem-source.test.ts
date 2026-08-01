@@ -17,9 +17,14 @@ test("filesystem source loads approved text and skips secrets and hidden files",
   const documents = await source.load();
 
   assert.equal(documents.length, 1);
-  assert.equal(documents[0].title, "Guide");
-  assert.match(documents[0].text, /smallest permission/);
-  assert.equal(documents[0].source.uri, "source://handbook/docs/guide.md");
+  const document = documents[0] as {
+    title: string;
+    text: string;
+    source: { uri: string };
+  };
+  assert.equal(document.title, "Guide");
+  assert.match(document.text, /smallest permission/);
+  assert.equal(document.source.uri, "source://handbook/docs/guide.md");
   assert.doesNotMatch(JSON.stringify(documents), /should-not-load/);
   assert.doesNotMatch(JSON.stringify(documents), new RegExp(root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
@@ -31,7 +36,7 @@ test("filesystem source ignores symlinks", async (t) => {
   try {
     await symlink(path.join(outside, "private.md"), path.join(root, "linked.md"));
   } catch (error) {
-    if (error.code === "EPERM") {
+    if (error instanceof Error && "code" in error && error.code === "EPERM") {
       t.skip("symlink creation is unavailable");
       return;
     }

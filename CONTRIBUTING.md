@@ -14,7 +14,8 @@ npm run check
 ```
 
 Write shipped application, package, connector, profile, and test code in
-strict TypeScript. Keep ESM import specifiers ending in `.js`; TypeScript's
+strict TypeScript. `npm run typecheck` checks both runtime and test projects.
+Keep ESM import specifiers ending in `.js`; TypeScript's
 NodeNext resolution maps those specifiers to source `.ts` files and preserves
 valid imports in compiled output. Do not hand-edit or commit generated
 `dist/` files. JavaScript in `scripts/` is limited to build/release automation

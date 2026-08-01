@@ -16,7 +16,7 @@ type LookupImplementation = (
   options: { all: true; verbatim: true }
 ) => Promise<LookupResult>;
 
-interface RequestInput {
+export interface OpenAICompatibleRequest {
   endpoint: URL;
   pinnedAddress: NetworkAddress | null;
   headers: Record<string, string>;
@@ -30,7 +30,7 @@ interface TransportResponse {
   body: string;
 }
 
-type RequestImplementation = (input: RequestInput) => Promise<TransportResponse>;
+type RequestImplementation = (input: OpenAICompatibleRequest) => Promise<TransportResponse>;
 
 interface ModelContext {
   id?: string;
@@ -304,7 +304,7 @@ function requestWithPinnedAddress({
   body,
   signal,
   maxResponseBytes
-}: RequestInput): Promise<TransportResponse> {
+}: OpenAICompatibleRequest): Promise<TransportResponse> {
   const originalHostname = endpoint.hostname.replace(/^\[|\]$/g, "");
   const request = endpoint.protocol === "https:" ? httpsRequest : httpRequest;
   const connectionHostname = pinnedAddress?.address || originalHostname;

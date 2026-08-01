@@ -3,10 +3,10 @@ import test from "node:test"
 
 import { JobRunner } from "../../packages/core/index.js"
 
-function deferred() {
-  let resolve
-  let reject
-  const promise = new Promise((resolvePromise, rejectPromise) => {
+function deferred<T = void>() {
+  let resolve: (value: T | PromiseLike<T>) => void = () => undefined
+  let reject: (reason?: unknown) => void = () => undefined
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
     reject = rejectPromise
   })
@@ -20,7 +20,7 @@ test("JobRunner enforces concurrency and drains its FIFO queue", async () => {
     queueTimeoutMs: 1_000,
   })
   const gate = deferred()
-  const order = []
+  const order: string[] = []
 
   const first = runner.run(
     { actorId: "actor-1", jobId: "job-1" },
@@ -46,7 +46,7 @@ test("JobRunner enforces concurrency and drains its FIFO queue", async () => {
     maxQueueSize: 2,
     closed: false,
   })
-  gate.resolve()
+  gate.resolve(undefined)
 
   assert.equal(await first, "first-result")
   assert.equal(await second, "second-result")
@@ -55,7 +55,7 @@ test("JobRunner enforces concurrency and drains its FIFO queue", async () => {
 
 test("JobRunner rejects duplicate jobs and concurrent jobs from the same actor", async () => {
   const runner = new JobRunner({ maxConcurrent: 2 })
-  const gate = deferred()
+  const gate = deferred<string>()
   const first = runner.run(
     { actorId: "actor-1", jobId: "job-1" },
     () => gate.promise,
@@ -66,14 +66,16 @@ test("JobRunner rejects duplicate jobs and concurrent jobs from the same actor",
       { actorId: "actor-2", jobId: "job-1" },
       async () => "duplicate",
     ),
-    (error) => error.code === "DUPLICATE_REQUEST",
+    (error: unknown) =>
+      error instanceof Error && "code" in error && error.code === "DUPLICATE_REQUEST",
   )
   await assert.rejects(
     runner.run(
       { actorId: "actor-1", jobId: "job-2" },
       async () => "busy",
     ),
-    (error) => error.code === "ACTOR_BUSY",
+    (error: unknown) =>
+      error instanceof Error && "code" in error && error.code === "ACTOR_BUSY",
   )
 
   gate.resolve("done")
@@ -100,10 +102,16 @@ test("JobRunner returns a retry interval while an actor is cooling down", async 
       { actorId: "actor-1", jobId: "job-2" },
       async () => "too-soon",
     ),
-    (error) =>
-      error.code === "RATE_LIMITED" &&
-      error.details.retryAfterMs === 60 &&
-      error.retryable,
+    (error: unknown) => {
+      if (!(error instanceof Error) || !("code" in error) || error.code !== "RATE_LIMITED") {
+        return false
+      }
+      const value = error as Error & {
+        details?: { retryAfterMs?: number }
+        retryable?: boolean
+      }
+      return value.details?.retryAfterMs === 60 && value.retryable === true
+    },
   )
   now += 60
   assert.equal(
@@ -116,18 +124,18 @@ test("JobRunner returns a retry interval while an actor is cooling down", async 
 })
 
 test("JobRunner reports queue timeout without running the expired task", async () => {
-  let timeoutCallback
+  let timeoutCallback: (() => void) | undefined
   const runner = new JobRunner({
     maxConcurrent: 1,
     maxQueueSize: 1,
     queueTimeoutMs: 100,
-    setTimer(callback) {
+    setTimer(callback: () => void) {
       timeoutCallback = callback
       return 1
     },
     clearTimer() {},
   })
-  const gate = deferred()
+  const gate = deferred<string>()
   const first = runner.run(
     { actorId: "actor-1", jobId: "job-1" },
     () => gate.promise,
@@ -141,9 +149,15 @@ test("JobRunner reports queue timeout without running the expired task", async (
   )
   const assertion = assert.rejects(
     queued,
-    (error) => error.code === "QUEUE_TIMEOUT" && error.retryable,
+    (error: unknown) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "QUEUE_TIMEOUT" &&
+      "retryable" in error &&
+      error.retryable === true,
   )
 
+  assert.ok(timeoutCallback)
   timeoutCallback()
   await assertion
   assert.equal(ran, false)
@@ -179,7 +193,8 @@ test("JobRunner evicts the oldest dedupe entry at the configured capacity", asyn
       { actorId: "actor-duplicate", jobId: "job-3" },
       async () => "duplicate",
     ),
-    (error) => error.code === "DUPLICATE_REQUEST",
+    (error: unknown) =>
+      error instanceof Error && "code" in error && error.code === "DUPLICATE_REQUEST",
   )
 })
 
@@ -204,7 +219,8 @@ test("JobRunner evicts the oldest cooldown entry at the configured capacity", as
   )
   await assert.rejects(
     runner.run({ actorId: "actor-3" }, async () => "rate-limited"),
-    (error) => error.code === "RATE_LIMITED",
+    (error: unknown) =>
+      error instanceof Error && "code" in error && error.code === "RATE_LIMITED",
   )
 })
 

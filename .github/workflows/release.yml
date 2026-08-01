@@ -19,7 +19,7 @@ jobs:
       version: ${{ steps.package.outputs.version }}
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           package-manager-cache: false
@@ -38,7 +38,7 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           package-manager-cache: false
@@ -72,7 +72,7 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           package-manager-cache: false

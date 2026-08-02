@@ -9,9 +9,10 @@ provider integration.
 | Path | Evidence | Result |
 | --- | --- | --- |
 | Local answer and escalation | Public example files, extractive model, real CLI process | Verified |
-| Automated suite | `npm run check` | 84 passed; security check passed |
+| Automated suite | `npm run check` | 99 passed; security check passed |
 | Strict TypeScript | `npm run typecheck` | 0 errors across shipped runtime sources |
-| Compiled package | `npm run build`; root and core `npm pack --dry-run` | ESM, declarations, source maps, CLI, config, and public fixtures only |
+| Compiled package | `npm run build`; root and core `npm pack --dry-run` | ESM, declarations, source maps, CLI, config/profile schemas, `answer-agent` manifest, and public fixtures only |
+| Second profile | Explicitly allowlisted `minimal-reader` fixture through source and compiled runtimes | Answered with one approved citation; no core/CLI switch change |
 | Dependency audit | `npm audit --omit=dev --audit-level=high` | 0 known vulnerabilities |
 | Container | Built `Dockerfile`, started the image, called `/health` and `/v1/ask` | Verified |
 | HTTP session isolation | Client-selected request, actor, and session IDs are rejected; each built-in HTTP call receives a server-generated isolated session | Verified by automated test |

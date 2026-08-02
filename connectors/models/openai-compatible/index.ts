@@ -492,7 +492,11 @@ export class OpenAICompatibleModel {
     this.lookupTimeoutMs = lookupTimeoutMs;
   }
 
-  async generate(input: GenerateInput): Promise<ModelResult> {
+  async generate(input: unknown = {}): Promise<ModelResult> {
+    const normalizedInput =
+      input && typeof input === "object" && !Array.isArray(input)
+        ? input as GenerateInput
+        : {};
     const addresses = await resolvePublicEndpoint(this.endpoint, {
       allowPrivateNetwork: this.allowPrivateNetwork,
       lookupImpl: this.lookupImpl,
@@ -507,7 +511,7 @@ export class OpenAICompatibleModel {
         model: this.model,
         temperature: this.temperature,
         response_format: { type: "json_object" },
-        messages: buildMessages(input)
+        messages: buildMessages(normalizedInput)
       });
       const response = await this.requestImpl({
         endpoint: this.endpoint,

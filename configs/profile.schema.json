@@ -1,0 +1,315 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fullstack-ai-infra/digital-employee/blob/main/configs/profile.schema.json",
+  "title": "Digital Employee portable profile manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "name",
+    "version",
+    "description",
+    "license",
+    "authors",
+    "provenance",
+    "compatibility",
+    "policy",
+    "capabilities",
+    "permissions",
+    "dependencies",
+    "configuration",
+    "entrypoints",
+    "assets"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "employee-profile.v1"
+    },
+    "name": {
+      "$ref": "#/$defs/identifier"
+    },
+    "version": {
+      "$ref": "#/$defs/semver"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "license": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9.+-]{1,128}$"
+    },
+    "authors": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtimeApi"
+      ],
+      "properties": {
+        "runtimeApi": {
+          "type": "string",
+          "pattern": "^>=\\d+\\.\\d+\\.\\d+ <\\d+\\.\\d+\\.\\d+$"
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "readOnly",
+        "instructions",
+        "escalation"
+      ],
+      "properties": {
+        "readOnly": {
+          "type": "boolean"
+        },
+        "instructions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          }
+        },
+        "escalation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "strategy",
+            "onInsufficientEvidence",
+            "onWriteRequest"
+          ],
+          "properties": {
+            "strategy": {
+              "const": "human"
+            },
+            "onInsufficientEvidence": {
+              "type": "boolean"
+            },
+            "onWriteRequest": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "channels",
+        "models",
+        "sources",
+        "memory",
+        "tools"
+      ],
+      "properties": {
+        "channels": {
+          "$ref": "#/$defs/identifierList"
+        },
+        "models": {
+          "$ref": "#/$defs/identifierList"
+        },
+        "sources": {
+          "$ref": "#/$defs/identifierList"
+        },
+        "memory": {
+          "$ref": "#/$defs/identifierList"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "mode"
+            ],
+            "properties": {
+              "name": {
+                "$ref": "#/$defs/identifier"
+              },
+              "mode": {
+                "enum": [
+                  "read",
+                  "write"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read",
+        "write"
+      ],
+      "properties": {
+        "read": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sourceTypes",
+            "tools"
+          ],
+          "properties": {
+            "sourceTypes": {
+              "$ref": "#/$defs/identifierList"
+            },
+            "tools": {
+              "$ref": "#/$defs/identifierList"
+            }
+          }
+        },
+        "write": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "requested",
+            "tools"
+          ],
+          "properties": {
+            "requested": {
+              "type": "boolean"
+            },
+            "tools": {
+              "$ref": "#/$defs/identifierList"
+            }
+          }
+        }
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required",
+        "optional"
+      ],
+      "properties": {
+        "required": {
+          "$ref": "#/$defs/identifierList"
+        },
+        "optional": {
+          "$ref": "#/$defs/identifierList"
+        }
+      }
+    },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "secretReferences"
+      ],
+      "properties": {
+        "schema": {
+          "type": "object"
+        },
+        "secretReferences": {
+          "$ref": "#/$defs/identifierList"
+        }
+      }
+    },
+    "entrypoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile"
+      ],
+      "properties": {
+        "profile": {
+          "type": "string",
+          "pattern": "^\\./(?!.*(?:^|/)\\.\\.(?:/|$)).+\\.m?js$"
+        }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^\\./(?!.*(?:^|/)\\.\\.(?:/|$)).+"
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "files"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "sha256"
+        },
+        "files": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^\\./(?!.*(?:^|/)\\.\\.(?:/|$)).+"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9._-]{0,127})$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "identifierList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/identifier"
+      }
+    }
+  }
+}

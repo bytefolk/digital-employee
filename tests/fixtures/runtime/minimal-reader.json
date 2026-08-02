@@ -1,0 +1,33 @@
+{
+  "employee": {
+    "id": "fixture-reader",
+    "displayName": "Fixture Reader",
+    "profile": {
+      "name": "minimal-reader",
+      "version": "1.0.0"
+    }
+  },
+  "runtime": {
+    "readOnly": true,
+    "topK": 4,
+    "minScore": 0.03
+  },
+  "model": {
+    "provider": "extractive"
+  },
+  "sources": [
+    {
+      "id": "fixture-handbook",
+      "type": "filesystem",
+      "root": "../../../examples/knowledge",
+      "include": [
+        ".md"
+      ]
+    }
+  ],
+  "extensions": {
+    "modules": [
+      "./minimal-reader.mjs"
+    ]
+  }
+}

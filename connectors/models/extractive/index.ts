@@ -101,10 +101,14 @@ export class ExtractiveModel {
     this.prefix = prefix;
   }
 
-  async generate({
-    question = "",
-    contexts = []
-  }: { question?: string; contexts?: ExtractiveContext[] }) {
+  async generate(input: unknown = {}) {
+    const value = input && typeof input === "object" && !Array.isArray(input)
+      ? input as { question?: unknown; contexts?: unknown }
+      : {};
+    const question = typeof value.question === "string" ? value.question : "";
+    const contexts = Array.isArray(value.contexts)
+      ? value.contexts as ExtractiveContext[]
+      : [];
     const best = documentFromContext(contexts[0]);
     if (!best?.text) {
       return {

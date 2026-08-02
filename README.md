@@ -39,6 +39,13 @@ employee's instructions, approved sources, available tools, permissions, and
 human escalation policy. The same runtime can later host other roles without
 forking its channel, memory, policy, or observability code.
 
+Profiles now use the strict, versioned `employee-profile.v1` manifest. The CLI
+assembles profiles, sources, models, channels, and tools through an explicit
+registry, so a locally approved role module can be added without changing core
+switch logic. Local modules are disabled by default, require an exact caller
+allowlist, and cannot be remote URLs, path traversals, or symlinks. See the
+[profile manifest and compatibility contract](docs/profile-manifest.md).
+
 ```mermaid
 flowchart LR
   C["Channels<br/>Console · HTTP · DingTalk"] --> R["Digital Employee runtime"]
@@ -185,7 +192,7 @@ container, live DWS, and not-yet-live-tested evidence.
 
 | Capability | State |
 | --- | --- |
-| Generic channel/source/model/profile contracts | Shipped |
+| Versioned profile and channel/source/model/tool registry contracts | Shipped |
 | Read-only `answer-agent` profile | Shipped |
 | Console and HTTP entry points | Shipped |
 | DingTalk Stream channel | Shipped; live credentials required for integration verification |

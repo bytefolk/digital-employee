@@ -36,7 +36,7 @@ export class ConsoleChannel {
     this.interface = null;
   }
 
-  async start(handler: (message: ChannelMessage) => ChannelResult | Promise<ChannelResult>) {
+  async start(handler: (message: ChannelMessage) => unknown | Promise<unknown>) {
     if (typeof handler !== "function") throw new TypeError("console_channel_requires_handler");
     this.interface = createInterface({
       input: this.input,
@@ -56,12 +56,15 @@ export class ConsoleChannel {
       }
       if (question === "/quit" || question === "/exit") break;
 
-      const result = await handler({
+      const rawResult = await handler({
         id: `console-${Date.now()}`,
         threadId: "console",
         text: question,
         channel: "console"
       });
+      const result = rawResult && typeof rawResult === "object" && !Array.isArray(rawResult)
+        ? rawResult as ChannelResult
+        : {};
       const answer = typeof result.answer === "string" ? result.answer : null;
       const escalationMessage =
         result.escalation && typeof result.escalation.message === "string"

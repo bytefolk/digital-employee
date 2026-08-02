@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "employee-profile.v1",
+  "name": "minimal-reader",
+  "version": "1.0.0",
+  "description": "A minimal test-only read profile used to prove local registry extension.",
+  "license": "Apache-2.0",
+  "authors": [
+    "fullstack-ai-infra"
+  ],
+  "provenance": {
+    "repository": "https://github.com/fullstack-ai-infra/digital-employee"
+  },
+  "compatibility": {
+    "runtimeApi": ">=1.0.0 <2.0.0"
+  },
+  "policy": {
+    "readOnly": true,
+    "instructions": [
+      "Read only the evidence provided by the runtime.",
+      "Escalate when the evidence is insufficient."
+    ],
+    "escalation": {
+      "strategy": "human",
+      "onInsufficientEvidence": true,
+      "onWriteRequest": true
+    }
+  },
+  "capabilities": {
+    "channels": [
+      "cli",
+      "console",
+      "http"
+    ],
+    "models": [
+      "extractive"
+    ],
+    "sources": [
+      "filesystem"
+    ],
+    "memory": [],
+    "tools": []
+  },
+  "permissions": {
+    "read": {
+      "sourceTypes": [
+        "filesystem"
+      ],
+      "tools": []
+    },
+    "write": {
+      "requested": false,
+      "tools": []
+    }
+  },
+  "dependencies": {
+    "required": [
+      "model.extractive",
+      "source.filesystem"
+    ],
+    "optional": []
+  },
+  "configuration": {
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "secretReferences": []
+  },
+  "entrypoints": {
+    "profile": "./minimal-reader.mjs"
+  },
+  "assets": []
+}

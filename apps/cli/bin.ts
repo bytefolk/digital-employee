@@ -3,9 +3,8 @@
 import { parseArgs } from "node:util";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ConsoleChannel } from "../../connectors/channels/console/index.js";
 import { createHttpServer } from "../server/server.js";
-import { createRuntime } from "./runtime.js";
+import { assertProfileCapability, createRuntime } from "./runtime.js";
 
 type Runtime = Awaited<ReturnType<typeof createRuntime>>;
 type EmployeeResult = Awaited<ReturnType<Runtime["employee"]["answer"]>>;
@@ -84,6 +83,7 @@ async function ask(values: CommandValues, positionals: string[]) {
   const question = values.question || positionals.join(" ").trim();
   if (!question) throw new TypeError("ask_requires_question");
   const runtime = await createRuntime(values.config);
+  assertProfileCapability(runtime.profileManifest, "channels", "cli");
   const result = await runtime.employee.answer({
     requestId: `cli-${Date.now()}`,
     sessionId: "cli",
@@ -110,54 +110,39 @@ async function sync(values: CommandValues) {
   }
 }
 
-async function startConsole(runtime: Runtime) {
-  const channel = new ConsoleChannel();
-  await channel.start((message) =>
-    runtime.employee.answer({
-      requestId: message.id,
-      sessionId: message.threadId,
-      actorId: "console",
-      message: message.text,
-      metadata: { channel: message.channel }
-    })
-  );
-}
-
-async function startDingTalk(runtime: Runtime) {
-  const { DingTalkChannel } = await import("../../connectors/channels/dingtalk/index.js");
-  const channelConfig = runtime.config.channel || {};
-  const clientId = process.env[channelConfig.clientIdEnv || "DINGTALK_CLIENT_ID"];
-  const clientSecret = process.env[channelConfig.clientSecretEnv || "DINGTALK_CLIENT_SECRET"];
-  if (!clientId || !clientSecret) throw new Error("missing_dingtalk_credentials");
-
-  const channel = new DingTalkChannel({ clientId, clientSecret });
+async function start(values: CommandValues) {
+  const runtime = await createRuntime(values.config);
+  const channelName = values.channel || runtime.config.channel?.type || "console";
+  assertProfileCapability(runtime.profileManifest, "channels", channelName);
+  const channel = await runtime.registry.create("channel", channelName, {
+    config: runtime.config.channel || {},
+    configDirectory: runtime.configDirectory,
+    environment: process.env
+  });
   await channel.start(async (message: {
     id: string;
     threadId: string;
-    actorId: string;
+    actorId?: string;
     text: string;
+    channel?: string;
   }) => {
     const result = await runtime.employee.answer({
       requestId: message.id,
       sessionId: message.threadId,
-      actorId: message.actorId,
+      actorId: message.actorId || channelName,
       message: message.text,
-      metadata: { channel: "dingtalk" }
+      metadata: { channel: message.channel || channelName }
     });
-    await channel.reply(message, result);
+    if (typeof channel.reply === "function") {
+      await channel.reply(message, result);
+    }
+    return result;
   });
-}
-
-async function start(values: CommandValues) {
-  const runtime = await createRuntime(values.config);
-  const channel = values.channel || runtime.config.channel?.type || "console";
-  if (channel === "console") return startConsole(runtime);
-  if (channel === "dingtalk") return startDingTalk(runtime);
-  throw new TypeError(`unsupported_channel:${channel}`);
 }
 
 async function serve(values: CommandValues) {
   const runtime = await createRuntime(values.config);
+  assertProfileCapability(runtime.profileManifest, "channels", "http");
   const port = Number.parseInt(values.port, 10);
   if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new TypeError("invalid_port");
   const tokenEnv = runtime.config.server?.apiTokenEnv;

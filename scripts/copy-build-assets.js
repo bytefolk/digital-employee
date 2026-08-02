@@ -25,4 +25,11 @@ await cp(path.join(outputRoot, "packages", "core"), corePackageOutput, {
   recursive: true,
   force: true
 });
+const answerAgentOutput = path.join(outputRoot, "profiles", "answer-agent");
+await mkdir(answerAgentOutput, { recursive: true });
+await cp(
+  path.join(repositoryRoot, "profiles", "answer-agent", "profile.json"),
+  path.join(answerAgentOutput, "profile.json"),
+  { force: true }
+);
 await chmod(path.join(outputRoot, "apps", "cli", "bin.js"), 0o755);

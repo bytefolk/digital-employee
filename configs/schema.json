@@ -29,7 +29,30 @@
           "maxLength": 128
         },
         "profile": {
-          "const": "answer-agent"
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9](?:[a-z0-9._-]{0,127})$"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "version"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9](?:[a-z0-9._-]{0,127})$"
+                },
+                "version": {
+                  "type": "string",
+                  "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+                }
+              }
+            }
+          ]
         },
         "domain": {
           "type": "string",
@@ -133,6 +156,24 @@
               "maximum": 2
             }
           }
+        },
+        {
+          "type": "object",
+          "required": [
+            "provider"
+          ],
+          "properties": {
+            "provider": {
+              "type": "string",
+              "pattern": "^[a-z0-9](?:[a-z0-9._-]{0,127})$",
+              "not": {
+                "enum": [
+                  "extractive",
+                  "openai-compatible"
+                ]
+              }
+            }
+          }
         }
       ]
     },
@@ -153,11 +194,27 @@
             "maxLength": 256
           },
           "type": {
-            "enum": [
-              "filesystem",
-              "git",
-              "dws"
-            ]
+            "type": "string",
+            "pattern": "^[a-z0-9](?:[a-z0-9._-]{0,127})$"
+          }
+        }
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "modules"
+      ],
+      "properties": {
+        "modules": {
+          "type": "array",
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
           }
         }
       }

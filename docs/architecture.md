@@ -20,6 +20,19 @@ behavior.
 - **Tool** declares read/write mode. The `answer-agent` profile blocks write
   tools before execution.
 
+## Profile and component assembly
+
+Role policy is carried by the strict, versioned `employee-profile.v1`
+manifest. Portable manifests declare capabilities and requested permissions;
+the local deployment config grants concrete source instances and binds secret
+references. See [the profile contract](profile-manifest.md).
+
+The CLI assembles profiles, sources, models, channels, and tools through one
+explicit component registry. Built-ins are registration data, not conditional
+branches in the runtime. Local extension modules are disabled by default and
+require an exact caller-provided absolute path allowlist; there is no directory
+scanning or remote loading.
+
 ## Answer path
 
 ```mermaid
@@ -57,7 +70,7 @@ packages/core/                TypeScript runtime, sessions, queue, retrieval, fe
 connectors/channels/          TypeScript Console and DingTalk channels
 connectors/sources/           TypeScript Filesystem, Git and optional DWS sources
 connectors/models/            TypeScript Extractive and OpenAI-compatible providers
-profiles/answer-agent/        First TypeScript role profile
+profiles/answer-agent/        First TypeScript role profile and portable manifest
 configs/                      Public, credential-free examples
 examples/knowledge/           Reproducible public fixture
 dist/                         Generated ESM, declarations, source maps, public assets

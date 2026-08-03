@@ -1,2 +1,3 @@
-# All changes require review from the organization administrator.
-* @PeterGuy326
+# Changes require review from the organization administrator or the designated
+# independent reviewer, so code-owner review is satisfiable without admin bypass.
+* @PeterGuy326 @Bindy-lbb

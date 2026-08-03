@@ -412,12 +412,23 @@ export function sanitizeDetails(
 
   const output: { [key: string]: SafeValue } = {}
   for (const [key, item] of Object.entries(value)) {
+    let safeValue: SafeValue
     if (SECRET_KEY_PATTERN.test(key)) {
-      output[key] = "[REDACTED]"
+      safeValue = "[REDACTED]"
     } else {
-      const safeValue = sanitizeDetails(item, seen)
-      if (safeValue !== undefined) output[key] = safeValue
+      safeValue = sanitizeDetails(item, seen)
     }
+    if (safeValue === undefined) continue
+    // Assignment to the legacy __proto__ setter can mutate the result's
+    // prototype when sanitizing untrusted host/tool events. Defining an own
+    // data property keeps every JSON key inert without changing public object
+    // prototypes for existing callers.
+    Object.defineProperty(output, key, {
+      value: safeValue,
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    })
   }
   return output
 }

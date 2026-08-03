@@ -1,0 +1,274 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/employee-package.schema.json",
+  "title": "Digital Employee package v1 alpha 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "name",
+    "version",
+    "description",
+    "license",
+    "authors",
+    "host",
+    "entrypoints",
+    "policy",
+    "assets"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "employee-package.v1alpha1"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "maxLength": 64
+    },
+    "version": {
+      "$ref": "#/$defs/semver"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "license": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9.+-]{1,128}$"
+    },
+    "authors": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      }
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol",
+        "requiredCapabilities"
+      ],
+      "properties": {
+        "protocol": {
+          "const": "agent-host.v1"
+        },
+        "requiredCapabilities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "non_interactive_run",
+              "event_stream",
+              "session_resume",
+              "attachments",
+              "mcp",
+              "skills",
+              "structured_output",
+              "tool_allowlist",
+              "filesystem_scope",
+              "network_policy",
+              "sandbox",
+              "approval_callback",
+              "cancellation",
+              "usage_events"
+            ]
+          }
+        }
+      }
+    },
+    "entrypoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "skill",
+        "inputSchema",
+        "outputSchema"
+      ],
+      "properties": {
+        "skill": {
+          "$ref": "#/$defs/portablePath"
+        },
+        "inputSchema": {
+          "$ref": "#/$defs/portablePath"
+        },
+        "outputSchema": {
+          "$ref": "#/$defs/portablePath"
+        },
+        "mcp": {
+          "$ref": "#/$defs/portablePath"
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "network",
+        "filesystem",
+        "mcpTools"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "read_only",
+            "approval_required"
+          ]
+        },
+        "network": {
+          "description": "Employee tool and MCP data-plane egress policy; the Agent host authentication/model control plane is out of scope.",
+          "enum": [
+            "deny",
+            "host_policy"
+          ]
+        },
+        "filesystem": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "read",
+            "write"
+          ],
+          "properties": {
+            "read": {
+              "$ref": "#/$defs/portablePolicyPathList"
+            },
+            "write": {
+              "$ref": "#/$defs/portablePolicyPathList"
+            }
+          }
+        },
+        "mcpTools": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "requestedMode"
+            ],
+            "properties": {
+              "name": {
+                "$ref": "#/$defs/identifier"
+              },
+              "requestedMode": {
+                "enum": [
+                  "read",
+                  "write"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "assets": {
+      "$ref": "#/$defs/portablePathList"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "policy": {
+            "properties": {
+              "mode": {
+                "const": "read_only"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "policy": {
+            "properties": {
+              "filesystem": {
+                "properties": {
+                  "write": {
+                    "maxItems": 0
+                  }
+                }
+              },
+              "mcpTools": {
+                "items": {
+                  "properties": {
+                    "requestedMode": {
+                      "const": "read"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "policy": {
+            "properties": {
+              "mcpTools": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "entrypoints": {
+            "required": [
+              "mcp"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9._-]{0,127})$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "portablePath": {
+      "type": "string",
+      "pattern": "^\\./(?!\\.\\.(?:/|$))(?!.*(?:/\\.\\.(?:/|$)|\\\\|//|/\\.(?:/|$)|[*?\\[\\]{}!]))[^\\u0000-\\u001f\\u007f]+$",
+      "maxLength": 1024
+    },
+    "portablePathList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/portablePath"
+      }
+    },
+    "portablePolicyPath": {
+      "type": "string",
+      "pattern": "^\\./(?!\\.\\.(?:/|$))(?!.*(?:/\\.\\.(?:/|$)|\\\\|//|/\\.(?:/|$)))[^\\u0000-\\u001f\\u007f]+$",
+      "maxLength": 1024
+    },
+    "portablePolicyPathList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/portablePolicyPath"
+      }
+    }
+  }
+}

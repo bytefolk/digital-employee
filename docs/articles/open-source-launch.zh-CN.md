@@ -1,4 +1,10 @@
-# 我把运行三个月的 D仔开源了：企业答疑机器人的真实案例与复用路径
+# [v0.1 历史稿] 我把运行三个月的 D仔开源了：企业答疑机器人的真实案例与复用路径
+
+> **版本说明（2026-08-03）：** 本文冻结记录 `v0.1.0` / `871ffb8` 的
+> `standalone-v1` 答疑运行时，不代表当前 main 分支的默认产品路径。文中“当前仓库”、
+> “当前 CLI”和 69 项测试均指该历史版本；复现命令必须 checkout `v0.1.0`。
+> 当前 main 已转向 Agent-native CLI + 员工包 + Host Adapter，默认 `npm start`
+> 只显示帮助，旧运行时需显式使用 `legacy:*`。请以仓库首页 README 为准。
 
 > **项目已经开源：[fullstack-ai-infra/digital-employee](https://github.com/fullstack-ai-infra/digital-employee)。**
 >
@@ -158,7 +164,8 @@ D仔第一版的链路很短：钉钉 Stream 收到问题，只读分析 DWS 仓
 本地 Demo 只使用仓库里的 [公开配置](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/configs/demo.json#L1-L30) 和 [测试手册](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/examples/knowledge/handbook.md#L1-L24)，不需要钉钉、DWS 或模型密钥。Node.js 需要 20 或更高版本。
 
 ```bash
-git clone https://github.com/fullstack-ai-infra/digital-employee.git
+git clone --branch v0.1.0 --depth 1 \
+  https://github.com/fullstack-ai-infra/digital-employee.git
 cd digital-employee
 npm ci
 

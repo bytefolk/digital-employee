@@ -1,5 +1,9 @@
 # Employee profile manifest v1
 
+> Compatibility note: `employee-profile.v1` belongs to the
+> `standalone-v1` model/retriever runtime. New Agent-native employee source
+> packages use [`employee-package.v1alpha1`](employee-package.md).
+
 `employee-profile.v1` is the portable contract for a role that can be installed
 into a compatible Digital Employee runtime. It describes role policy and
 requested capabilities; it does not grant access to a deployment.

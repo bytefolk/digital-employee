@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/employee-mcp.schema.json",
+  "title": "Digital Employee MCP declaration v1 alpha 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "servers"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "employee-mcp.v1alpha1"
+    },
+    "servers": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "transport"
+        ],
+        "properties": {
+          "name": {
+            "$ref": "#/$defs/identifier"
+          },
+          "transport": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/stdio"
+              },
+              {
+                "$ref": "#/$defs/http"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9._-]{0,127})$"
+    },
+    "environmentName": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{0,127}$"
+    },
+    "stdio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "command"
+      ],
+      "properties": {
+        "type": {
+          "const": "stdio"
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "args": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "environment": {
+          "type": "array",
+          "maxItems": 128,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/environmentName"
+          }
+        }
+      }
+    },
+    "http": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "url"
+      ],
+      "properties": {
+        "type": {
+          "const": "http"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://",
+          "maxLength": 2000
+        },
+        "headers": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "valueFromEnv"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,128}$"
+              },
+              "valueFromEnv": {
+                "$ref": "#/$defs/environmentName"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

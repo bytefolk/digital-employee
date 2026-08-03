@@ -1,7 +1,7 @@
 {
   "name": "@fullstack-ai-infra/digital-employee",
   "version": "0.1.0",
-  "description": "A self-hosted runtime for role-based digital employees.",
+  "description": "An Agent-native CLI and outer runtime for portable digital employees.",
   "type": "module",
   "license": "Apache-2.0",
   "homepage": "https://github.com/fullstack-ai-infra/digital-employee#readme",
@@ -27,6 +27,10 @@
     "./core": {
       "types": "./dist/packages/core/index.d.ts",
       "import": "./dist/packages/core/index.js"
+    },
+    "./host-runtime": {
+      "types": "./dist/apps/cli/host-runtime.d.ts",
+      "import": "./dist/apps/cli/host-runtime.js"
     }
   },
   "workspaces": [
@@ -45,8 +49,16 @@
     "ask": "npm run build --silent && node ./dist/apps/cli/bin.js ask",
     "demo": "npm run build --silent && node ./dist/apps/cli/bin.js ask --config ./dist/configs/demo.json",
     "serve": "npm run build --silent && node ./dist/apps/cli/bin.js serve",
-    "start": "npm run build --silent && node ./dist/apps/cli/bin.js start",
+    "start": "npm run build --silent && node ./dist/apps/cli/bin.js --help",
     "sync": "npm run build --silent && node ./dist/apps/cli/bin.js sync",
+    "legacy:ask": "npm run build --silent && node ./dist/apps/cli/bin.js legacy ask",
+    "legacy:demo": "npm run build --silent && node ./dist/apps/cli/bin.js legacy ask --config ./dist/configs/demo.json",
+    "legacy:serve": "npm run build --silent && node ./dist/apps/cli/bin.js legacy serve",
+    "legacy:start": "npm run build --silent && node ./dist/apps/cli/bin.js legacy start",
+    "legacy:sync": "npm run build --silent && node ./dist/apps/cli/bin.js legacy sync",
+    "employee:init": "npm run build --silent && node ./dist/apps/cli/bin.js init",
+    "employee:validate": "npm run build --silent && node ./dist/apps/cli/bin.js validate",
+    "employee:run": "npm run build --silent && node ./dist/apps/cli/bin.js run",
     "test": "tsx --test tests/**/*.test.ts",
     "test:coverage": "tsx --test --experimental-test-coverage tests/**/*.test.ts",
     "security:check": "node ./scripts/security-check.js",
@@ -57,6 +69,10 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "yaml": "2.9.0"
   },
   "optionalDependencies": {
     "dingtalk-stream": "2.1.5"

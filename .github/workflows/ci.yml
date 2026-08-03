@@ -32,9 +32,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build --tag digital-employee:ci .
-      - name: Verify container health endpoint
+      - name: Verify default Agent-native entry point
+        run: docker run --rm digital-employee:ci | grep --fixed-strings "Agent-native usage:"
+      - name: Verify explicit standalone-v1 health endpoint
         run: |
-          container_id="$(docker run --detach --rm --publish 127.0.0.1:3000:3000 digital-employee:ci)"
+          container_id="$(docker run --detach --rm --publish 127.0.0.1:3000:3000 digital-employee:ci legacy serve --config ./dist/configs/demo.json --host 0.0.0.0 --port 3000)"
           trap 'docker stop "$container_id" >/dev/null 2>&1 || true' EXIT
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
             if curl --fail --silent http://127.0.0.1:3000/health; then

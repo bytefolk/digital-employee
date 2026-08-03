@@ -1,19 +1,40 @@
 #!/usr/bin/env node
 
 import { parseArgs } from "node:util";
+import { createReadStream } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createHttpServer } from "../server/server.js";
-import { assertProfileCapability, createRuntime } from "./runtime.js";
+import type { DigitalEmployee } from "../../packages/core/src/digital-employee.js";
+import {
+  BUILT_IN_AGENT_HOST_IDS,
+} from "./agent-hosts.js";
+import {
+  probeBuiltInAgentHosts,
+  resolveBuiltInAgentHostId,
+} from "./agent-host-registry.js";
+import {
+  inspectEmployeeHostCompatibility,
+  runEmployeePackage,
+} from "./agent-run.js";
+import {
+  createEmployeePackage,
+  inspectEmployeePackage,
+} from "./employee-package.js";
 
-type Runtime = Awaited<ReturnType<typeof createRuntime>>;
-type EmployeeResult = Awaited<ReturnType<Runtime["employee"]["answer"]>>;
+type EmployeeResult = Awaited<ReturnType<DigitalEmployee["answer"]>>;
 
 interface CommandValues {
   config: string;
   question?: string;
   json: boolean;
   channel?: string;
+  engine?: string;
+  input?: string;
+  inputFile?: string;
+  stdin: boolean;
+  deadline?: string;
+  name?: string;
+  author?: string;
   host: string;
   port: string;
   help: boolean;
@@ -25,13 +46,17 @@ const defaultConfig = path.join(packageRoot, "configs", "demo.json");
 function usage() {
   return `Digital Employee
 
-Usage:
-  digital-employee ask --question "..." [--config path] [--json]
-  digital-employee sync [--config path] [--json]
-  digital-employee start [--config path] [--channel console|dingtalk]
-  digital-employee serve [--config path] [--host 127.0.0.1] [--port 3000]
+Agent-native usage:
+  digital-employee doctor [--engine claude-code|qoder|codex|qwen-code|codebuddy] [--json]
+  digital-employee init <directory> [--name employee-name] [--author author]
+  digital-employee validate [directory] [--engine claude-code|qoder|codex|qwen-code|codebuddy] [--json]
+  digital-employee run [directory] --engine qoder (--stdin | --input-file path | --question "..." | --input '{"message":"..."}') [--json]
 
-The default demo uses approved local files and requires no credentials.
+Standalone-v1 compatibility:
+  digital-employee legacy <ask|sync|start|serve> [options]
+
+Agent host diagnosis is local-only and does not start a model run.
+The compatibility namespace uses the frozen model/retriever loop, not an Agent host.
 `;
 }
 
@@ -47,12 +72,27 @@ function parseCommand(argv: string[]) {
       question: { type: "string", short: "q" },
       json: { type: "boolean", default: false },
       channel: { type: "string" },
+      engine: { type: "string" },
+      input: { type: "string" },
+      "input-file": { type: "string" },
+      stdin: { type: "boolean", default: false },
+      deadline: { type: "string" },
+      name: { type: "string" },
+      author: { type: "string" },
       host: { type: "string", default: "127.0.0.1" },
       port: { type: "string", default: "3000" },
       help: { type: "boolean", short: "h", default: false }
     }
   });
-  return { command, values: parsed.values as CommandValues, positionals: parsed.positionals };
+  const values = parsed.values as typeof parsed.values & { "input-file"?: string };
+  return {
+    command,
+    values: {
+      ...values,
+      inputFile: values["input-file"],
+    } as CommandValues,
+    positionals: parsed.positionals,
+  };
 }
 
 function printResult(result: EmployeeResult, json: boolean) {
@@ -80,6 +120,7 @@ function printResult(result: EmployeeResult, json: boolean) {
 }
 
 async function ask(values: CommandValues, positionals: string[]) {
+  const { assertProfileCapability, createRuntime } = await import("./runtime.js");
   const question = values.question || positionals.join(" ").trim();
   if (!question) throw new TypeError("ask_requires_question");
   const runtime = await createRuntime(values.config);
@@ -95,6 +136,7 @@ async function ask(values: CommandValues, positionals: string[]) {
 }
 
 async function sync(values: CommandValues) {
+  const { createRuntime } = await import("./runtime.js");
   const runtime = await createRuntime(values.config);
   const result = {
     status: "ready",
@@ -111,6 +153,7 @@ async function sync(values: CommandValues) {
 }
 
 async function start(values: CommandValues) {
+  const { assertProfileCapability, createRuntime } = await import("./runtime.js");
   const runtime = await createRuntime(values.config);
   const channelName = values.channel || runtime.config.channel?.type || "console";
   assertProfileCapability(runtime.profileManifest, "channels", channelName);
@@ -141,6 +184,11 @@ async function start(values: CommandValues) {
 }
 
 async function serve(values: CommandValues) {
+  const [{ createHttpServer }, { assertProfileCapability, createRuntime }] =
+    await Promise.all([
+      import("../server/server.js"),
+      import("./runtime.js"),
+    ]);
   const runtime = await createRuntime(values.config);
   assertProfileCapability(runtime.profileManifest, "channels", "http");
   const port = Number.parseInt(values.port, 10);
@@ -165,16 +213,264 @@ async function serve(values: CommandValues) {
   process.once("SIGTERM", stop);
 }
 
+async function doctor(values: CommandValues) {
+  let hostIds: readonly string[];
+  if (values.engine) {
+    const hostId = resolveBuiltInAgentHostId(values.engine);
+    if (!hostId) {
+      throw new TypeError(`unknown_agent_host:${values.engine}`);
+    }
+    hostIds = [hostId];
+  } else {
+    hostIds = BUILT_IN_AGENT_HOST_IDS;
+  }
+  const hosts = await probeBuiltInAgentHosts(hostIds);
+  const installed = hosts.filter((host) => host.available).length;
+  const result = {
+    status: installed > 0 ? "installed" : "not_found",
+    runnable: hosts.some(
+      (host) => host.adapterStatus === "runnable" && host.status === "ready"
+    ),
+    note: "Local readiness only; model access is verified only by a real run.",
+    hosts
+  };
+
+  if (values.json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  } else {
+    process.stdout.write("Agent hosts:\n");
+    for (const host of hosts) {
+      const detail = host.version ? ` (${host.version})` : "";
+      const adapter = host.adapterStatus === "runnable" ? "runnable" : "probe-only";
+      process.stdout.write(
+        `- ${host.displayName}: ${host.status}${detail} [${adapter}]\n`
+      );
+    }
+    process.stdout.write(`\n${result.note}\n`);
+  }
+
+  if (installed === 0) process.exitCode = 1;
+}
+
+async function init(values: CommandValues, positionals: string[]) {
+  const directory = positionals[0];
+  if (!directory) throw new TypeError("init_requires_directory");
+  if (positionals.length > 1) throw new TypeError("init_accepts_one_directory");
+  const created = await createEmployeePackage(directory, {
+    name: values.name,
+    author: values.author
+  });
+  if (values.json) {
+    process.stdout.write(`${JSON.stringify(created, null, 2)}\n`);
+    return;
+  }
+  process.stdout.write(`Created ${created.manifest.name} in ${created.directory}\n`);
+  for (const file of created.files) process.stdout.write(`- ${file}\n`);
+  process.stdout.write(
+    `\nNext: edit SKILL.md, add approved knowledge, then run validate ${created.directory}\n`
+  );
+}
+
+async function validate(values: CommandValues, positionals: string[]) {
+  if (positionals.length > 1) throw new TypeError("validate_accepts_one_directory");
+  const directory = positionals[0] || process.cwd();
+  let host;
+  let compatibility;
+  let inspected;
+  if (values.engine) {
+    const hostId = resolveBuiltInAgentHostId(values.engine);
+    if (!hostId) {
+      throw new TypeError(`unknown_agent_host:${values.engine}`);
+    }
+    ({ inspection: inspected, host, compatibility } =
+      await inspectEmployeeHostCompatibility({
+        directory,
+        engine: hostId,
+      }));
+  } else {
+    inspected = await inspectEmployeePackage(directory);
+  }
+
+  const result = {
+    status: compatibility && !compatibility.compatible ? "incompatible" : "valid",
+    employee: {
+      name: inspected.manifest.name,
+      version: inspected.manifest.version,
+      schemaVersion: inspected.manifest.schemaVersion
+    },
+    files: inspected.files,
+    ...(host ? { host, compatibility } : {})
+  };
+  if (values.json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  } else {
+    process.stdout.write(
+      `Static package valid: ${result.employee.name}@${result.employee.version}\n`
+    );
+    process.stdout.write(`Checked ${result.files.length} declared file(s).\n`);
+    if (host && compatibility) {
+      process.stdout.write(
+        `${host.displayName}: ${compatibility.compatible ? "compatible" : "incompatible"}\n`
+      );
+      for (const capability of compatibility.missing) {
+        process.stdout.write(`- unsupported: ${capability}\n`);
+      }
+      for (const capability of compatibility.unknown) {
+        process.stdout.write(`- unverified: ${capability}\n`);
+      }
+      for (const issue of compatibility.issues.filter((entry) => entry.blocking)) {
+        process.stdout.write(`- blocked: ${issue.code}\n`);
+      }
+    }
+  }
+  if (compatibility && !compatibility.compatible) process.exitCode = 1;
+}
+
+function printAgentRunOutput(output: unknown): void {
+  if (output && typeof output === "object" && !Array.isArray(output)) {
+    const value = output as Record<string, unknown>;
+    if (typeof value.answer === "string" && value.answer) {
+      process.stdout.write(`${value.answer}\n`);
+      if (Array.isArray(value.citations) && value.citations.length > 0) {
+        process.stdout.write("\nSources:\n");
+        for (const rawCitation of value.citations) {
+          if (!rawCitation || typeof rawCitation !== "object" || Array.isArray(rawCitation)) continue;
+          const citation = rawCitation as Record<string, unknown>;
+          const label = typeof citation.label === "string" ? citation.label : "approved source";
+          const uri = typeof citation.uri === "string" ? citation.uri : "approved source";
+          process.stdout.write(`- ${label}: ${uri}\n`);
+        }
+      }
+      return;
+    }
+  }
+  process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
+}
+
+async function run(values: CommandValues, positionals: string[]) {
+  if (positionals.length > 1) throw new TypeError("run_accepts_one_directory");
+  if (!values.engine) throw new TypeError("run_requires_engine");
+  const hostId = resolveBuiltInAgentHostId(values.engine);
+  if (!hostId) {
+    throw new TypeError(`unknown_agent_host:${values.engine}`);
+  }
+  const inputModes = [
+    Boolean(values.input),
+    Boolean(values.question),
+    Boolean(values.inputFile),
+    values.stdin,
+  ].filter(Boolean).length;
+  if (inputModes > 1) {
+    throw new TypeError("run_accepts_one_input_source");
+  }
+
+  let input: unknown;
+  let serializedInput: string | undefined;
+  if (values.inputFile) {
+    serializedInput = await readBoundedInput(createReadStream(values.inputFile));
+  } else if (values.stdin) {
+    serializedInput = await readBoundedInput(process.stdin);
+  } else if (values.input) {
+    serializedInput = values.input;
+  }
+  if (serializedInput !== undefined) {
+    try {
+      input = JSON.parse(serializedInput) as unknown;
+    } catch {
+      throw new TypeError("run_input_invalid_json");
+    }
+  } else if (values.question?.trim()) {
+    input = { message: values.question.trim() };
+  } else {
+    throw new TypeError("run_requires_input");
+  }
+
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  process.once("SIGINT", abort);
+  process.once("SIGTERM", abort);
+  let result;
+  try {
+    result = await runEmployeePackage({
+      directory: positionals[0] || process.cwd(),
+      engine: hostId,
+      input,
+      ...(values.deadline ? { deadline: values.deadline } : {}),
+      signal: controller.signal,
+    });
+  } finally {
+    process.removeListener("SIGINT", abort);
+    process.removeListener("SIGTERM", abort);
+  }
+
+  if (values.json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  } else if (result.status === "completed") {
+    printAgentRunOutput(result.output);
+  } else {
+    process.stderr.write(`digital-employee: ${result.error.code}\n`);
+    for (const item of result.issues ?? []) {
+      process.stderr.write(`- blocked: ${item.code}\n`);
+    }
+  }
+  if (result.status === "failed") {
+    process.exitCode = result.error.code.endsWith("_run_cancelled") ? 130 : 1;
+  }
+}
+
+async function readBoundedInput(
+  stream: AsyncIterable<string | Buffer>,
+): Promise<string> {
+  const limit = 1024 * 1024;
+  const chunks: Buffer[] = [];
+  let bytes = 0;
+  for await (const chunk of stream) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    bytes += buffer.byteLength;
+    if (bytes > limit) throw new TypeError("run_input_too_large");
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+function warnLegacyAlias(command: string): void {
+  if (process.env.DIGITAL_EMPLOYEE_SUPPRESS_LEGACY_WARNING === "1") return;
+  process.stderr.write(
+    `[standalone-v1] '${command}' is a deprecated alias for 'legacy ${command}'. ` +
+      "This compatibility path uses the model/retriever loop, not an Agent host; " +
+      "it is retained through 0.x.\n"
+  );
+}
+
+async function runLegacyCommand(
+  command: string | undefined,
+  values: CommandValues,
+  positionals: string[],
+) {
+  if (command === "ask") return ask(values, positionals);
+  if (command === "sync") return sync(values);
+  if (command === "start") return start(values);
+  if (command === "serve") return serve(values);
+  throw new TypeError(`unknown_legacy_command:${command || "missing"}`);
+}
+
 async function main() {
   const { command, values, positionals } = parseCommand(process.argv.slice(2));
   if (values.help || command === "help") {
     process.stdout.write(usage());
     return;
   }
-  if (command === "ask") return ask(values, positionals);
-  if (command === "sync") return sync(values);
-  if (command === "start") return start(values);
-  if (command === "serve") return serve(values);
+  if (command === "legacy") {
+    return runLegacyCommand(positionals[0], values, positionals.slice(1));
+  }
+  if (["ask", "sync", "start", "serve"].includes(command)) {
+    warnLegacyAlias(command);
+    return runLegacyCommand(command, values, positionals);
+  }
+  if (command === "doctor") return doctor(values);
+  if (command === "init") return init(values, positionals);
+  if (command === "validate") return validate(values, positionals);
+  if (command === "run") return run(values, positionals);
   throw new TypeError(`unknown_command:${command}`);
 }
 

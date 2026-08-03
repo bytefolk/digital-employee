@@ -3,6 +3,7 @@ import test from "node:test"
 
 import {
   CoreError,
+  sanitizeDetails,
   structuredError,
   validateAnswerRequest,
   validateModelResponse,
@@ -68,4 +69,14 @@ test("structured errors preserve safe fields without exposing credentials or sta
   )
   assert.equal(unknown.code, "INTERNAL_ERROR")
   assert.equal(JSON.stringify(unknown).includes("private-value"), false)
+})
+
+test("sanitizing untrusted JSON keeps __proto__ as inert data", () => {
+  const input = JSON.parse('{"__proto__":{"polluted":true},"safe":"value"}')
+  const sanitized = sanitizeDetails(input)
+
+  assert.equal(Object.getPrototypeOf(sanitized), Object.prototype)
+  assert.deepEqual(Object.keys(sanitized as object), ["__proto__", "safe"])
+  assert.equal(({} as { polluted?: boolean }).polluted, undefined)
+  assert.equal(JSON.stringify(sanitized).includes('"__proto__"'), true)
 })

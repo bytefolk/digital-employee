@@ -1,14 +1,55 @@
-# Digital Employee：可复用的数字员工运行时
+# Digital Employee：Agent-native 数字员工 CLI 与外层运行时
 
 [English](README.md)
 
-Digital Employee 是一个开源、自托管的数字员工运行时。它把岗位身份、知识源、工具权限、消息入口和人工接力做成可配置能力。
+Digital Employee 正在被构建为一套开源的数字员工 CLI、员工包契约和外层服务边界。模型推理、上下文和工具循环由 Claude Code、Qoder CLI、Codex 等 Agent host 负责；目标外层负责 Host Adapter、权限策略、消息入口、队列、审计和人工接力。
 
-首个已经交付的岗位是 `answer-agent`：一个默认只读、答案带出处、证据不足就转人工的团队答疑员工。
+当前源码已交付 CLI、可移植员工包、无模型预检，以及一条 one-shot Qoder Adapter；Agent-native 长期在线服务层（`service start`）还没有交付。
 
-## 安装正式版本
+首个员工 recipe 是 `answer-agent`：一个默认只读、答案带出处、证据不足就转人工的团队答疑员工。现有 `0.1` 问答实现作为 `standalone-v1` 兼容运行时保留，不再作为通用 Agent 能力的主要演进方向。
 
-同一个 `0.1.0` 版本通过三个公开渠道分发：
+```mermaid
+flowchart LR
+  P["员工源码包<br/>employee.json · SKILL.md · Schema"] --> O["Digital Employee<br/>CLI + 外层服务运行时"]
+  O --> H["Host Adapter"]
+  H --> A["Claude Code · Qoder CLI · Codex"]
+  A --> T["原生 Agent 循环<br/>Skills · MCP · Tools"]
+  O -. "目标服务层（尚未迁移完成）" .-> S["通道 · 队列 · 策略 · 审计 · 人工接力"]
+```
+
+## 先走通一条实践路径
+
+当前源码已经提供员工包脚手架、静态校验和本机 Agent host 诊断；这些命令不会发起模型调用或产生模型费用：
+
+```bash
+npm ci
+npm run build
+node ./dist/apps/cli/bin.js doctor
+node ./dist/apps/cli/bin.js init ../team-answer --author your-team
+node ./dist/apps/cli/bin.js validate ../team-answer
+node ./dist/apps/cli/bin.js doctor --engine qoder
+```
+
+然后编辑生成的 `SKILL.md`，把经过批准的资料放入 `knowledge/`，并在 `employee.json` 的 `assets` 中逐个声明要发布的文件；用 `evals/` 固化典型问题。
+
+第一条真实运行链路是无状态、只读的 Qoder CLI 1.1.x Adapter。服务 Token 只放在部署环境，不进入员工包。下面的 `run` 会发起真实模型调用，可能消耗 Qoder credits；前面的 `init`、静态 `validate`、`doctor` 不会：
+
+```bash
+export QODER_PERSONAL_ACCESS_TOKEN='...'
+node ./dist/apps/cli/bin.js validate ../team-answer --engine qoder
+printf '%s\n' '{"message":"批准资料里怎么说？"}' | \
+  node ./dist/apps/cli/bin.js run ../team-answer --engine qoder --stdin
+```
+
+`--stdin`/`--input-file` 会让任务、SKILL 和 Schema 经 Qoder 的 stdin JSONL 协议传递，不进入子进程参数。当前 Qoder 链路仍是 one-shot、本机/单租户技术预览，不是已经可供市场租赁的在线员工服务。如果没有 Token、版本未经过兼容验证或包级策略无法真正收窄，`validate --engine qoder` 会返回 `incompatible`。Claude Code、Codex 目前仍只有探测；Qoder 的 MCP、附件、会话恢复、写操作与审批回调也会在首版 fail-closed，而不是用 Prompt 假装实现安全边界。
+
+员工包规范见 [Portable employee package](docs/employee-package.md)，双运行时决策见 [ADR 0001](docs/decisions/0001-agent-host-boundary.md)。[Agent Host 状态与接入策略](docs/agent-hosts.md)记录了精确边界：当前只有 Qoder Adapter 可运行；Claude Code、Codex、Qwen Code、CodeBuddy Code 均仅探测，后两者同时是待实现 Adapter 的候选。
+
+## 版本状态
+
+上面的 Agent-native 命令目前是源码预览，目标进入下一个 minor 版本（预计 `0.2.0`）；已发布的 `0.1.0` **不包含** `init`、`validate`、`doctor` 和 `run`。新版本正式发布前请用源码运行，不要覆盖或重新标记 `0.1.0`。
+
+冻结的 `0.1.0` 兼容版本通过三个公开渠道分发：
 
 | 渠道 | 安装或下载方式 |
 | --- | --- |
@@ -16,48 +57,39 @@ Digital Employee 是一个开源、自托管的数字员工运行时。它把岗
 | GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.1.0` |
 | GitHub Release | 从 [Releases](https://github.com/fullstack-ai-infra/digital-employee/releases) 下载软件包和校验文件 |
 
-npm 安装后，可以在任意目录运行无需凭证的演示：
-
-```bash
-digital-employee ask --question "What should I include in an incident report?"
-```
-
-也可以直接通过容器启动 HTTP 演示：
+这个版本只有历史答疑运行时；容器默认启动旧 HTTP 演示，不包含 Qoder，也没有新的员工包命令：
 
 ```bash
 docker run --rm -p 3000:3000 \
   ghcr.io/fullstack-ai-infra/digital-employee:0.1.0
 ```
 
-## 不是只开源一个机器人
+当前源码的 `Dockerfile` 已改为通用 CLI 基础镜像，默认只显示帮助；只有明确测试兼容运行时时才进入 `legacy`：
 
-`answer-agent` 是岗位模板，不是整个产品。岗位模板负责定义：
-
-- 它是谁、服务什么领域；
-- 可以读取哪些知识；
-- 可以使用哪些工具；
-- 哪些操作只读，哪些操作必须审批；
-- 没把握时交给谁。
-
-同一个运行时后续可以承载项目助理、运营员工等岗位，而不需要复制消息、记忆、权限和审计代码。
-
-岗位现在使用严格、可版本化的 `employee-profile.v1` manifest。CLI 通过显式
-registry 装配岗位、知识源、模型、渠道和工具，因此经过本地批准的新岗位模块不需要
-修改核心分支。扩展模块默认关闭，只接受调用方精确授权的本地路径，并拒绝远程 URL、
-路径穿越和符号链接。契约与迁移方式见
-[Profile manifest 说明](docs/profile-manifest.md)。
-
-```mermaid
-flowchart LR
-  C["消息入口<br/>Console · HTTP · 钉钉"] --> R["数字员工运行时"]
-  R --> P["岗位模板<br/>answer-agent"]
-  R --> M["模型<br/>本地抽取 · OpenAI-compatible"]
-  R --> K["授权知识<br/>文件 · Git · DWS"]
-  R --> H["人工接力"]
-  K --> D["带来源和时间的引用"]
+```bash
+docker build -t digital-employee:source .
+docker run --rm digital-employee:source
+docker run --rm -p 3000:3000 digital-employee:source \
+  legacy serve --config ./dist/configs/demo.json --host 0.0.0.0 --port 3000
 ```
 
-## 五分钟本地跑通
+## 不是只开源一个机器人，也不是再造一个 Agent
+
+`answer-agent` 是员工 recipe，不是整个产品。员工包负责定义：
+
+- 它是谁、服务什么领域；
+- 可以读取哪些知识和调用哪些 MCP 能力；
+- 对 Agent host 有哪些强制能力要求；
+- 哪些目录只读，哪些操作必须审批；
+- 没把握时交给谁。
+
+同一个员工包后续可以投影到不同 Agent host；同一个外层运行时也可以承载项目助理、运营员工等岗位，而不需要复制消息、记忆、权限和审计代码。
+
+Agent-native 新路径使用 `employee-package.v1alpha1`；其中 `SKILL.md` 是角色和工作流真源，JSON Schema 是输入输出契约，MCP 是文档、网盘、DWS 等外部能力的通用接口。`AGENTS.md`、Claude/Qoder 配置和启动参数只是 Host Adapter 生成的投影。
+
+原 `employee-profile.v1` 继续服务 `standalone-v1` 兼容路径。契约与迁移方式见 [Profile manifest 说明](docs/profile-manifest.md)。
+
+## 五分钟跑通 `standalone-v1` 演示
 
 需要 Node.js 20 或更高版本。默认演示只读取仓库里的公开示例资料，不需要模型密钥、钉钉应用或 DWS 登录。
 
@@ -65,7 +97,7 @@ flowchart LR
 git clone https://github.com/fullstack-ai-infra/digital-employee.git
 cd digital-employee
 npm install
-npm run demo -- --question "What should I include in an incident report?"
+npm run legacy:demo -- --question "What should I include in an incident report?"
 ```
 
 它会从批准的示例手册中提取相关段落，并附带来源：
@@ -84,7 +116,7 @@ Sources:
 再问一个需要实际执行的请求：
 
 ```bash
-npm run demo -- --question "Approve a production deployment for me."
+npm run legacy:demo -- --question "Approve a production deployment for me."
 ```
 
 只读岗位不会假装已经操作：
@@ -95,24 +127,26 @@ I could not find enough approved evidence. Please ask a maintainer.
 Human review: human-support (model_requested)
 ```
 
-## 四种入口
+## `standalone-v1` 的四种入口
+
+权威入口统一放在 `digital-employee legacy ...` / `npm run legacy:*` 下。旧的顶层 `ask`、`sync`、`start`、`serve` 在 `0.x` 仅作为带警告的兼容别名保留；Agent-native 的 `run` 不会在 Host 失败时自动回退到这里。
 
 单次问答：
 
 ```bash
-npm run ask -- --config ./configs/demo.json --question "..."
+npm run legacy:ask -- --config ./configs/demo.json --question "..."
 ```
 
 交互式命令行：
 
 ```bash
-npm start -- --config ./configs/demo.json
+npm run legacy:start -- --config ./configs/demo.json
 ```
 
 本地 HTTP：
 
 ```bash
-npm run serve -- --config ./configs/demo.json --port 3000
+npm run legacy:serve -- --config ./configs/demo.json --port 3000
 ```
 
 内置 HTTP 入口默认无状态，并拒绝客户端自选 `requestId`、`actorId` 和 `sessionId`，避免共享 Bearer Token 的调用方串到其他人的会话历史。需要多轮 HTTP 会话时，应先在核心前增加按用户认证的网关。
@@ -124,14 +158,14 @@ cp configs/dingtalk-dws.example.json configs/local.json
 export DINGTALK_CLIENT_ID='...'
 export DINGTALK_CLIENT_SECRET='...'
 export OPENAI_API_KEY='...'
-npm start -- --config ./configs/local.json --channel dingtalk
+npm run legacy:start -- --config ./configs/local.json --channel dingtalk
 ```
 
 钉钉适配器会先把用户与会话标识哈希化，再交给通用运行时。默认日志不输出问题正文、用户 ID 和会话 Webhook。
 
 ## DWS：数字员工连接钉钉工作空间的能力层
 
-答疑岗位把 DWS 当作“眼睛”，读取经过批准的：
+在 Agent-native 路径中，DWS 应作为受权限控制的 MCP/能力层；在现有 `standalone-v1` 中，答疑岗位通过只读 source connector 读取经过批准的：
 
 - 钉钉文档；
 - AI 听记摘要与转写；
@@ -148,13 +182,18 @@ DWS 的安装、授权和完整能力请查看
 
 | 能力 | 状态 |
 | --- | --- |
-| 可版本化岗位及渠道、知识源、模型、工具 registry 契约 | 已交付 |
+| `employee-package.v1alpha1`、`agent-host.v1` 与能力协商 | 已交付（源码分支） |
+| `init`、静态 `validate`、本机 `doctor` | 已交付（源码分支） |
+| Qoder CLI 1.1.x 无状态只读 `run --engine qoder` Adapter | 已交付（源码分支）；未使用真实模型权益验收 |
+| Agent-native `service start`（通道、队列、审计、长期在线） | 尚未交付；下一阶段 |
+| Claude Code / Codex 原生运行 Adapter | 仅探测；规划中 |
+| `standalone-v1` 岗位及渠道、知识源、模型、工具 registry | 已交付；兼容路径 |
 | 只读 `answer-agent` 岗位 | 已交付 |
 | Console 与 HTTP 入口 | 已交付 |
 | 钉钉 Stream 入口 | 已交付；真实应用凭证集成验证需要单独环境 |
 | 文件、Git、DWS 知识源 | 已交付 |
 | 引用、人工接力、仅确认反馈后学习 FAQ | 已交付 |
-| 项目助理、运营员工等岗位 | 规划中 |
+| 项目助理、运营员工等员工包 | 规划中 |
 | 写工具与审批流 | 规划中；首版禁用 |
 | 托管式多租户 SaaS | `0.1` 非目标 |
 
@@ -173,9 +212,11 @@ DWS 的安装、授权和完整能力请查看
 
 接入私有知识或新增工具前，请先阅读 [SECURITY.md](SECURITY.md) 和 [架构说明](docs/architecture.md)。[验证账本](docs/verification.md) 会明确区分自动化测试、容器实测、DWS 真实读取以及尚未完成的真实凭证验证。
 
-## 与 `mem` 的关系
+## 与 `design-system`、平台和 `mem` 的关系
 
-Digital Employee 负责消息入口、岗位策略、问答编排、引用、反馈和人工接力；[`mem`](https://github.com/fullstack-ai-infra/mem) 可以作为后续可选的长期记忆与检索后端，本项目不重复建设 memory plane。
+`design-system` 只是未来管理页面可复用的 UI 资产，不是 `digital-employee` 的运行时。机器人上架、租赁、动态价格、计量、评价和分账属于未来独立平台；本仓库先把“员工能被一致构建、校验、运行和包装”做好。
+
+[`mem`](https://github.com/fullstack-ai-infra/mem) 可以作为后续可选的长期记忆与检索能力，本项目不重复建设 memory plane。
 
 ## 开发
 

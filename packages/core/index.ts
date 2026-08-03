@@ -11,8 +11,53 @@ export {
   validateModelResponse,
   validateTool,
 } from "./src/contracts.js"
+export type { SafeValue } from "./src/contracts.js"
 
 export { DigitalEmployee } from "./src/digital-employee.js"
+export {
+  AGENT_HOST_CAPABILITIES,
+  AGENT_HOST_PROTOCOL_VERSION,
+  assessAgentHostCompatibility,
+  createUnknownAgentHostCapabilities,
+} from "./src/agent-host.js"
+export type {
+  AgentHostAdapter,
+  AgentHostAttachment,
+  AgentHostCapabilities,
+  AgentHostCapability,
+  AgentHostCapabilitySupport,
+  AgentHostCompatibility,
+  AgentHostEvent,
+  AgentHostIssue,
+  AgentHostMcpServer,
+  AgentHostPolicy,
+  AgentHostProbeResult,
+  AgentHostProbeStatus,
+  AgentHostRequirements,
+  AgentHostRunRequest,
+} from "./src/agent-host.js"
+export {
+  AgentHostRegistry,
+  validateAgentHostProbeResult,
+} from "./src/agent-host-registry.js"
+export type {
+  AgentHostAdapterFactory,
+  AgentHostRegistration,
+  AgentHostRegistryPort,
+} from "./src/agent-host-registry.js"
+export {
+  EMPLOYEE_PACKAGE_MANIFEST_NAME,
+  EMPLOYEE_PACKAGE_SCHEMA_VERSION,
+  deriveEffectiveAgentHostPolicy,
+  deriveEmployeeHostRequirements,
+  validateEmployeePackageManifest,
+} from "./src/employee-package.js"
+export type { EmployeePackageManifest } from "./src/employee-package.js"
+export {
+  EMPLOYEE_MCP_SCHEMA_VERSION,
+  validateEmployeeMcpManifest,
+} from "./src/employee-mcp.js"
+export type { EmployeeMcpManifest } from "./src/employee-mcp.js"
 export { RuntimeComponentRegistry } from "./src/component-registry.js"
 export type {
   RuntimeChannelComponent,

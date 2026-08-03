@@ -20,6 +20,6 @@ COPY --from=build --chown=node:node /app/dist ./dist
 COPY --chown=node:node README.md README.zh-CN.md LICENSE NOTICE ./
 
 USER node
-EXPOSE 3000
 
-CMD ["node", "./dist/apps/cli/bin.js", "serve", "--config", "./dist/configs/demo.json", "--host", "0.0.0.0", "--port", "3000"]
+ENTRYPOINT ["node", "./dist/apps/cli/bin.js"]
+CMD ["--help"]

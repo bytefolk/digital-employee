@@ -57,11 +57,22 @@ test("Codex tool allowlisting stays unknown until an adapter can enforce it", ()
   assert.equal(definition.capabilities.tool_allowlist, "unknown")
 })
 
-test("Qwen Code and CodeBuddy claims remain documentation-only", () => {
-  for (const hostId of ["qwen-code", "codebuddy"] as const) {
+test("raw catalog claims remain documentation-only until a registry adapter probes", () => {
+  for (const hostId of ["claude-code", "qwen-code", "codebuddy"] as const) {
     const definition = getCliAgentHostDefinition(hostId)
     assert.equal(definition.capabilities.non_interactive_run, "documented")
     assert.equal(definition.capabilities.event_stream, "documented")
-    assert.equal(definition.capabilities.tool_allowlist, "unknown")
   }
+  assert.equal(
+    getCliAgentHostDefinition("claude-code").capabilities.tool_allowlist,
+    "documented",
+  )
+  assert.equal(
+    getCliAgentHostDefinition("qwen-code").capabilities.tool_allowlist,
+    "unknown",
+  )
+  assert.equal(
+    getCliAgentHostDefinition("codebuddy").capabilities.tool_allowlist,
+    "unknown",
+  )
 })

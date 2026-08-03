@@ -9,8 +9,9 @@ target outer layer owns host adapters, policy, channels, queues, audit and
 human escalation.
 
 The current source delivers the CLI, portable employee package, model-free
-preflight and a one-shot Qoder adapter. The Agent-native long-running service
-layer (`service start`) is not shipped yet.
+preflight and four version-gated, one-shot context/read-only adapters: Qoder
+CLI, Claude Code, Qwen Code and CodeBuddy Code. The Agent-native long-running
+service layer (`service start`) is not shipped yet.
 
 The first recipe is `answer-agent`: a read-only team support employee that
 answers with citations, refuses unsupported claims, and escalates uncertainty
@@ -21,7 +22,7 @@ to a human. The original `0.1` answer runtime remains available as the
 flowchart LR
   P["Employee source<br/>employee.json · SKILL.md · Schema"] --> O["Digital Employee<br/>CLI + outer runtime"]
   O --> H["Host Adapter"]
-  H --> A["Claude Code · Qoder CLI · Codex"]
+  H --> A["Claude Code · Qoder CLI · Qwen Code · CodeBuddy Code<br/>Codex probe-only"]
   A --> T["Native Agent loop<br/>Skills · MCP · Tools"]
   O -. "target service layer (not migrated yet)" .-> S["Channels · queue · policy · audit · escalation"]
 ```
@@ -38,18 +39,31 @@ node ./dist/apps/cli/bin.js doctor
 node ./dist/apps/cli/bin.js init ../team-answer --author your-team
 node ./dist/apps/cli/bin.js validate ../team-answer
 node ./dist/apps/cli/bin.js doctor --engine qoder
+node ./dist/apps/cli/bin.js doctor --engine claude-code
+node ./dist/apps/cli/bin.js doctor --engine qwen-code
+node ./dist/apps/cli/bin.js doctor --engine codebuddy
 ```
 
 See the [portable employee package](docs/employee-package.md) and the
 [Agent-host boundary ADR](docs/decisions/0001-agent-host-boundary.md). The
-[Agent Host support policy](docs/agent-hosts.md) records the exact status:
-Qoder is the only runnable source adapter; Claude Code, Codex, Qwen Code and
-CodeBuddy Code are probe-only (the latter two are also adapter candidates).
+[Agent Host support policy](docs/agent-hosts.md) records the exact status.
+Qoder CLI 1.1.x, Claude Code `>=2.1.214 <2.2.0`, Qwen Code `0.17.1` and
+CodeBuddy Code `2.106.4` have runnable source adapters. Codex remains
+probe-only: Codex CLI 0.146.0 cannot reliably remove every model-visible
+built-in tool, notably `apply_patch`, so it cannot satisfy the default-deny
+tool contract.
 
-The first runnable adapter is a stateless, read-only Qoder CLI 1.1.x path. A
-service token stays in the deployment environment, never in the employee
-package. Unlike the commands above, `run` starts a real Agent/model run and may
-consume Qoder credits:
+| Runnable engine | Conformance gate | Required deployment settings |
+| --- | --- | --- |
+| `qoder` | Qoder CLI 1.1.x | `QODER_PERSONAL_ACCESS_TOKEN` |
+| `claude-code` | Claude Code `>=2.1.214 <2.2.0` | `ANTHROPIC_API_KEY` |
+| `qwen-code` | Qwen Code `0.17.1` | `OPENAI_API_KEY`, `OPENAI_MODEL` |
+| `codebuddy` | CodeBuddy Code `2.106.4` | `CODEBUDDY_API_KEY`, `CODEBUDDY_MODEL` |
+
+Every runnable adapter is stateless and one-shot. It requires an explicit
+deployment service credential and never reuses a personal CLI login. Unlike
+the commands above, `run` starts a real Agent/model run and may consume the
+selected provider's credits. For example, the Qoder path is:
 
 ```bash
 export QODER_PERSONAL_ACCESS_TOKEN='...'
@@ -58,12 +72,26 @@ printf '%s\n' '{"message":"What does the approved handbook say?"}' | \
   node ./dist/apps/cli/bin.js run ../team-answer --engine qoder --stdin
 ```
 
-`--stdin`/`--input-file` keep task, Skill and Schema data in Qoder's stdin JSONL
-protocol rather than child-process arguments. This Qoder path is still a
-one-shot local/single-tenant technical preview, not a marketplace-ready online
-employee service. Claude Code and Codex remain probe-only. Qoder MCP,
-attachments, session resume, write tools and approval callbacks are also
-deliberately rejected in this first adapter.
+Select `claude-code`, `qwen-code` or `codebuddy` in the same commands after
+configuring that adapter's service API key. `--stdin`/`--input-file` keep task
+data out of the outer process arguments. Claude Code, Qwen Code and CodeBuddy
+receive only a sealed, bounded UTF-8 rendering of manifest-selected assets;
+they run with empty isolated working, home and configuration directories and
+must attest an empty model-visible tool and MCP surface before output is
+trusted. Claude additionally attests empty plugins, Skills and slash commands;
+Qwen disables slash commands and pins its unreachable built-in agent catalog;
+CodeBuddy denies every built-in tool in the verified version because its empty
+`--tools` flag alone is insufficient. Qoder instead receives a minimum
+read-only file projection and must attest its exact read/search tool set plus
+empty MCP/Skill/plugin sets.
+
+These paths are local/single-tenant technical previews, not a marketplace-ready
+online employee service. All four reject MCP, attachments, session resume,
+write tools and approval callbacks. Their model control plane remains reachable,
+while employee tool/MCP data-plane network access is denied. Conformance
+fixtures have been run, but live model entitlement has not been tested.
+The runnable preview is currently POSIX-only so descendant process groups can
+be terminated and verified before a terminal event is published.
 
 ## Release status
 
@@ -268,7 +296,8 @@ container, live DWS, and not-yet-live-tested evidence.
 | `employee-package.v1alpha1`, `agent-host.v1`, capability negotiation | Shipped in source |
 | `init`, static `validate`, local `doctor` | Shipped in source |
 | Qoder CLI 1.1.x read-only, stateless `run --engine qoder` adapter | Shipped in source; live model entitlement not tested |
-| Claude Code and Codex run adapters | Probe-only; planned |
+| Claude Code `>=2.1.214 <2.2.0`, Qwen Code `0.17.1`, CodeBuddy Code `2.106.4` context-only adapters | Shipped in source; live model entitlement not tested |
+| Codex CLI run adapter | Probe-only; blocked on reliable removal of every model-visible built-in tool |
 | Agent-native `service start` with channels, queue and audit | Not shipped; next phase |
 | `standalone-v1` profile and channel/source/model/tool registry | Shipped; compatibility path |
 | Read-only `answer-agent` profile | Shipped |
@@ -278,7 +307,7 @@ container, live DWS, and not-yet-live-tested evidence.
 | Human escalation and authorized verified FAQ feedback | Shipped |
 | Project-assistant and operations profiles | Planned |
 | Write tools and approval workflow | Planned; disabled in the first release |
-| Marketplace, pricing and hosted multi-tenant service | Separate future platform; not part of `0.1` |
+| Marketplace, pricing and hosted multi-tenant service | Separate future platform; not shipped in the current source or planned `0.2.0` CLI release |
 
 ## Relationship to `mem`
 

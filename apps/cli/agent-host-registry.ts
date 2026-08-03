@@ -10,7 +10,10 @@ import {
   probeCliAgentHost,
 } from "./agent-hosts.js"
 import type { BuiltInAgentHostId } from "./agent-hosts.js"
+import { createClaudeAgentHostAdapter } from "./claude-agent-host.js"
+import { createCodeBuddyAgentHostAdapter } from "./codebuddy-agent-host.js"
 import { createQoderAgentHostAdapter } from "./qoder-agent-host.js"
+import { createQwenAgentHostAdapter } from "./qwen-agent-host.js"
 
 const BUILT_IN_ALIASES: Readonly<
   Partial<Record<BuiltInAgentHostId, readonly string[]>>
@@ -25,7 +28,10 @@ const BUILT_IN_ALIASES: Readonly<
 const BUILT_IN_ADAPTER_FACTORIES: Readonly<
   Partial<Record<BuiltInAgentHostId, () => AgentHostAdapter>>
 > = {
+  "claude-code": () => createClaudeAgentHostAdapter(),
   qoder: () => createQoderAgentHostAdapter(),
+  "qwen-code": () => createQwenAgentHostAdapter(),
+  codebuddy: () => createCodeBuddyAgentHostAdapter(),
 }
 
 /**

@@ -14,12 +14,14 @@
 
 采用“双运行时”架构：
 
-1. **内层 Agent host 运行时**由 Claude Code、Qoder CLI、Codex 等宿主提供，负责模型推理、原生工具循环、上下文消费和增量事件输出。
+1. **内层 Agent host 运行时**由 Claude Code、Qoder CLI、Qwen Code、CodeBuddy Code、Codex 等宿主提供，负责模型推理、原生工具循环、上下文消费和增量事件输出。某个产品只有在具体版本能强制满足员工策略时才进入 runnable Adapter。
 2. **外层 digital-employee 运行时**负责员工包规范、Host Adapter、通道接入、ACK、去重、队列、会话生命周期、策略执行、审计、可观测性和服务包装。
 
 `digital-employee` 的 CLI 是这套架构的权威入口：用于初始化、校验、诊断、运行和包装员工项目，而不是成为另一个通用大模型终端。
 
-首个落地实现是 `run --engine qoder`：只支持 Qoder CLI 1.1.x、无状态新会话、只读本地资产，暂不开放 MCP、附件、写操作和审批回调。它通过最小投影目录、隔离配置、工具收窄和 `system/init` 运行时校验实现边界；Adapter 会显式启用 SDK process mode，要求协议主版本兼容且 skills/plugins 明确为空，再把 SKILL 与任务经 `initialize → user → EOF` 的 stdin JSONL 协议传递，不进入 Qoder 参数向量。Claude Code 与 Codex 当前仍只有探测。
+当前落地了四条 one-shot、无状态、上下文/只读路径：Qoder CLI 1.1.x、Claude Code `>=2.1.214 <2.2.0`、Qwen Code `0.17.1` 和 CodeBuddy Code `2.106.4`。Qoder 通过最小只读投影目录、隔离配置、精确读/搜索工具集和 `system/init` 校验实现边界。另外三个 Adapter 只把 manifest 选中且策略允许的有上限 UTF-8 资产密封成 stdin 数据，在空白隔离的工作目录、HOME 与配置目录中运行，并确认模型可见 tools 与 MCP 均为空。Claude 还会确认 plugin/Skill/slash-command 集为空；Qwen 禁用 slash commands 并锁定无法通过工具调用的内建 Agent 目录；CodeBuddy 逐项拒绝 2.106.4 的全部内建工具，因为空 `--tools` 本身无效。四条路径都使用操作方显式提供的服务 API Key/Token，不复用个人登录态，并拒绝 MCP、附件、会话恢复、写操作和审批回调。它们尚未使用真实模型权益验收。
+
+Codex 仍只有探测。对 Codex CLI 0.146.0 的审计显示，禁用 shell/unified exec 之后仍不能可靠移除 `apply_patch` 等每一个模型可见内建工具；只读文件系统权限或 Prompt 约束不能代替默认拒绝的工具表，因此暂不注册 runnable Adapter。
 
 现有自研 `model + retriever + employee` 执行循环冻结为 **`standalone-v1` 兼容层**。它继续支撑无外部 Agent host、无模型凭证的控制台演示和既有配置，但只接受必要的兼容修复、安全修复和可观测性修复；新的宿主能力、工具编排能力和员工模板不再优先扩展到该循环。
 
@@ -97,11 +99,11 @@ Prompt、宿主配置文件和启动参数是员工包面向某个 host 的投�
 - 写工具需要独立的审批策略和隔离执行环境，不属于首个版本的默认能力；
 - 任何带文件或工具能力的远端部署都必须运行在能提供隔离、审计和资源限制的环境中，不能因为更换 Agent CLI 而绕过部署安全边界。
 
-## WorkBuddy 定位
+## QwenWork 与 WorkBuddy 定位
 
-当前暂把 WorkBuddy 视为**上层工作台或上下文网关**，而不是与 Claude Code、Qoder CLI、Codex 对等的 Agent host。它可以创建项目、提供上下文、调用 `digital-employee` CLI，或承载员工管理入口，但不直接进入 Host Adapter 列表。
+当前把 QwenWork（千问办公）和腾讯 WorkBuddy GUI 视为**上层工作台、通道或上下文网关**，而不是可编程 Agent host。它们可以创建项目、提供上下文、调用 `digital-employee` CLI，或承载员工管理入口，但不因为拥有 GUI、Skill 或 MCP 就进入 Host Adapter 列表。
 
-只有当 WorkBuddy 能稳定提供非交互执行、标准事件、取消、工具权限收窄、目录授权和能力探测等契约时，才重新评估其是否成为对等 host。该判断基于能力契约，不基于产品名称或交互界面。
+可编程宿主是 Qwen Code 和 CodeBuddy Code，不是 QwenWork 或 WorkBuddy GUI。只有当某个工作台官方稳定提供非交互执行、标准事件、取消、工具权限收窄、目录授权和能力探测等契约时，才重新评估其是否成为对等 host。该判断基于能力契约，不基于产品名称或交互界面。
 
 ## 迁移步骤
 

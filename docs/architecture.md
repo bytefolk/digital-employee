@@ -13,7 +13,7 @@ The normative boundary decision is recorded in
 flowchart LR
   U["User or channel"] --> O["Digital Employee outer runtime"]
   O --> H["AgentHostAdapter"]
-  H --> A["Claude Code · Qoder CLI · Codex"]
+  H --> A["Claude Code · Qoder CLI · Qwen Code · CodeBuddy Code<br/>Codex probe-only"]
   A --> T["Native tools · Skills · MCP"]
   O -. target service .-> G["Queue · policy · audit · escalation"]
   P["Portable employee package"] --> O
@@ -37,7 +37,8 @@ The outer Digital Employee runtime owns:
 
 This is the target ownership boundary, not a claim that the Agent-native
 online service is already shipped. The current new path delivers package
-scaffolding, package-aware validation, host diagnosis and one-shot Qoder runs.
+scaffolding, package-aware validation, host diagnosis and version-gated
+one-shot runs through Qoder CLI, Claude Code, Qwen Code and CodeBuddy Code.
 Channels and queues in this repository still belong to `standalone-v1` until
 they are moved behind an Agent-host service command.
 
@@ -90,26 +91,44 @@ The new Agent-host foundation ships these non-model commands:
   files and JSON contracts; `--engine` also runs the selected adapter's
   model-free package/policy preflight and capability negotiation;
 - `doctor`: performs a bounded local readiness probe for Claude Code, Qoder
-  CLI and Codex and reports separately whether an adapter is runnable.
+  CLI, Codex, Qwen Code and CodeBuddy Code and reports separately whether an
+  adapter is runnable.
 
 These commands do not start a model run or claim that model entitlement is
-valid. The first real execution path, `run --engine qoder`, supports
-conformance-tested Qoder CLI 1.1.x with a new stateless session, read-only local
-assets, denied tool/MCP data-plane network access, and no MCP or attachments.
-It builds a per-run minimum projection, isolates Qoder configuration, filters
-the child environment, restricts tools to `Read/Grep/Glob`, and validates the
-native `system/init` policy report before forwarding events. It performs the
-Qoder `initialize` handshake and sends Skill/task data over stdin JSONL rather
-than process arguments. The adapter explicitly enables SDK process mode,
-projects the PAT through a per-run mode-`0600` authentication file, and rejects
-missing or cross-major protocol reports plus missing Skill/plugin attestations.
-Each native message is validated before any of its normalized events are
-published; a protocol failure discards buffered assistant/tool output. Run IDs
-are reserved before staging, and the terminal event is held until process,
-credential, temporary-root and reservation cleanup finishes; cancellation,
-deadline and projected-file identity checks therefore apply before launch as
-well as during execution. The final result must be strict JSON that passes the
-employee output Schema. Claude Code and Codex remain probe-only.
+valid. Four real execution paths are conformance-tested in source:
+
+- Qoder CLI 1.1.x receives a per-run minimum read-only file projection. Its
+  isolated SDK-process configuration restricts native tools to the exact
+  `Read/Grep/Glob` set when local assets are present and requires empty MCP,
+  Skill and plugin attestations.
+- Claude Code `>=2.1.214 <2.2.0`, Qwen Code `0.17.1` and CodeBuddy Code
+  `2.106.4` are context-only. An adapter reads only manifest-selected,
+  policy-allowed, bounded UTF-8 regular files, seals their path, length, digest
+  and content into the stdin task value, then launches the host in empty
+  isolated workspace, home and configuration directories. Every model-visible tool
+  and MCP surface must attest empty before output is trusted. Claude also
+  attests empty plugin/Skill/slash-command surfaces; Qwen disables slash
+  commands and pins its non-callable built-in agent catalog; CodeBuddy carries
+  a version-complete deny list because `--tools ""` alone does not clear 2.106.4.
+
+All four use a new stateless session, filtered environment, stdin/native stream
+transport and an explicit deployment service API key rather than a personal
+CLI login. They reject MCP, attachments, resume, writes and approval callbacks.
+The runnable preview is POSIX-only: a terminal event is withheld until the
+detached process group has exited. Windows remains not-ready until equivalent
+Job Object process-tree cleanup is implemented and conformance tested.
+Each native message is validated before normalized events are published; a
+protocol failure discards buffered output. Run IDs are reserved before staging,
+and the terminal event is held until process, credential, temporary-root and
+reservation cleanup finishes, so cancellation, deadline and projected-file
+identity checks apply before launch as well as during execution. The final
+result must pass the employee output Schema. Fixture conformance is automated;
+live model entitlement has not been tested.
+
+Codex remains probe-only. Codex CLI 0.146.0 cannot reliably remove every
+model-visible built-in tool: disabling shell and unified execution still leaves
+paths such as `apply_patch`. Consequently it cannot claim the required
+default-deny `tool_allowlist`, even with a read-only filesystem policy.
 
 `network: deny` applies to employee tool and MCP data-plane egress. The Agent
 host's authentication and model control plane remains available; this
@@ -177,6 +196,7 @@ management platform may register packages, dispatch jobs, meter usage, collect
 ratings and settle payments, but pricing, rental, billing, revenue sharing and
 multi-tenant hosting are not part of this core CLI/runtime.
 
-WorkBuddy is currently treated as an upper-level workbench and context/MCP
-gateway. It is not a peer Agent host until it exposes a stable headless run,
-event, cancellation and enforceable policy contract.
+Tencent WorkBuddy GUI is currently treated as an upper-level workbench and
+context/MCP gateway. It is not a peer Agent host until it exposes a stable
+headless run, event, cancellation and enforceable policy contract. The
+programmable Tencent host integrated here is CodeBuddy Code.

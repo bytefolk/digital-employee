@@ -98,6 +98,23 @@ function fixtureAdapter(options: {
   }
 }
 
+test("built-in registry exposes four runnable adapters and keeps Codex probe-only", async () => {
+  const registry = createBuiltInAgentHostRegistry()
+  for (const hostId of [
+    "claude-code",
+    "qoder",
+    "qwen-code",
+    "codebuddy",
+  ]) {
+    assert.equal(registry.hasAdapter(hostId), true, hostId)
+    assert.equal((await registry.create(hostId)).hostId, hostId)
+  }
+  assert.equal(registry.hasAdapter("codex"), false)
+  assert.equal(registry.resolve("claude"), "claude-code")
+  assert.equal(registry.resolve("qwen"), "qwen-code")
+  assert.equal(registry.resolve("codebuddy-code"), "codebuddy")
+})
+
 test("trusted embedders can register a host without changing the employee package", async () => {
   const parent = await mkdtemp(path.join(os.tmpdir(), "employee-registry-"))
   const directory = path.join(parent, "team-answer")

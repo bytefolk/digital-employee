@@ -8,7 +8,7 @@
 
 `digital-employee` 不实现另一套通用 Agent loop。模型推理、上下文窗口、原生工具循环和宿主会话由 Agent Host 负责；本项目负责员工包、Host Adapter、能力协商、策略、标准事件，以及后续的通道、队列、审计和人工接力。
 
-当前源码中只有 **Qoder CLI 1.1.x Adapter 是 runnable**，而且只是一条 one-shot、无状态、只读、本机/单租户技术预览：不支持 MCP、附件、会话恢复、写工具或审批回调。Claude Code、Codex、Qwen Code 与 CodeBuddy Code 已进入内置目录，但都只有安装/版本探测和文档能力声明，属于 **probe-only**；后两者同时还是待实现的 Adapter candidates。
+当前源码中有四条版本锁定的 **runnable** 路径：Qoder CLI 1.1.x、Claude Code `>=2.1.214 <2.2.0`、Qwen Code `0.17.1` 和 CodeBuddy Code `2.106.4`。它们都是 one-shot、无状态、POSIX 本机/单租户技术预览；Qoder 只获得最小只读文件投影，另外三个是不暴露原生工具的 context-only Adapter。四条路径都不支持 MCP、附件、会话恢复、写工具或审批回调，也都没有使用真实模型权益验收。Windows 因尚无经过验证的 Job Object 进程树清理而 fail closed。Codex 仍是 **probe-only**：Codex CLI 0.146.0 无法可靠移除所有模型可见的内建工具，其中包括 `apply_patch`。
 
 官方产品文档只能证明某个宿主值得适配，不能把 `documented` 提升为本仓库的 `supported`。只有版本锁定、Adapter 实现和一致性测试全部通过后，一项能力才能参与运行前兼容性判断。
 
@@ -25,15 +25,15 @@
 
 | 产品 | 当前源码状态 | 官方接口证据 | 本项目结论 |
 | --- | --- | --- | --- |
-| Qoder CLI 1.1.x | `runnable`；内置、版本锁定、只读 one-shot Adapter | 当前实现与测试见 [`qoder-agent-host.ts`](../apps/cli/qoder-agent-host.ts) 和 [验证账本](verification.md) | 当前唯一可由 `run --engine` 启动的 Agent Host；仍不是多租户在线服务 |
-| Claude Code | `probe-only`；仅检查本机命令和版本 | 官方提供 [`claude -p` 与 `--bare`](https://code.claude.com/docs/en/headless)、JSON/stream-json、[权限](https://code.claude.com/docs/en/permissions)、[沙箱](https://code.claude.com/docs/en/sandboxing)、[MCP](https://code.claude.com/docs/en/mcp)、[Skills](https://code.claude.com/docs/en/skills) 和 [Agent SDK](https://code.claude.com/docs/en/agent-sdk/typescript) | 高优先级候选；尚无运行 Adapter，不得称为已支持 |
-| Codex CLI | `probe-only`；仅检查本机命令和版本 | 官方提供 [`codex exec`](https://learn.chatgpt.com/docs/non-interactive-mode)、[JSONL 与输出 Schema](https://learn.chatgpt.com/docs/developer-commands?surface=cli#cli-codex-exec)、[MCP](https://learn.chatgpt.com/docs/extend/mcp)、[Skills](https://learn.chatgpt.com/docs/build-skills)；[App Server](https://learn.chatgpt.com/docs/app-server) 另有事件与 `turn/interrupt` | 高优先级候选；当前工具收窄等能力仍按 `unknown` 处理，不得称为已支持 |
-| Qwen Code | `probe-only`；内置 `qwen --version` 探测，无运行 Adapter | 官方提供 [headless JSON/stream-json](https://qwenlm.github.io/qwen-code-docs/en/users/features/headless/)、[权限与沙箱](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/)、[MCP](https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/)、[Skills](https://qwenlm.github.io/qwen-code-docs/en/users/features/skills) 和 [TypeScript SDK](https://github.com/QwenLM/qwen-code/blob/main/packages/sdk-typescript/README.md) | 候选；优先评估 SDK。CLI 的 stream-json 输入仍在建设中，`qwen serve` 仍是 [v0.16-alpha / Stage 1 experimental](https://qwenlm.github.io/qwen-code-docs/en/users/qwen-serve/) |
-| CodeBuddy Code | `probe-only`；内置 `codebuddy --version` 探测，无运行 Adapter | 官方提供 [headless JSON/双向 JSONL](https://www.workbuddy.ai/docs/cli/headless)、[权限与沙箱](https://www.workbuddy.ai/docs/cli/settings)、[MCP](https://www.workbuddy.ai/docs/cli/mcp)、[Skills](https://www.workbuddy.ai/docs/cli/skills)、[Python SDK](https://www.workbuddy.ai/docs/cli/sdk-python) 和 [Beta HTTP API](https://www.workbuddy.ai/docs/cli/http-api) | 候选；优先评估 SDK。headless 文档对授权操作要求 `-y`，permission prompt tool 又标为不支持，必须先实测真正的策略收窄与取消 |
+| Qoder CLI 1.1.x | `runnable`；内置、版本锁定、只读 one-shot Adapter | 当前实现与测试见 [`qoder-agent-host.ts`](../apps/cli/qoder-agent-host.ts) 和 [验证账本](verification.md) | 最小只读文件投影，运行时校验精确的读/搜索工具集；仍不是多租户在线服务 |
+| Claude Code `>=2.1.214 <2.2.0` | `runnable`；内置、版本锁定、context-only one-shot Adapter | 官方提供 [`claude -p` 与 `--bare`](https://code.claude.com/docs/en/headless)、JSON/stream-json、[权限](https://code.claude.com/docs/en/permissions)、[沙箱](https://code.claude.com/docs/en/sandboxing)、[MCP](https://code.claude.com/docs/en/mcp)、[Skills](https://code.claude.com/docs/en/skills) 和 [Agent SDK](https://code.claude.com/docs/en/agent-sdk/typescript) | `--bare --tools "" --strict-mcp-config --disable-slash-commands --no-session-persistence`，资产经 stdin 内联；只支持显式 `ANTHROPIC_API_KEY` |
+| Codex CLI | `probe-only`；仅检查本机命令和版本 | 官方提供 [`codex exec`](https://learn.chatgpt.com/docs/non-interactive-mode)、[JSONL 与输出 Schema](https://learn.chatgpt.com/docs/developer-commands?surface=cli#cli-codex-exec)、[MCP](https://learn.chatgpt.com/docs/extend/mcp)、[Skills](https://learn.chatgpt.com/docs/build-skills)；[App Server](https://learn.chatgpt.com/docs/app-server) 另有事件与 `turn/interrupt` | 已审计 0.146.0；即使禁用 shell/unified exec，`apply_patch` 等模型可见内建工具仍无法可靠全部移除，所以 `tool_allowlist` 保持 `unknown` |
+| Qwen Code `0.17.1` | `runnable`；内置、精确版本锁定、context-only one-shot Adapter | 官方提供 [headless JSON/stream-json](https://qwenlm.github.io/qwen-code-docs/en/users/features/headless/)、[权限与沙箱](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/)、[MCP](https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/)、[Skills](https://qwenlm.github.io/qwen-code-docs/en/users/features/skills) 和 [TypeScript SDK](https://github.com/QwenLM/qwen-code/blob/main/packages/sdk-typescript/README.md) | 密封 UTF-8 资产经 stdin 内联，工具/MCP/slash-command 集为空；锁定 0.17.1 的不可调用内建 Agent 目录；要求显式 `OPENAI_API_KEY` 与 `OPENAI_MODEL`，可选 `OPENAI_BASE_URL` |
+| CodeBuddy Code `2.106.4` | `runnable`；内置、精确版本锁定、context-only one-shot Adapter | 官方提供 [headless JSON/双向 JSONL](https://www.workbuddy.ai/docs/cli/headless)、[权限与沙箱](https://www.workbuddy.ai/docs/cli/settings)、[MCP](https://www.workbuddy.ai/docs/cli/mcp)、[Skills](https://www.workbuddy.ai/docs/cli/skills)、[Python SDK](https://www.workbuddy.ai/docs/cli/sdk-python) 和 [Beta HTTP API](https://www.workbuddy.ai/docs/cli/http-api) | 密封 UTF-8 资产经 stdin 内联；空 `--tools` 不足以清空 2.106.4，Adapter 额外逐项 deny 该版本全部内建工具并校验最终工具/MCP 集为空；要求显式 `CODEBUDDY_API_KEY` 与 `CODEBUDDY_MODEL` |
 | QwenWork（千问办公） | 不在 Host registry | 官方定位是[办公工作台](https://qwenwork.cn/docs)，提供[定时任务](https://qwenwork.cn/docs/desktop/scheduled-tasks)、[IM 渠道](https://qwenwork.cn/docs/desktop/im-channels)和 [Skills](https://qwenwork.cn/docs/features/skills) | Workbench / Channel，不是当前 Agent Host；官方文档尚未给出本项目所需的稳定 headless 事件与取消契约 |
 | 腾讯 WorkBuddy GUI | 不在 Host registry | 官方定位是[全场景 AI Agent 桌面工作站](https://www.workbuddy.ai/docs/workbuddy/)，并提供 GUI [权限模式](https://www.workbuddy.ai/docs/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/Permission-Modes)与 MCP/Skill 市场 | Workbench / Channel，不直接自动化 GUI。腾讯方向的可编程候选是上面的 CodeBuddy Code |
 
-“命令已安装”也不等于“可以运行员工”。`doctor` 的无副作用探测不会验证账号登录、模型额度、运行期协议、包级权限或真实沙箱；这些必须由 runnable Adapter 的 preflight 和一致性测试确认。
+“命令已安装”也不等于“可以运行员工”。`doctor` 的无副作用探测不会验证 API Key、模型额度、运行期协议、包级权限或真实沙箱；这些必须由 runnable Adapter 的 preflight 和一致性测试确认。当前 Adapter 只使用操作方显式传入的服务 API Key/Token，不复用个人登录态。
 
 ## 三层接入策略
 
@@ -42,12 +42,12 @@
 内置 Adapter 由本仓库维护，进入发布物，并对明确的 Host 版本范围做一致性测试。它必须：
 
 - 把宿主原生事件完整映射为 `agent-host.v1`，且每次运行只有一个可信终态；
-- 在提交任务前验证真实工具集合、目录、网络、MCP、Skill/插件加载状态和输出契约；
+- 在信任任何模型输出前验证真实工具集合、目录、网络、MCP、Skill/插件加载状态，并在本地验证输出契约；
 - 区分“允许后免确认”和“从工具表中真正移除”，不能用 Prompt 代替安全边界；
 - 支持 deadline/cancel，并确认子进程、临时凭证、工作目录和会话资源已经清理；
 - 固定兼容版本，版本或协议超出验证范围时 fail closed。
 
-当前只有 Qoder 属于这一层，且能力范围仍受前述只读技术预览限制。
+当前 Qoder CLI、Claude Code、Qwen Code 和 CodeBuddy Code 的上述版本属于这一层，且能力范围仍受前述 one-shot 上下文/只读技术预览限制。它们的模型控制面网络保持可达，而员工 tool/MCP 数据面网络被禁止；这不是多租户 OS 隔离。
 
 ### 2. Explicit external stdio Adapter
 
@@ -111,9 +111,9 @@ Workbench Bridge 不得：
 
 因此同一员工包可以部署到不同 Host；如果某个 Host 无法强制满足要求，该部署不兼容，而不是修改员工包来降低策略。
 
-## 候选 Adapter 的验收门槛
+## Adapter 的验收门槛
 
-新增 runnable Adapter 前，至少验证：
+新增 runnable Adapter 或扩大现有 Adapter 能力前，至少验证：
 
 1. 非交互启动不会等待 TTY，且可隔离用户级/项目级隐式配置；
 2. 事件流有稳定 framing、run/session 标识、用量信息、错误和唯一终态；

@@ -11,6 +11,15 @@ import { createEmployeePackage } from "../../apps/cli/employee-package.js"
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const cli = path.join(root, "apps", "cli", "bin.ts")
 const qoderFixture = path.join(root, "tests", "apps", "fixtures", "fake-qoder.mjs")
+const claudeFixture = path.join(root, "tests", "apps", "fixtures", "fake-claude.mjs")
+const qwenFixture = path.join(root, "tests", "apps", "fixtures", "fake-qwen.mjs")
+const codeBuddyFixture = path.join(
+  root,
+  "tests",
+  "apps",
+  "fixtures",
+  "fake-codebuddy.mjs",
+)
 
 function runCli(
   args: string[],
@@ -33,10 +42,27 @@ async function installFakeQoder(directory: string): Promise<void> {
   await chmod(executable, 0o755)
 }
 
+async function installFakeHost(
+  directory: string,
+  command: string,
+  fixturePath: string,
+): Promise<void> {
+  const executable = path.join(directory, command)
+  await writeFile(executable, await readFile(fixturePath, "utf8"), {
+    mode: 0o755,
+  })
+  await chmod(executable, 0o755)
+}
+
 test("help leads with Agent-native commands while standalone stays explicit", () => {
   const help = runCli(["help"])
   assert.equal(help.status, 0, help.stderr)
   assert.match(help.stdout, /Agent-native usage:/)
+  assert.match(
+    help.stdout,
+    /run \[directory\] --engine claude-code\|qoder\|qwen-code\|codebuddy/,
+  )
+  assert.match(help.stdout, /Codex is probe-only/)
   assert.match(help.stdout, /digital-employee legacy <ask\|sync\|start\|serve>/)
   assert.doesNotMatch(help.stdout, /^\s+digital-employee ask /m)
 })
@@ -191,4 +217,79 @@ test("run executes a portable package through the Qoder adapter, not standalone-
   assert.equal(output.status, "completed")
   assert.equal(output.engine, "qoder")
   assert.equal(output.output.answer, "fixture answer")
+})
+
+for (const [engine, command, fixturePath, configuration] of [
+  [
+    "claude-code",
+    "claude",
+    claudeFixture,
+    { ANTHROPIC_API_KEY: "fixture-anthropic-api-key" },
+  ],
+  [
+    "qwen-code",
+    "qwen",
+    qwenFixture,
+    { OPENAI_API_KEY: "fixture-openai-api-key", OPENAI_MODEL: "fixture-model" },
+  ],
+  [
+    "codebuddy",
+    "codebuddy",
+    codeBuddyFixture,
+    {
+      CODEBUDDY_API_KEY: "fixture-codebuddy-api-key",
+      CODEBUDDY_MODEL: "fixture-model",
+    },
+  ],
+] as const) {
+  test(`run executes a portable package through the ${engine} adapter`, async (t) => {
+    if (process.platform === "win32") {
+      return t.skip("fixture executable is POSIX-only")
+    }
+    const directory = await mkdtemp(path.join(os.tmpdir(), `employee-${engine}-`))
+    const packageDirectory = path.join(directory, "team-answer")
+    const executableDirectory = path.join(directory, "bin")
+    await createEmployeePackage(packageDirectory)
+    await mkdir(executableDirectory)
+    await installFakeHost(executableDirectory, command, fixturePath)
+
+    const result = runCli(
+      ["run", packageDirectory, "--engine", engine, "--stdin", "--json"],
+      {
+        ...process.env,
+        PATH: `${executableDirectory}${path.delimiter}${process.env.PATH}`,
+        ...configuration,
+      },
+      '{"message":"fixture question"}\n',
+    )
+    assert.equal(result.status, 0, result.stderr)
+    const output = JSON.parse(result.stdout)
+    assert.equal(output.status, "completed")
+    assert.equal(output.engine, engine)
+    assert.equal(output.output.answer, "fixture answer")
+  })
+}
+
+test("run keeps Codex probe-only and never falls back to another runtime", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "employee-codex-probe-only-"))
+  const packageDirectory = path.join(parent, "team-answer")
+  await createEmployeePackage(packageDirectory)
+
+  const result = runCli(
+    [
+      "run",
+      packageDirectory,
+      "--engine",
+      "codex",
+      "--stdin",
+      "--json",
+    ],
+    process.env,
+    '{"message":"fixture question"}\n',
+  )
+  assert.equal(result.status, 1, result.stderr)
+  const output = JSON.parse(result.stdout)
+  assert.equal(output.status, "failed")
+  assert.equal(output.engine, "codex")
+  assert.equal(output.error.code, "agent_host_adapter_not_runnable")
 })

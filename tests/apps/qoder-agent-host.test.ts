@@ -59,7 +59,7 @@ function adapter(
   parent: string,
   mode = "success",
   capture?: string,
-  timeoutMs = 10_000,
+  timeoutMs = 30_000,
   options: QoderAgentHostAdapterOptions & { fixtureArgs?: string[] } = {},
 ) {
   const { fixtureArgs = [], ...adapterOptions } = options
@@ -80,6 +80,7 @@ function adapter(
     },
     temporaryRoot: parent,
     timeoutMs,
+    versionExecutor: async () => ({ status: "installed", output: "1.1.12" }),
     ...adapterOptions,
   })
 }
@@ -108,9 +109,22 @@ function terminalEvents(events: AgentHostEvent[]) {
 
 test("Qoder probe reports only the conformance-tested stateless capabilities", async () => {
   const parent = await mkdtemp(path.join(os.tmpdir(), "qoder-probe-"))
-  const probe = await adapter(parent).probe()
+  const versionCalls: Array<{ command: string; args: string[] }> = []
+  const probe = await adapter(parent, "success", undefined, 30_000, {
+    versionExecutor: async (command, args) => {
+      versionCalls.push({ command, args })
+      return { status: "installed", output: "1.1.12" }
+    },
+  }).probe()
 
+  assert.deepEqual(versionCalls, [
+    {
+      command: process.execPath,
+      args: [fixture, "--fixture-mode", "success", "--version"],
+    },
+  ])
   assert.equal(probe.status, "ready")
+  assert.equal(probe.version, "1.1.12")
   assert.equal(probe.adapterStatus, "runnable")
   assert.equal(probe.capabilitySource, "conformance_test")
   assert.equal(probe.capabilities.tool_allowlist, "supported")
@@ -118,6 +132,39 @@ test("Qoder probe reports only the conformance-tested stateless capabilities", a
   assert.equal(probe.capabilities.network_policy, "supported")
   assert.equal(probe.capabilities.mcp, "unsupported")
   assert.equal(probe.capabilities.usage_events, "unknown")
+})
+
+test("Qoder probe accepts only stable three-segment 1.1.x versions", async () => {
+  for (const [version, accepted] of [
+    ["1.1.0", true],
+    ["1.1.12", true],
+    ["Qoder CLI version 1.1.999 (stable)\n", true],
+    ["Qoder CLI [1.1.12]", true],
+    ["1.1.12-beta.1", false],
+    ["1.1.12+build.1", false],
+    ["1.1.12.1", false],
+    ["1.1.12rc1", false],
+    ["v1.1.12", false],
+    ["1.1.012", false],
+    ["1.2.0", false],
+    ["2.1.0", false],
+  ] as const) {
+    const host = createQoderAgentHostAdapter({
+      command: process.execPath,
+      environment: {
+        PATH: process.env.PATH,
+        QODER_PERSONAL_ACCESS_TOKEN: "fixture-service-token",
+      },
+      versionExecutor: async () => ({ status: "installed", output: version }),
+    })
+    const probe = await host.probe()
+    const versionRejected = probe.issues.some(
+      (entry) => entry.code === "qoder_version_not_conformance_verified",
+    )
+
+    assert.equal(versionRejected, !accepted, version)
+    if (!accepted) assert.equal(probe.status, "not_ready", version)
+  }
 })
 
 test("Qoder run uses an isolated projection, filtered environment, and normalized events", async () => {

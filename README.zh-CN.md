@@ -4,7 +4,7 @@
 
 Digital Employee 正在被构建为一套开源的数字员工 CLI、员工包契约和外层服务边界。模型推理、上下文和工具循环由 Claude Code、Qoder CLI、Codex 等 Agent host 负责；目标外层负责 Host Adapter、权限策略、消息入口、队列、审计和人工接力。
 
-当前源码已交付 CLI、可移植员工包、无模型预检，以及一条 one-shot Qoder Adapter；Agent-native 长期在线服务层（`service start`）还没有交付。
+当前源码已交付 CLI、可移植员工包、无模型预检，以及四条版本锁定的 one-shot 上下文/只读 Adapter：Qoder CLI、Claude Code、Qwen Code 和 CodeBuddy Code。Agent-native 长期在线服务层（`service start`）还没有交付。
 
 首个员工 recipe 是 `answer-agent`：一个默认只读、答案带出处、证据不足就转人工的团队答疑员工。现有 `0.1` 问答实现作为 `standalone-v1` 兼容运行时保留，不再作为通用 Agent 能力的主要演进方向。
 
@@ -12,7 +12,7 @@ Digital Employee 正在被构建为一套开源的数字员工 CLI、员工包�
 flowchart LR
   P["员工源码包<br/>employee.json · SKILL.md · Schema"] --> O["Digital Employee<br/>CLI + 外层服务运行时"]
   O --> H["Host Adapter"]
-  H --> A["Claude Code · Qoder CLI · Codex"]
+  H --> A["Claude Code · Qoder CLI · Qwen Code · CodeBuddy Code<br/>Codex 仅探测"]
   A --> T["原生 Agent 循环<br/>Skills · MCP · Tools"]
   O -. "目标服务层（尚未迁移完成）" .-> S["通道 · 队列 · 策略 · 审计 · 人工接力"]
 ```
@@ -28,11 +28,14 @@ node ./dist/apps/cli/bin.js doctor
 node ./dist/apps/cli/bin.js init ../team-answer --author your-team
 node ./dist/apps/cli/bin.js validate ../team-answer
 node ./dist/apps/cli/bin.js doctor --engine qoder
+node ./dist/apps/cli/bin.js doctor --engine claude-code
+node ./dist/apps/cli/bin.js doctor --engine qwen-code
+node ./dist/apps/cli/bin.js doctor --engine codebuddy
 ```
 
 然后编辑生成的 `SKILL.md`，把经过批准的资料放入 `knowledge/`，并在 `employee.json` 的 `assets` 中逐个声明要发布的文件；用 `evals/` 固化典型问题。
 
-第一条真实运行链路是无状态、只读的 Qoder CLI 1.1.x Adapter。服务 Token 只放在部署环境，不进入员工包。下面的 `run` 会发起真实模型调用，可能消耗 Qoder credits；前面的 `init`、静态 `validate`、`doctor` 不会：
+四条 runnable Adapter 都是无状态、one-shot，要求操作方显式提供服务 API Key/Token，不会复用个人 CLI 登录态。下面的 `run` 会发起真实模型调用，可能消耗所选供应商额度；前面的 `init`、静态 `validate`、`doctor` 不会。以 Qoder 为例：
 
 ```bash
 export QODER_PERSONAL_ACCESS_TOKEN='...'
@@ -41,9 +44,20 @@ printf '%s\n' '{"message":"批准资料里怎么说？"}' | \
   node ./dist/apps/cli/bin.js run ../team-answer --engine qoder --stdin
 ```
 
-`--stdin`/`--input-file` 会让任务、SKILL 和 Schema 经 Qoder 的 stdin JSONL 协议传递，不进入子进程参数。当前 Qoder 链路仍是 one-shot、本机/单租户技术预览，不是已经可供市场租赁的在线员工服务。如果没有 Token、版本未经过兼容验证或包级策略无法真正收窄，`validate --engine qoder` 会返回 `incompatible`。Claude Code、Codex 目前仍只有探测；Qoder 的 MCP、附件、会话恢复、写操作与审批回调也会在首版 fail-closed，而不是用 Prompt 假装实现安全边界。
+Claude Code、Qwen Code 或 CodeBuddy 使用同样的 `validate/run` 命令，改为对应 `--engine` 并配置该 Adapter 的服务 API Key 即可。`--stdin`/`--input-file` 让任务数据不进入外层进程参数。Claude Code、Qwen Code 和 CodeBuddy 只接收由 manifest 显式选中、有上限的密封 UTF-8 资产投影，并在空白且隔离的工作目录、HOME 和配置目录中运行；输出被信任前必须确认模型可见 tools 与 MCP 均为空。Claude 还会确认 plugins、Skills 和 slash commands 为空；Qwen 会禁用 slash commands 并锁定不可调用的内建 Agent 目录；CodeBuddy 则会显式拒绝已验证版本的每一个内建工具，因为单独使用空 `--tools` 并不能真正清空工具。Qoder 使用最小只读文件投影，并确认精确的读取/搜索工具集以及空 MCP/Skill/plugin 集。
 
-员工包规范见 [Portable employee package](docs/employee-package.md)，双运行时决策见 [ADR 0001](docs/decisions/0001-agent-host-boundary.md)。[Agent Host 状态与接入策略](docs/agent-hosts.md)记录了精确边界：当前只有 Qoder Adapter 可运行；Claude Code、Codex、Qwen Code、CodeBuddy Code 均仅探测，后两者同时是待实现 Adapter 的候选。
+四条链路仍是本机/单租户技术预览，不是已经可供市场租赁的在线员工服务；都会 fail-closed 拒绝 MCP、附件、会话恢复、写操作与审批回调。模型认证/推理控制面保持可达，员工 tool/MCP 数据面网络被禁止。当前只完成了一致性 fixture，没有使用真实模型权益验收。
+
+当前 runnable 预览仅支持 POSIX 系统：Adapter 会在发布终态前终止并确认整个进程组退出；Windows 还没有经过验证的 Job Object 等价实现，因此会 fail closed。
+
+员工包规范见 [Portable employee package](docs/employee-package.md)，双运行时决策见 [ADR 0001](docs/decisions/0001-agent-host-boundary.md)。[Agent Host 状态与接入策略](docs/agent-hosts.md)记录了精确边界：Qoder CLI 1.1.x、Claude Code `>=2.1.214 <2.2.0`、Qwen Code `0.17.1` 与 CodeBuddy Code `2.106.4` 的 Adapter 可运行。Codex 仍仅探测：Codex CLI 0.146.0 无法可靠移除每一个模型可见的内建工具，其中包括 `apply_patch`，因此不能满足默认拒绝的工具契约。
+
+| 可运行 Engine | 一致性版本门槛 | 必需的部署配置 |
+| --- | --- | --- |
+| `qoder` | Qoder CLI 1.1.x | `QODER_PERSONAL_ACCESS_TOKEN` |
+| `claude-code` | Claude Code `>=2.1.214 <2.2.0` | `ANTHROPIC_API_KEY` |
+| `qwen-code` | Qwen Code `0.17.1` | `OPENAI_API_KEY`、`OPENAI_MODEL` |
+| `codebuddy` | CodeBuddy Code `2.106.4` | `CODEBUDDY_API_KEY`、`CODEBUDDY_MODEL` |
 
 ## 版本状态
 
@@ -185,8 +199,9 @@ DWS 的安装、授权和完整能力请查看
 | `employee-package.v1alpha1`、`agent-host.v1` 与能力协商 | 已交付（源码分支） |
 | `init`、静态 `validate`、本机 `doctor` | 已交付（源码分支） |
 | Qoder CLI 1.1.x 无状态只读 `run --engine qoder` Adapter | 已交付（源码分支）；未使用真实模型权益验收 |
+| Claude Code `>=2.1.214 <2.2.0`、Qwen Code `0.17.1`、CodeBuddy Code `2.106.4` 上下文 Adapter | 已交付（源码分支）；未使用真实模型权益验收 |
 | Agent-native `service start`（通道、队列、审计、长期在线） | 尚未交付；下一阶段 |
-| Claude Code / Codex 原生运行 Adapter | 仅探测；规划中 |
+| Codex CLI 运行 Adapter | 仅探测；受阻于无法可靠移除所有模型可见内建工具 |
 | `standalone-v1` 岗位及渠道、知识源、模型、工具 registry | 已交付；兼容路径 |
 | 只读 `answer-agent` 岗位 | 已交付 |
 | Console 与 HTTP 入口 | 已交付 |
@@ -195,7 +210,7 @@ DWS 的安装、授权和完整能力请查看
 | 引用、人工接力、仅确认反馈后学习 FAQ | 已交付 |
 | 项目助理、运营员工等员工包 | 规划中 |
 | 写工具与审批流 | 规划中；首版禁用 |
-| 托管式多租户 SaaS | `0.1` 非目标 |
+| 市场、定价与托管式多租户 SaaS | 独立的未来平台；当前源码和计划中的 `0.2.0` CLI 均未交付 |
 
 ## 安全默认值
 

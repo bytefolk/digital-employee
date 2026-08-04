@@ -1,6 +1,6 @@
 {
   "name": "@fullstack-ai-infra/digital-employee",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "An Agent-native CLI and outer runtime for portable digital employees.",
   "type": "module",
   "license": "Apache-2.0",
@@ -60,7 +60,7 @@
     "employee:validate": "npm run build --silent && node ./dist/apps/cli/bin.js validate",
     "employee:run": "npm run build --silent && node ./dist/apps/cli/bin.js run",
     "test": "tsx --test tests/**/*.test.ts",
-    "test:coverage": "tsx --test --experimental-test-coverage tests/**/*.test.ts",
+    "test:coverage": "tsx --test --experimental-test-coverage --test-concurrency=1 --test-coverage-include='apps/**/*.ts' --test-coverage-include='connectors/**/*.ts' --test-coverage-include='packages/**/*.ts' --test-coverage-include='profiles/**/*.ts' --test-coverage-include='scripts/**/*.js' --test-coverage-lines=85 --test-coverage-branches=65 --test-coverage-functions=80 tests/**/*.test.ts",
     "security:check": "node ./scripts/security-check.js",
     "release:check": "node ./scripts/release-check.js",
     "prepack": "npm run build",

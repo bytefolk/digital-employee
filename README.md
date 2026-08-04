@@ -95,10 +95,11 @@ be terminated and verified before a terminal event is published.
 
 ## Release status
 
-The Agent-native commands above are a source preview for the next minor
-release, expected to be `0.2.0`; they are **not** present in the published
-`0.1.0` artifacts. Use a source checkout for `init`, `validate`, `doctor` and
-`run` until that release is published. Do not retag or overwrite `0.1.0`.
+The current source is a local `0.2.0` release candidate for the Agent-native
+commands above. It has **not** been published to npm, GHCR, or GitHub Releases;
+use this source checkout for `init`, `validate`, `doctor` and `run` until all
+release channels complete. Do not claim that `0.2.0` is publicly installable,
+and do not retag or overwrite `0.1.0`.
 
 The frozen `0.1.0` compatibility release is distributed through three public
 channels:
@@ -307,7 +308,7 @@ container, live DWS, and not-yet-live-tested evidence.
 | Human escalation and authorized verified FAQ feedback | Shipped |
 | Project-assistant and operations profiles | Planned |
 | Write tools and approval workflow | Planned; disabled in the first release |
-| Marketplace, pricing and hosted multi-tenant service | Separate future platform; not shipped in the current source or planned `0.2.0` CLI release |
+| Marketplace, pricing and hosted multi-tenant service | Separate future platform; not shipped in this repository or the `0.2.0` CLI candidate |
 
 ## Relationship to `mem`
 

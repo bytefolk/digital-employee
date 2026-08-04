@@ -10,7 +10,13 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export function validateRelease({ manifest, coreManifest, changelog, tag }) {
+export function validateRelease({
+  manifest,
+  coreManifest,
+  lockfile,
+  changelog,
+  tag
+}) {
   const errors = [];
   const version = String(manifest.version || "");
 
@@ -46,6 +52,12 @@ export function validateRelease({ manifest, coreManifest, changelog, tag }) {
   if (coreManifest.version !== version) {
     errors.push("core and root package versions must match");
   }
+  if (coreManifest.private === true) {
+    errors.push("core package must be publishable");
+  }
+  if (coreManifest.publishConfig?.access !== "public") {
+    errors.push("core publishConfig.access must be public");
+  }
   if (
     coreManifest.main !== "./dist/index.js" ||
     coreManifest.types !== "./dist/index.d.ts" ||
@@ -55,6 +67,15 @@ export function validateRelease({ manifest, coreManifest, changelog, tag }) {
   }
   if (!Array.isArray(coreManifest.files) || !coreManifest.files.includes("dist")) {
     errors.push("core package must publish compiled distribution artifacts");
+  }
+  if (lockfile?.version !== version) {
+    errors.push("package-lock version must match package version");
+  }
+  if (lockfile?.packages?.[""]?.version !== version) {
+    errors.push("package-lock workspace root version must match package version");
+  }
+  if (lockfile?.packages?.["packages/core"]?.version !== version) {
+    errors.push("package-lock core version must match package version");
   }
 
   const heading = new RegExp(
@@ -77,14 +98,16 @@ async function main() {
   const tag = tagIndex === -1 ? undefined : process.argv[tagIndex + 1];
   if (tagIndex !== -1 && !tag) throw new TypeError("--tag requires a value");
 
-  const [manifestText, coreManifestText, changelog] = await Promise.all([
+  const [manifestText, coreManifestText, lockfileText, changelog] = await Promise.all([
     readFile(path.join(repositoryRoot, "package.json"), "utf8"),
     readFile(path.join(repositoryRoot, "packages/core/package.json"), "utf8"),
+    readFile(path.join(repositoryRoot, "package-lock.json"), "utf8"),
     readFile(path.join(repositoryRoot, "CHANGELOG.md"), "utf8")
   ]);
   const errors = validateRelease({
     manifest: JSON.parse(manifestText),
     coreManifest: JSON.parse(coreManifestText),
+    lockfile: JSON.parse(lockfileText),
     changelog,
     tag
   });

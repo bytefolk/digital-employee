@@ -23,16 +23,30 @@ const manifest = {
 };
 const coreManifest = {
   version: "0.1.0",
+  publishConfig: { access: "public" },
   main: "./dist/index.js",
   types: "./dist/index.d.ts",
   exports: { ".": { import: "./dist/index.js" } },
   files: ["dist"]
 };
+const lockfile = {
+  version: "0.1.0",
+  packages: {
+    "": { version: "0.1.0" },
+    "packages/core": { version: "0.1.0" }
+  }
+};
 const changelog = "# Changelog\n\n## [0.1.0] - 2026-08-01\n";
 
 test("release check accepts aligned public release metadata", () => {
   assert.deepEqual(
-    validateRelease({ manifest, coreManifest, changelog, tag: "v0.1.0" }),
+    validateRelease({
+      manifest,
+      coreManifest,
+      lockfile,
+      changelog,
+      tag: "v0.1.0"
+    }),
     []
   );
 });
@@ -41,6 +55,7 @@ test("release check rejects a mismatched tag and package versions", () => {
   const errors = validateRelease({
     manifest,
     coreManifest: { ...coreManifest, version: "0.0.9" },
+    lockfile,
     changelog,
     tag: "v0.2.0"
   });
@@ -59,7 +74,12 @@ test("release check rejects private or incomplete packages", () => {
       bin: {},
       files: ["packages"]
     },
-    coreManifest,
+    coreManifest: {
+      ...coreManifest,
+      private: true,
+      publishConfig: {}
+    },
+    lockfile,
     changelog: "# Changelog\n",
     tag: "v0.1.0"
   });
@@ -69,7 +89,30 @@ test("release check rejects private or incomplete packages", () => {
     "digital-employee CLI entry point is missing",
     "published files must include compiled distribution artifacts",
     "published files must not include duplicate TypeScript source trees",
+    "core package must be publishable",
+    "core publishConfig.access must be public",
     "CHANGELOG.md must contain a dated 0.1.0 release heading"
+  ]);
+});
+
+test("release check rejects package-lock version drift", () => {
+  const errors = validateRelease({
+    manifest,
+    coreManifest,
+    lockfile: {
+      version: "0.0.9",
+      packages: {
+        "": { version: "0.0.9" },
+        "packages/core": { version: "0.0.9" }
+      }
+    },
+    changelog,
+    tag: "v0.1.0"
+  });
+  assert.deepEqual(errors, [
+    "package-lock version must match package version",
+    "package-lock workspace root version must match package version",
+    "package-lock core version must match package version"
   ]);
 });
 
@@ -83,6 +126,9 @@ test("release workflow has independently scoped jobs for all channels", async ()
   assert.match(workflow, /^\s{2}ghcr:$/m);
   assert.match(workflow, /^\s{6}id-token: write$/m);
   assert.match(workflow, /npm install --global npm@11\.18\.0/);
+  assert.match(workflow, /npm run test:coverage/);
+  assert.match(workflow, /npm --prefix packages\/core pack --dry-run/);
+  assert.match(workflow, /npm publish \.\/packages\/core --access public/);
   assert.match(workflow, /npm publish --access public/);
   assert.doesNotMatch(workflow, /NPM_TOKEN|NODE_AUTH_TOKEN/);
   assert.match(workflow, /actions\/checkout@v6/);

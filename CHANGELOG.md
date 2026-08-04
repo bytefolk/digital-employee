@@ -4,8 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-These changes are a source preview for the next minor release. The published
-`0.1.0` artifacts remain the frozen `standalone-v1` compatibility release.
+## [0.2.0] - 2026-08-04
+
+This release is the Agent-native CLI and Host Adapter release. The published
+`0.1.0` artifacts remain the frozen `standalone-v1` compatibility release;
+the `0.2.0` artifacts are not public until the release workflow completes.
 
 ### Added
 

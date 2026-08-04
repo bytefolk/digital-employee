@@ -25,9 +25,11 @@ jobs:
           package-manager-cache: false
       - run: npm ci
       - run: npm run check
+      - run: npm run test:coverage
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run release:check -- --tag "$GITHUB_REF_NAME"
       - run: npm pack --dry-run
+      - run: npm --prefix packages/core pack --dry-run
       - id: package
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
@@ -82,6 +84,14 @@ jobs:
       - run: npm ci
       - name: Publish npm package
         run: |
+          core_name="$(node -p "require('./packages/core/package.json').name")"
+          core_version="$(node -p "require('./packages/core/package.json').version")"
+          if npm view "$core_name@$core_version" version >/dev/null 2>&1; then
+            echo "$core_name@$core_version is already published"
+          else
+            npm publish ./packages/core --access public
+          fi
+
           package_name="$(node -p "require('./package.json').name")"
           package_version="$(node -p "require('./package.json').version")"
           if npm view "$package_name@$package_version" version >/dev/null 2>&1; then

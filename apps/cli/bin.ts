@@ -55,7 +55,8 @@ Agent-native usage:
 Standalone-v1 compatibility:
   digital-employee legacy <ask|sync|start|serve> [options]
 
-Agent host diagnosis is local-only and does not start a model run.
+Agent host diagnosis may execute a bounded local '<host> --version' probe.
+It does not attempt authentication, invoke a model, execute tools, or start an Agent run.
 The compatibility namespace uses the frozen model/retriever loop, not an Agent host.
 `;
 }

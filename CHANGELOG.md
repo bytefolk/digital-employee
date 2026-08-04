@@ -7,6 +7,18 @@ All notable changes to this project will be documented in this file.
 These changes are a source preview for the next minor release. The published
 `0.1.0` artifacts remain the frozen `standalone-v1` compatibility release.
 
+### Breaking changes
+
+- **Source-checkout startup:** Running `npm start` without arguments no longer
+  starts the `standalone-v1` configured channel. It prints Agent-native CLI
+  help and exits. Use `npm run legacy:start -- [options]` to retain that
+  behavior.
+- **Source-built container startup:** Running the image without arguments no
+  longer starts the compatibility HTTP server on port 3000, and the image no
+  longer declares `EXPOSE 3000`. Existing deployments must explicitly pass
+  `legacy serve --config ./dist/configs/demo.json --host 0.0.0.0 --port 3000`.
+  The published `0.1.0` image is unchanged.
+
 ### Added
 
 - Added the host-neutral `employee-package.v1alpha1` manifest, source package
@@ -24,8 +36,9 @@ These changes are a source preview for the next minor release. The published
 - Added probe-only catalog entries for Qwen Code and CodeBuddy Code alongside
   Claude Code and Codex. Documentation claims never satisfy runnable package
   compatibility.
-- Added the first runnable Host Adapter and `run --engine qoder` path for
-  conformance-tested Qoder CLI 1.1.x. It uses a stateless read-only projection,
+- Added the first runnable Host Adapter and `run --engine qoder` path for Qoder
+  CLI 1.1.x, verified by Adapter-specific deterministic process fixtures. It
+  uses a stateless read-only projection,
   isolated configuration, filtered environment, stdin JSONL initialization and
   task transport, native stream normalization, package-aware preflight,
   pre-launch cancellation, file-identity checks, runtime policy attestation,

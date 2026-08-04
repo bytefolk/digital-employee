@@ -53,9 +53,11 @@ This command starts Qoder and may consume credits. `--stdin` and
 `--input-file` keep task data out of the outer CLI argument vector;
 `--question` and `--input` remain conveniences for non-sensitive local input.
 The adapter is currently a one-shot, local/single-tenant technical preview,
-restricted to conformance-tested Qoder CLI 1.1.x, a new stateless session,
-read-only local assets, no MCP and no attachments. It is not yet the
-long-running employee service used for marketplace rental.
+restricted to Qoder CLI 1.1.x versions covered by its deterministic repository
+fixtures, a new stateless session, read-only local assets, no MCP and no
+attachments. These Adapter-specific fixtures are not a reusable certification
+harness. This is not yet the long-running employee service used for marketplace
+rental.
 
 The employee name and the directory containing `SKILL.md` use the portable
 [Agent Skills naming subset](https://agentskills.io/specification): lowercase
@@ -198,7 +200,7 @@ the runtime to attest a compatible protocol major and explicit empty
 Skill/plugin lists before submitting the task. Only temporary paths and policy
 flags are passed as process arguments. The project does not vendor or depend on
 the separately licensed Qoder Agent SDK package; the transport is version
-pinned and conformance tested against Qoder CLI 1.1.x. Operators remain
-responsible for the selected host's license and service terms. Multi-tenant
-hosting still requires a real OS or container/sandbox boundary; a CLI tool
-policy is not tenant isolation.
+pinned and covered by Qoder-specific deterministic fixtures for CLI 1.1.x.
+Operators remain responsible for the selected host's license and service terms.
+Multi-tenant hosting still requires a real OS or container/sandbox boundary; a
+CLI tool policy is not tenant isolation.

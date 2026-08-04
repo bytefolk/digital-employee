@@ -1,6 +1,6 @@
 # Verification ledger
 
-Last updated: 2026-08-03
+Last updated: 2026-08-04
 
 This file distinguishes shipped code from the environments in which it has
 actually been exercised. A passing fixture test is not presented as a live
@@ -9,11 +9,11 @@ provider integration.
 | Path | Evidence | Result |
 | --- | --- | --- |
 | Local answer and escalation | Public example files, extractive model, real CLI process | Verified |
-| Automated suite | `npm run check` | 163 passed; security check passed |
+| Automated suite | `npm run check` | 182/182 tests passed; security check passed |
 | Strict TypeScript | `npm run typecheck` | 0 errors across shipped runtime sources |
 | Agent-host install probes | Real local `doctor --json` plus bounded fixture processes | Qoder CLI 1.1.12 and Codex CLI 0.146.0 found locally; Claude Code version probe failed; live authentication/model access not tested |
-| Qoder run adapter | Real child-process conformance fixtures only | Qoder 1.1.x SDK process-mode initialize/user/EOF transport, private auth payload, argument isolation, minimum read-only projection, filtered environment, package-aware preflight, protocol/plugin/Skill/runtime-policy attestation, atomic event publication, run-ID reservation, pre-launch cancellation, pre-terminal credential cleanup, file inode/change-time checks, iterator cleanup, malformed/oversized output, non-zero exit, timeout and terminal invariants verified; no live model request made |
-| Probe-only compatibility | CLI integration fixture | Claude Code and Codex remain probe-only; missing Qoder service token and unverified versions fail closed |
+| Qoder run adapter | Adapter-specific deterministic child-process fixtures; not a reusable third-party certification harness | Qoder 1.1.x SDK process-mode initialize/user/EOF transport, private auth payload, argument isolation, minimum read-only projection, filtered environment, package-aware preflight, protocol/plugin/Skill/runtime-policy attestation, atomic event publication, run-ID reservation, pre-launch cancellation, pre-terminal credential cleanup, file inode/change-time checks, iterator cleanup, malformed/oversized output, non-zero exit, timeout and terminal invariants verified; no live model request made |
+| Probe-only compatibility | CLI integration fixture | Claude Code, Codex, Qwen Code and CodeBuddy Code remain probe-only; their bounded `--version` subprocess probes do not attempt authentication, invoke a model or execute tools; missing Qoder service token and unverified versions fail closed |
 | Employee package | `init`, static `validate`, schema parity and hostile path fixtures | Atomic scaffold verified; malformed Skill/YAML/JSON Schema, direct/nested traversal, symlinks, glob artifacts and policy mismatches rejected |
 | MCP declaration | TypeScript and public Schema fixtures | stdio and HTTPS declarations accept environment names only; inline HTTP auth fields, insecure HTTP and duplicate servers rejected |
 | Compiled package | `npm run build`; root and core `npm pack --dry-run` | ESM, declarations, source maps, Agent/package/MCP contracts and schemas, CLI, compatibility runtime, `answer-agent` manifest, and public fixtures only |

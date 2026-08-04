@@ -1,6 +1,6 @@
 # Agent Host 状态与接入策略
 
-- 状态日期：2026-08-03
+- 状态日期：2026-08-04
 - 适用范围：当前源码树中的 `employee-package.v1alpha1`、`agent-host.v1`
 - 相关文档：[架构说明](architecture.md)、[员工包规范](employee-package.md)、[ADR 0001](decisions/0001-agent-host-boundary.md)
 
@@ -11,6 +11,10 @@
 当前源码中只有 **Qoder CLI 1.1.x Adapter 是 runnable**，而且只是一条 one-shot、无状态、只读、本机/单租户技术预览：不支持 MCP、附件、会话恢复、写工具或审批回调。Claude Code、Codex、Qwen Code 与 CodeBuddy Code 已进入内置目录，但都只有安装/版本探测和文档能力声明，属于 **probe-only**；后两者同时还是待实现的 Adapter candidates。
 
 官方产品文档只能证明某个宿主值得适配，不能把 `documented` 提升为本仓库的 `supported`。只有版本锁定、Adapter 实现和一致性测试全部通过后，一项能力才能参与运行前兼容性判断。
+
+这里的 **probe-only** 不是“不启动任何进程”，而是“没有可启动模型或 Agent loop 的 runnable Adapter”。`doctor` 只会用过滤后的环境、固定 `--version` 参数和 10 秒超时执行受限版本探测；它不会验证登录、发起模型调用或执行工具。
+
+当前 `capabilitySource: conformance_test` 指仓库内针对特定 Adapter 和锁定 Host 版本的确定性子进程 fixture。它不是可供第三方 Adapter 复用的认证 harness，也不是厂商认证或真实模型额度验证。
 
 ## 名词边界
 
@@ -33,7 +37,7 @@
 | QwenWork（千问办公） | 不在 Host registry | 官方定位是[办公工作台](https://qwenwork.cn/docs)，提供[定时任务](https://qwenwork.cn/docs/desktop/scheduled-tasks)、[IM 渠道](https://qwenwork.cn/docs/desktop/im-channels)和 [Skills](https://qwenwork.cn/docs/features/skills) | Workbench / Channel，不是当前 Agent Host；官方文档尚未给出本项目所需的稳定 headless 事件与取消契约 |
 | 腾讯 WorkBuddy GUI | 不在 Host registry | 官方定位是[全场景 AI Agent 桌面工作站](https://www.workbuddy.ai/docs/workbuddy/)，并提供 GUI [权限模式](https://www.workbuddy.ai/docs/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/Permission-Modes)与 MCP/Skill 市场 | Workbench / Channel，不直接自动化 GUI。腾讯方向的可编程候选是上面的 CodeBuddy Code |
 
-“命令已安装”也不等于“可以运行员工”。`doctor` 的无副作用探测不会验证账号登录、模型额度、运行期协议、包级权限或真实沙箱；这些必须由 runnable Adapter 的 preflight 和一致性测试确认。
+“命令已安装”也不等于“可以运行员工”。`doctor` 的受限版本探测不会验证账号登录、模型额度、运行期协议、包级权限或真实沙箱；这些必须由 runnable Adapter 的 preflight 和 Adapter 专用 fixture 确认。
 
 ## 三层接入策略
 

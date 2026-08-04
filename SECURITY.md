@@ -27,11 +27,12 @@ an account, organization, drive, chat history, or repository automatically.
 
 ## Agent-host boundary
 
-`run --engine qoder` currently supports only the conformance-tested Qoder CLI
-1.1.x read-only path. Keep `QODER_PERSONAL_ACCESS_TOKEN` in the deployment
-environment; never add it to `employee.json`, `SKILL.md`, MCP declarations or
-assets. The adapter intentionally does not inherit arbitrary process
-environment variables, user settings, plugins, hooks, Skills or MCP servers.
+`run --engine qoder` currently supports only the version-gated Qoder CLI 1.1.x
+read-only path covered by Adapter-specific deterministic process fixtures. Keep
+`QODER_PERSONAL_ACCESS_TOKEN` in the deployment environment; never add it to
+`employee.json`, `SKILL.md`, MCP declarations or assets. The adapter
+intentionally does not inherit arbitrary process environment variables, user
+settings, plugins, hooks, Skills or MCP servers.
 
 Local assets must be listed explicitly in `assets` and match the read policy.
 Each run copies only that intersection into a temporary projection and rejects

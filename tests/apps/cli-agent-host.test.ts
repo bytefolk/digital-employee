@@ -38,6 +38,8 @@ test("help leads with Agent-native commands while standalone stays explicit", ()
   assert.equal(help.status, 0, help.stderr)
   assert.match(help.stdout, /Agent-native usage:/)
   assert.match(help.stdout, /digital-employee legacy <ask\|sync\|start\|serve>/)
+  assert.match(help.stdout, /bounded local '<host> --version' probe/)
+  assert.match(help.stdout, /does not attempt authentication, invoke a model/)
   assert.doesNotMatch(help.stdout, /^\s+digital-employee ask /m)
 })
 

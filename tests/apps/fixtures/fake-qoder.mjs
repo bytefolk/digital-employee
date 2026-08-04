@@ -159,11 +159,29 @@ async function executeRun() {
       ],
     },
   })
-  emit({
-    type: "stream_event",
-    session_id: sessionId,
-    event: { delta: { type: "text_delta", text: "fixture answer" } },
-  })
+  if (mode === "assistant-snapshot-redaction") {
+    emit({
+      type: "assistant",
+      session_id: sessionId,
+      message: {
+        content: [{ type: "text", text: "api_key=fixture-secret" }],
+      },
+    })
+  } else {
+    emit({
+      type: "stream_event",
+      session_id: sessionId,
+      event: {
+        delta: {
+          type: "text_delta",
+          text:
+            mode === "stream-redaction"
+              ? "Bearer fixture-secret"
+              : "fixture answer",
+        },
+      },
+    })
+  }
   const output = JSON.stringify({
     status: "answered",
     answer: "fixture answer",

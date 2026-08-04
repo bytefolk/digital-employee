@@ -71,10 +71,11 @@ requirements by omitting a capability.
 
 An adapter reports `documented`, `supported`, `unsupported` or `unknown` for
 every capability. `documented` means official host functionality exists;
-`supported` is reserved for an implemented adapter and conformance-tested host
-range. Only `supported` satisfies a requirement. In particular, a prompt that
-asks the Agent to be read-only cannot substitute for a tool boundary the host
-actually enforces.
+`supported` is reserved for an implemented adapter and a host range covered by
+that adapter's deterministic repository fixtures. These fixtures are not a
+reusable third-party certification harness. Only `supported` satisfies a
+requirement. In particular, a prompt that asks the Agent to be read-only cannot
+substitute for a tool boundary the host actually enforces.
 
 The normalized `agent-host.v1` event contract includes run lifecycle,
 assistant deltas, tool lifecycle, approval, usage, completion and failure
@@ -93,9 +94,10 @@ The new Agent-host foundation ships these non-model commands:
   CLI and Codex and reports separately whether an adapter is runnable.
 
 These commands do not start a model run or claim that model entitlement is
-valid. The first real execution path, `run --engine qoder`, supports
-conformance-tested Qoder CLI 1.1.x with a new stateless session, read-only local
-assets, denied tool/MCP data-plane network access, and no MCP or attachments.
+valid. The first real execution path, `run --engine qoder`, supports Qoder CLI
+1.1.x through a version-gated Adapter covered by deterministic child-process
+fixtures, with a new stateless session, read-only local assets, denied tool/MCP
+data-plane network access, and no MCP or attachments.
 It builds a per-run minimum projection, isolates Qoder configuration, filters
 the child environment, restricts tools to `Read/Grep/Glob`, and validates the
 native `system/init` policy report before forwarding events. It performs the

@@ -106,7 +106,7 @@ function terminalEvents(events: AgentHostEvent[]) {
   )
 }
 
-test("Qoder probe reports only the conformance-tested stateless capabilities", async () => {
+test("Qoder probe reports only the fixture-verified stateless capabilities", async () => {
   const parent = await mkdtemp(path.join(os.tmpdir(), "qoder-probe-"))
   const probe = await adapter(parent).probe()
 
@@ -191,6 +191,65 @@ test("Qoder run uses an isolated projection, filtered environment, and normalize
     ),
     false,
   )
+})
+
+test("Qoder maps native tools directly and rejects decoupled file policy", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "qoder-tool-allowlist-"))
+  const capture = path.join(parent, "capture.json")
+  const request = await employeeRequest(parent, "run-tool-allowlist")
+  request.policy.tools.allow = [
+    { name: "filesystem.read", mode: "read" },
+  ]
+
+  const events = await collect(adapter(parent, "success", capture).run(request))
+  assert.equal(events.at(-1)?.type, "run.completed")
+
+  const captured = JSON.parse(await readFile(capture, "utf8"))
+  const toolsIndex = captured.args.indexOf("--tools")
+  assert.notEqual(toolsIndex, -1)
+  assert.equal(captured.args[toolsIndex + 1], "Read")
+
+  for (const mismatch of ["grant-only", "tool-only"] as const) {
+    const mismatchParent = await mkdtemp(
+      path.join(os.tmpdir(), `qoder-tool-${mismatch}-`),
+    )
+    const mismatchRequest = await employeeRequest(
+      mismatchParent,
+      `run-tool-${mismatch}`,
+    )
+    if (mismatch === "grant-only") {
+      mismatchRequest.policy.tools.allow = []
+    } else {
+      mismatchRequest.policy.filesystem.read = []
+    }
+    const preflight = await adapter(mismatchParent).preflight(mismatchRequest)
+    assert.equal(preflight.status, "not_ready")
+    assert.equal(
+      preflight.issues.some(
+        (issue) => issue.code === "qoder_filesystem_tool_policy_mismatch",
+      ),
+      true,
+    )
+  }
+})
+
+test("Qoder redacts both native stream and assistant snapshot deltas", async () => {
+  for (const [mode, expected] of [
+    ["stream-redaction", "Bearer [REDACTED]"],
+    ["assistant-snapshot-redaction", "api_key=[REDACTED]"],
+  ] as const) {
+    const parent = await mkdtemp(path.join(os.tmpdir(), `qoder-${mode}-`))
+    const request = await employeeRequest(parent, `run-${mode}`)
+    const events = await collect(adapter(parent, mode).run(request))
+    const deltas = events.filter(
+      (event): event is Extract<AgentHostEvent, { type: "assistant.delta" }> =>
+        event.type === "assistant.delta",
+    )
+
+    assert.equal(events.at(-1)?.type, "run.completed")
+    assert.deepEqual(deltas.map((event) => event.text), [expected])
+    assert.equal(JSON.stringify(events).includes("fixture-secret"), false)
+  }
 })
 
 for (const [mode, expectedCode] of [

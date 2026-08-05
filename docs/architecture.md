@@ -4,6 +4,11 @@ Digital Employee is an Agent-native employee packaging CLI and outer service
 runtime. It reuses a capable Agent host instead of implementing a second
 general-purpose Agent loop.
 
+The [product strategy](strategy.md) is the normative scope contract, and the
+[roadmap](roadmap.md) maps that contract to delivery gates and issues. This
+document describes architectural ownership; it does not promote a target
+component to shipped status.
+
 The normative Host boundary is recorded in
 [ADR 0001](decisions/0001-agent-host-boundary.md); the publisher-owned Runner
 boundary is recorded in [ADR 0002](decisions/0002-runner-execution-boundary.md).
@@ -47,6 +52,16 @@ The outer layer does not call a host as if it were a plain text-completion
 model and then run another tool loop around it. It also does not persist or
 require private chain-of-thought.
 
+### Target ownership versus shipped maturity
+
+| Boundary | Target owner | Current source maturity |
+| --- | --- | --- |
+| Employee package, CLI and Host projection | Open framework on the operator machine | Authoring commands are shipped in source |
+| Agent execution and native tool loop | Installed Agent Host | Four locked one-shot paths are preview and fixture-conformant; Codex is probe-only |
+| One-shot task verification and receipt | Open Runner kernel on the operator machine | Preview embeddable implementation is delivered |
+| Long-running Runner lifecycle, local deployment registry, durable replay/outbox and reconnect | Open framework on the operator machine | Target design; not delivered |
+| Device registration, scheduling, trusted usage verification, Quote/Credit and settlement | Separate private control plane | Private; not implemented by this repository |
+
 ## Publisher-owned Runner boundary
 
 Every application/service employee executes on its publisher or operator's
@@ -54,7 +69,8 @@ own computer or server. A private marketplace control plane may create tasks,
 reserve Credits and settle independently verified usage, but it never runs an
 employee package, stores its local path, or holds an Agent Host credential.
 
-The V0.3 source preview adds the transport-neutral execution kernel:
+The current source preview delivers the transport-neutral one-shot execution
+kernel:
 
 - deterministic package digests over exact declared bytes;
 - per-run sealed local package snapshots;
@@ -65,8 +81,10 @@ The V0.3 source preview adds the transport-neutral execution kernel:
 - bounded hash-chained events and receipt-bound event/usage summaries.
 
 The Runner is always an outbound client. The current source does not provide a
-long-running network daemon, device authentication, durable replay store or
-platform HTTP/gRPC client. See [the Runner integration path](runner.md).
+long-running network daemon, local deployment registry, device-key lifecycle,
+durable replay/outbox store, reconnect loop or platform HTTP/gRPC client. Those
+are public Runner-client targets, not private server responsibilities. See
+[the Runner integration path](runner.md).
 
 ## Portable employee source package
 

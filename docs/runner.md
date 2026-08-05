@@ -1,5 +1,9 @@
 # Runner 实践路径
 
+本文描述[产品策略](strategy.zh-CN.md)中的公开 Runner 边界和目标集成路径；交付顺序与
+当前状态以[路线图](roadmap.zh-CN.md)为准。下文的一次性执行内核已经以 preview 形式存在，
+长期 `runner start` 客户端和私有平台服务端尚未交付，不能把目标链路当作当前可部署能力。
+
 V0.3 的目标链路是：
 
 ```text
@@ -83,15 +87,39 @@ await platformClient.submitReceipt(execution.signedReceipt)
 event 和 receipt 请求绑定到已认证的 Runner 设备主体；task/run/lease id 只是关联字段，
 不能当 Bearer Token。
 
-## 生产部署仍需补齐
+## 公开 Runner 客户端仍需交付
 
-- 私有平台 HTTP/gRPC API、mTLS/OAuth 设备认证和密钥轮换；
-- Runner 长期进程、持久化 replay、断线重连、升级和本地运维；
-- 将私有平台已交付的 PostgreSQL 迁移接入持久仓库、事务 outbox worker、抢占恢复和可观测性；
-- 真实目录/订单实现的 `ReleaseAuthorizer`；
-- 提供商签名账单或平台自有网关实现的独立 `UsageVerifier`；
-- 写操作的业务幂等、审批、沙箱与争议处理；
-- 收款、退款、卖家打款、税务和对账。
+这些能力属于本开源仓库，全部运行在卖家机器上：
 
-在这些能力完成前，V0.3 是可信边界和本机执行内核的技术预览，不是可公开运营的机器人
-租赁平台。
+- `runner init/doctor/start/status` 生命周期、本地配置和可操作诊断
+  （[#35](https://github.com/fullstack-ai-infra/digital-employee/issues/35)）；
+- 版本/员工包/Engine 的本地部署注册表，以及只从该注册表解析本地路径；
+- 持久化 replay/outbox、崩溃恢复、断线重连、heartbeat、取消、升级和进程清理
+  （[#27](https://github.com/fullstack-ai-infra/digital-employee/issues/27)）；
+- 设备密钥的本地安全存储与轮换客户端，以及已认证、仅出站的 transport port；具体
+  HTTP/gRPC 实现必须在端口之后，执行内核不能依赖私有 API
+  （[#29](https://github.com/fullstack-ai-infra/digital-employee/issues/29)）；
+- 供应商中立的原始 usage 证据语义，不包含 Quote/Credit 计算
+  （[#28](https://github.com/fullstack-ai-infra/digital-employee/issues/28)）；
+- committed mock control plane 覆盖签名 claim、本机 Host、断网恢复、事件上传和签名
+  receipt 的端到端验证
+  （[#37](https://github.com/fullstack-ai-infra/digital-employee/issues/37)）。
+
+当前 `executeOneShotRunnerTask()` 只是上述长期客户端可复用的本机执行内核，不等于
+Runner daemon，也不提供生产网络 SDK。公开实现可以提供 mock/参考服务 fixture 来验证
+协议，但不能吸收私有平台业务状态。
+
+## 私有平台服务端仍需交付（不进入本仓库）
+
+这些能力属于公司的私有控制面：
+
+- 生产 HTTP/gRPC API、服务端设备注册、身份/凭证签发、可信公钥注册表和轮换策略；
+- 任务创建、签名、调度、租约/attempt/fencing 管理、事件接收、事务 outbox、抢占恢复
+  和服务端可观测性；
+- 真实目录/订单语义的 `ReleaseAuthorizer`，以及独立的 `UsageVerifier`；
+- 不可变 Quote、Credit 预留和账本、动态价格、计费、争议、退款、卖家打款、税务与对账；
+- marketplace 账户、上架、发现、评价、租赁、UI 和运营后台。
+
+私有平台只消费公开协议，不能导入 Host Adapter 执行代码，不能托管员工包，也不能取得
+本地路径或 Agent Host 凭证。在 M1 Runner gate 通过前，本仓库仍是可信边界和本机一次性
+执行内核的技术预览，不是可公开运营的机器人租赁平台。

@@ -2,6 +2,8 @@
 
 [简体中文](README.zh-CN.md)
 
+**Product direction:** [Strategy](docs/strategy.md) · [Roadmap](docs/roadmap.md)
+
 Digital Employee is an open CLI, package contract and local execution framework
 for portable digital employees. Claude Code, Qoder CLI, Codex or another
 capable Agent Host owns the model, context and native tool loop. The framework
@@ -11,13 +13,17 @@ execution boundary.
 The current source delivers the CLI, portable employee package, model-free
 preflight, four version-gated one-shot adapters, and a V0.3 Runner preview:
 platform-signed tasks, deterministic package digests, sealed local snapshots,
-lease fencing, hash-chained events and Runner-signed receipts. A long-running
-Runner process, platform network API and device authentication are not shipped.
+lease fencing, hash-chained events and Runner-signed receipts. A deployable,
+seller-owned `runner start` process, durable local replay/outbox and reconnecting
+outbound client are not shipped yet; they belong to this open framework's
+roadmap. Server-side device registration, task dispatch and usage/settlement
+services belong to the private platform.
 
-The first recipe is `answer-agent`: a read-only team support employee that
-answers with citations, refuses unsupported claims, and escalates uncertainty
-to a human. The original `0.1` answer runtime remains available as the
-`standalone-v1` compatibility path.
+`answer-agent` is the historical first employee use case: a read-only team
+support employee that answers with citations, refuses unsupported claims and
+escalates uncertainty to a human. Its checked-in implementation belongs to the
+`standalone-v1` compatibility path. No Agent-native recipe is shipped yet;
+delivering one is part of the M0 roadmap.
 
 ```mermaid
 flowchart LR
@@ -80,8 +86,10 @@ billable facts; Runner-attested tokens never debit Credits directly.
 
 See the [Runner integration path](docs/runner.md) and [ADR 0002](docs/decisions/0002-runner-execution-boundary.md).
 There is no claim that a deployable `runner start` network daemon exists yet;
-device auth, durable replay, reconnect and the platform HTTP/gRPC API remain
-private deployment work.
+the seller-owned daemon, durable local replay/outbox, reconnect and outbound
+platform client remain open-framework work. Server-side device registration,
+task dispatch, `UsageVerifier`, Quote, Credit and settlement APIs remain private
+platform work.
 
 Every runnable adapter is stateless and one-shot. It requires an explicit
 deployment service credential and never reuses a personal CLI login. Unlike
@@ -157,10 +165,11 @@ docker run --rm -p 3000:3000 digital-employee:source \
 
 ## Not one bot and not another Agent loop
 
-`answer-agent` is a recipe, not the whole product. An Agent-native employee
-package uses `employee-package.v1alpha1`, with `SKILL.md` as the role/workflow
-source, JSON Schema as its public task contract, and MCP for external
-capabilities. Host-specific instructions and arguments are generated
+`answer-agent` is the historical employee use case, not an Agent-native recipe
+shipped by the current source and not the whole product. An Agent-native
+employee package uses `employee-package.v1alpha1`, with `SKILL.md` as the
+role/workflow source, JSON Schema as its public task contract, and MCP for
+external capabilities. Host-specific instructions and arguments are generated
 projections rather than the source of truth.
 
 The strict `employee-profile.v1` manifest remains part of `standalone-v1`. The CLI
@@ -326,7 +335,8 @@ container, live DWS, and not-yet-live-tested evidence.
 | Qoder CLI 1.1.x read-only, stateless `run --engine qoder` adapter | Shipped in source; live model entitlement not tested |
 | Claude Code `>=2.1.214 <2.2.0`, Qwen Code `0.17.1`, CodeBuddy Code `2.106.4` context-only adapters | Shipped in source; live model entitlement not tested |
 | Signed tasks, package digest/snapshot, lease fencing, event chain and Runner-signed receipt | Shipped as a V0.3 source preview |
-| Long-running Runner network process, device auth and durable replay/reconnect | Not shipped; private deployment layer required |
+| Seller-owned long-running Runner process, local durable replay/outbox and reconnect | Not shipped; open framework roadmap |
+| Server-side device registration, task dispatch, usage verification, Quote/Credit and settlement | Private platform; intentionally outside this framework repository |
 | Codex CLI run adapter | Probe-only; blocked on reliable removal of every model-visible built-in tool |
 | Agent-native `service start` with channels, queue and audit | Not shipped; next phase |
 | `standalone-v1` profile and channel/source/model/tool registry | Shipped; compatibility path |
@@ -339,13 +349,20 @@ container, live DWS, and not-yet-live-tested evidence.
 | Write tools and approval workflow | Planned; disabled in the first release |
 | Marketplace, pricing, trusted metering and settlement | Separate private platform; intentionally outside this framework repository |
 
-## Relationship to `mem`
+## Relationship to `design-system`, the platform, and `mem`
 
-Digital Employee owns channels, role policy, answer orchestration, citations,
-feedback, and human escalation. The
-[`mem`](https://github.com/fullstack-ai-infra/mem) project can become an
-optional durable memory/retrieval backend; this repository does not duplicate
-that memory plane.
+`design-system` is reusable UI material for a future operator or marketplace
+surface, not a Digital Employee runtime dependency. Listing, rental, dynamic
+pricing, trusted billable-usage decisions, ratings and revenue sharing belong to
+the separate private platform. This repository is responsible for building,
+validating and safely executing employees on publisher-owned machines; the
+platform must not import or host Agent Host execution code.
+
+In the Agent-native path, [`mem`](https://github.com/fullstack-ai-infra/mem) may
+be an optional durable memory/retrieval capability behind an approved extension
+boundary. `standalone-v1` retains its historical answer orchestration,
+citations, feedback and escalation behavior for compatibility. This project
+does not duplicate the memory plane.
 
 ## Development
 

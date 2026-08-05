@@ -24,6 +24,27 @@ and must never become a runtime dependency.
 Create a focused branch, add tests for user-visible behavior, and open a pull
 request against `main`. Keep generated data and credentials out of commits.
 
+## Product direction and issue routing
+
+Read the [product strategy](docs/strategy.md) for the stable scope boundary and
+the [roadmap](docs/roadmap.md) for milestone sequence, current issue ownership
+and acceptance gates before proposing cross-cutting work.
+
+Choose the narrowest issue type:
+
+- use the roadmap-item form for a milestone outcome, architectural contract,
+  cross-package change or work that changes a roadmap dependency or gate;
+- use the bug form for a reproducible regression against current behavior;
+- use the connector form for an isolated channel, knowledge source, model or
+  tool connector whose permissions and data boundary can be reviewed alone.
+
+Do not request “support all Agents” or claim Agent support from a product name
+alone. A ready proposal identifies the user outcome, exact interface and
+version range, enforceable capability/policy boundary, normalized behavior and
+observable evidence. Marketplace accounts, pricing, Quote/Credit, billing,
+settlement and server-side device/task/usage services belong in the separate
+private platform, not this repository.
+
 ## Connector rules
 
 Every connector must:

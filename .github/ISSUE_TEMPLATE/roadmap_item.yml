@@ -1,0 +1,84 @@
+name: Roadmap item
+description: Propose a milestone outcome, cross-cutting contract, or roadmap dependency.
+title: "[Roadmap] "
+labels: ["status:needs-design"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read the [product strategy](https://github.com/fullstack-ai-infra/digital-employee/blob/main/docs/strategy.md) and [roadmap](https://github.com/fullstack-ai-infra/digital-employee/blob/main/docs/roadmap.md) first.
+        Keep marketplace business and private control-plane implementation outside this public repository.
+
+  - type: textarea
+    id: why
+    attributes:
+      label: WHY — user problem and outcome
+      description: Identify the direct user, current problem, and observable outcome. A product name alone is not a requirement.
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: WHAT — deliverable and contract
+      description: Define the smallest coherent behavior, interface, version range, and compatibility promise.
+    validations:
+      required: true
+
+  - type: textarea
+    id: where
+    attributes:
+      label: WHERE — ownership boundary
+      description: Name the public packages, CLI surfaces, protocols, or documents affected, and what stays private or host-owned.
+    validations:
+      required: true
+
+  - type: textarea
+    id: how_much
+    attributes:
+      label: HOW MUCH — scope and budget
+      description: Bound the variants, fixtures, platforms, migrations, and review or testing effort included in this item.
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: DONE — acceptance gate
+      description: List externally observable, testable conditions and the evidence maturity term they establish.
+    validations:
+      required: true
+
+  - type: textarea
+    id: dont
+    attributes:
+      label: DON'T — non-goals and forbidden shortcuts
+      description: State what must not be built or claimed, including security, privacy, hosting, or marketplace boundaries.
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Link parent Epic, blocking issues, downstream consumers, and the roadmap gate this changes.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Name the tests, golden vectors, clean-machine commands, fixtures, telemetry, or review artifacts that will prove DONE.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: readiness
+    attributes:
+      label: Proposal readiness
+      options:
+        - label: This request is not based only on a product name or a request to “support all Agents”; it names an enforceable interface, version boundary, and evidence.
+          required: true
+        - label: Any private marketplace or control-plane work has been split at the public protocol boundary.
+          required: true

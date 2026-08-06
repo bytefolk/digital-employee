@@ -6,15 +6,24 @@ import path from "node:path"
 import test from "node:test"
 
 import {
+  AGENT_HOST_CAPABILITIES,
   AGENT_HOST_PROTOCOL_VERSION,
   createUnknownAgentHostCapabilities,
 } from "../../packages/core/src/agent-host.js"
 import type {
   AgentHostAdapter,
   AgentHostEvent,
+  AgentHostPolicy,
   AgentHostProbeResult,
   AgentHostRunRequest,
 } from "../../packages/core/src/agent-host.js"
+import {
+  AGENT_HOST_STDIO_PROTOCOL_VERSION,
+  encodeAgentHostStdioLine,
+  parseAgentHostStdioHostLine,
+  parseAgentHostStdioRequest,
+  probeResultFromStdioResponse,
+} from "../../packages/core/src/agent-host-stdio.js"
 import {
   ADAPTER_QUALIFICATION_KIT_VERSION,
   ADAPTER_QUALIFICATION_SCHEMA_ID,
@@ -171,16 +180,7 @@ test("a conforming built-in-class adapter earns the fixture axis without live ev
     record.policyDigest,
     createHash("sha256")
       .update(
-        JSON.stringify(
-          {
-            tools: { default: "deny", allow: [{ name: "noop", mode: "read" }] },
-            filesystem: { read: ["."], write: [] },
-            network: { mode: "deny" },
-            approval: { mode: "never" },
-            maxTurns: 4,
-          },
-          ["approval", "filesystem", "maxTurns", "network", "tools"],
-        ),
+        '{"approval":{"mode":"never"},"filesystem":{"read":["."],"write":[]},"maxTurns":4,"network":{"mode":"deny"},"tools":{"allow":[{"mode":"read","name":"noop"}],"default":"deny"}}',
       )
       .digest("hex"),
   )
@@ -432,5 +432,334 @@ test("the policy digest is deterministic across runs", async () => {
       tools: { default: "deny", allow: [{ name: "noop", mode: "read" }] },
     }),
     first.policyDigest,
+  )
+})
+
+const STDIO_HOST_ID = "builtin-stdio-host"
+const STDIO_TIMESTAMP = "2026-08-06T03:00:00.000Z"
+
+function stdioHostProbePayload(): Record<string, unknown> {
+  const capabilities = createUnknownAgentHostCapabilities()
+  for (const capability of AGENT_HOST_CAPABILITIES) {
+    capabilities[capability] = "supported"
+  }
+  return {
+    protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
+    hostId: STDIO_HOST_ID,
+    displayName: "Built-in Stdio Host",
+    status: "ready",
+    available: true,
+    adapterStatus: "runnable",
+    version: "1.0.0",
+    capabilities,
+    capabilitySource: "adapter_declaration",
+    issues: [],
+  }
+}
+
+interface StdioHostOptions {
+  tamperEvent?: boolean
+}
+
+/**
+ * In-memory fake host speaking agent-host-stdio.v1. Every line it receives
+ * and emits goes through the shipped fail-closed codec, so the built-in
+ * conformance run exercises the real wire validators offline.
+ */
+function fakeStdioHost(options: StdioHostOptions = {}) {
+  const cancelled = new Set<string>()
+  const envelope = (message: Record<string, unknown>) =>
+    encodeAgentHostStdioLine({
+      protocol: AGENT_HOST_STDIO_PROTOCOL_VERSION,
+      ...message,
+    })
+  return {
+    cancelled,
+    handle(line: string): string[] {
+      const request = parseAgentHostStdioRequest(line)
+      if (request.kind === "probe") {
+        return [
+          envelope({
+            id: request.id,
+            kind: "response",
+            ok: true,
+            result: stdioHostProbePayload(),
+          }),
+        ]
+      }
+      if (request.kind === "cancel") {
+        cancelled.add((request.payload as { runId: string }).runId)
+        return [envelope({ id: request.id, kind: "response", ok: true })]
+      }
+      const payload = request.payload as AgentHostRunRequest
+      const writesAllowed = payload.policy.filesystem.write.every(
+        (entry) => entry === "." || entry.startsWith(payload.workingDirectory),
+      )
+      if (!writesAllowed) {
+        return [
+          envelope({
+            id: request.id,
+            kind: "response",
+            ok: false,
+            error: {
+              code: "agent_host_stdio_host_error",
+              message: "filesystem write outside allowed scope",
+              retryable: false,
+            },
+          }),
+        ]
+      }
+      if (request.kind === "preflight") {
+        return [
+          envelope({
+            id: request.id,
+            kind: "response",
+            ok: true,
+            result: stdioHostProbePayload(),
+          }),
+        ]
+      }
+      const lines = [
+        envelope({
+          id: request.id,
+          kind: "event",
+          event: {
+            type: "run.started",
+            runId: payload.runId,
+            timestamp: STDIO_TIMESTAMP,
+          },
+        }),
+      ]
+      if (cancelled.has(payload.runId)) {
+        lines.push(
+          envelope({
+            id: request.id,
+            kind: "event",
+            event: {
+              type: "run.failed",
+              runId: payload.runId,
+              timestamp: STDIO_TIMESTAMP,
+              error: {
+                code: "agent_host_cancelled",
+                message: "run cancelled",
+                retryable: false,
+              },
+            },
+          }),
+        )
+        return lines
+      }
+      const completed: Record<string, unknown> = {
+        type: "run.completed",
+        runId: payload.runId,
+        timestamp: STDIO_TIMESTAMP,
+        output:
+          payload.outputSchema !== undefined
+            ? { answer: "qualified" }
+            : { status: "answered" },
+      }
+      if (options.tamperEvent) {
+        completed.vendorChannel = "smuggled"
+      }
+      lines.push(envelope({ id: request.id, kind: "event", event: completed }))
+      return lines
+    },
+  }
+}
+
+function builtinStdioAdapter(
+  options: StdioHostOptions = {},
+): AgentHostAdapter {
+  const host = fakeStdioHost(options)
+  const exchange = (message: Record<string, unknown>): string[] =>
+    host.handle(
+      encodeAgentHostStdioLine({
+        protocol: AGENT_HOST_STDIO_PROTOCOL_VERSION,
+        ...message,
+      }),
+    )
+  const expectOk = (lines: string[]) => {
+    const message = parseAgentHostStdioHostLine(lines[0], STDIO_HOST_ID)
+    if (message.kind !== "response" || message.ok !== true) {
+      throw new Error("builtin stdio host refused the exchange")
+    }
+    return message
+  }
+  return {
+    hostId: STDIO_HOST_ID,
+    async probe() {
+      return probeResultFromStdioResponse(
+        parseAgentHostStdioHostLine(
+          exchange({ id: "probe-1", kind: "probe" })[0],
+          STDIO_HOST_ID,
+        ),
+        STDIO_HOST_ID,
+      )
+    },
+    async preflight(request) {
+      return probeResultFromStdioResponse(
+        expectOk(
+          exchange({
+            id: `preflight-${request.runId}`,
+            kind: "preflight",
+            payload: request,
+          }),
+        ),
+        STDIO_HOST_ID,
+      )
+    },
+    async *run(request) {
+      const lines = exchange({
+        id: `run-${request.runId}`,
+        kind: "run",
+        payload: request,
+      })
+      for (const line of lines) {
+        const message = parseAgentHostStdioHostLine(line, STDIO_HOST_ID)
+        if (message.kind === "event") {
+          yield message.event
+        }
+      }
+    },
+    async cancel(runId) {
+      expectOk(
+        exchange({ id: `cancel-${runId}`, kind: "cancel", payload: { runId } }),
+      )
+    },
+  }
+}
+
+test("the built-in stdio adapter earns the fixture axis offline through the versioned wire", async () => {
+  const directory = await workingDirectory()
+  const record = await runQualificationSuite(builtinStdioAdapter(), {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+  })
+  assert.equal(record.hostId, STDIO_HOST_ID)
+  assert.deepEqual(record.axes, {
+    implemented: true,
+    fixtureConformant: true,
+    liveQualified: false,
+  })
+  assert.equal(record.cases.length, 9)
+  assert.ok(record.cases.every((entry) => entry.passed))
+  for (const domain of QUALIFICATION_DOMAINS) {
+    assert.equal(record.domains[domain].failed, 0, domain)
+  }
+})
+
+test("a built-in host that smuggles unknown event fields loses the fixture axis", async () => {
+  const directory = await workingDirectory()
+  const record = await runQualificationSuite(
+    builtinStdioAdapter({ tamperEvent: true }),
+    { workingDirectory: directory, generatedAt: GENERATED_AT },
+  )
+  assert.equal(record.axes.fixtureConformant, false)
+  const terminalCase = record.cases.find(
+    (entry) => entry.id === "exactly_one_terminal",
+  )
+  assert.equal(terminalCase?.passed, false)
+})
+
+test("live evidence can never smuggle extra keys into the record", async () => {
+  const directory = await workingDirectory()
+  const evidenceDigest = createHash("sha256")
+    .update("live-run-evidence")
+    .digest("hex")
+  const record = await runQualificationSuite(qualificationAdapter(), {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+    liveEvidence: {
+      environment: "live-local-e2e",
+      evidenceDigest,
+      apiKey: "sk-smuggled",
+    } as never,
+  })
+  assert.deepEqual(record.liveEvidence, {
+    environment: "live-local-e2e",
+    evidenceDigest,
+  })
+  assert.ok(!JSON.stringify(record).includes("sk-smuggled"))
+  assert.throws(
+    () =>
+      validateAdapterQualificationRecord({
+        ...record,
+        liveEvidence: {
+          environment: "live-local-e2e",
+          evidenceDigest,
+          apiKey: "sk-smuggled",
+        },
+      }),
+    (error: unknown) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "INVALID_QUALIFICATION_RECORD",
+  )
+})
+
+test("the validator rejects unknown nested keys in axes, cases and domains", async () => {
+  const directory = await workingDirectory()
+  const record = await runQualificationSuite(qualificationAdapter(), {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+  })
+  const invalidRecord = (mutate: (copy: Record<string, unknown>) => void) => {
+    const copy = JSON.parse(JSON.stringify(record)) as Record<string, unknown>
+    mutate(copy)
+    assert.throws(
+      () => validateAdapterQualificationRecord(copy),
+      (error: unknown) =>
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "INVALID_QUALIFICATION_RECORD",
+    )
+  }
+  invalidRecord((copy) => {
+    ;(copy.axes as Record<string, unknown>).vendorCertified = true
+  })
+  invalidRecord((copy) => {
+    ;(copy.cases as Array<Record<string, unknown>>)[0].note = "smuggled"
+  })
+  invalidRecord((copy) => {
+    ;(copy.domains as Record<string, unknown>).rogue_domain = {
+      passed: 1,
+      failed: 0,
+    }
+  })
+  invalidRecord((copy) => {
+    const domains = copy.domains as Record<
+      string,
+      { passed: number; failed: number }
+    >
+    domains.capability_negotiation = { passed: 1, failed: -1 }
+  })
+})
+
+test("the policy digest is content-addressed, order-free and collision-free", () => {
+  const denyAll: AgentHostPolicy = {
+    tools: { default: "deny", allow: [{ name: "noop", mode: "read" }] },
+    filesystem: { read: ["."], write: [] },
+    network: { mode: "deny" },
+    approval: { mode: "never" },
+    maxTurns: 4,
+  }
+  const shuffled: AgentHostPolicy = {
+    maxTurns: 4,
+    approval: { mode: "never" },
+    tools: { default: "deny", allow: [{ name: "noop", mode: "read" }] },
+    network: { mode: "deny" },
+    filesystem: { read: ["."], write: [] },
+  }
+  assert.equal(canonicalPolicyDigest(denyAll), canonicalPolicyDigest(shuffled))
+  const permissive: AgentHostPolicy = {
+    tools: { default: "deny", allow: [{ name: "shell", mode: "write" }] },
+    filesystem: { read: ["."], write: ["./out"] },
+    network: { mode: "allowlist", hosts: ["example.com"] },
+    approval: { mode: "required" },
+    maxTurns: 4,
+  }
+  assert.notEqual(
+    canonicalPolicyDigest(denyAll),
+    canonicalPolicyDigest(permissive),
   )
 })

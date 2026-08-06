@@ -94,10 +94,23 @@ function qualificationError(
   })
 }
 
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => canonicalJson(entry)).join(",")}]`
+  }
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>
+    const body = Object.keys(record)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
+      .join(",")
+    return `{${body}}`
+  }
+  return JSON.stringify(value)
+}
+
 export function canonicalPolicyDigest(policy: AgentHostPolicy): string {
-  return createHash("sha256")
-    .update(JSON.stringify(policy, Object.keys(policy).sort()))
-    .digest("hex")
+  return createHash("sha256").update(canonicalJson(policy)).digest("hex")
 }
 
 function defaultQualificationPolicy(): AgentHostPolicy {
@@ -277,7 +290,7 @@ async function runCancelCase(
   let events: AgentHostEvent[]
   try {
     if (typeof adapter.cancel === "function") {
-      void adapter.cancel(request.runId)
+      void Promise.resolve(adapter.cancel(request.runId)).catch(() => {})
     }
     events = await collectEvents(adapter, request)
   } catch {
@@ -546,7 +559,15 @@ export async function runQualificationSuite(
 
   const fixtureConformant =
     implemented && cases.every((result) => result.passed)
-  const liveEvidence = options.liveEvidence
+  // Project to the frozen two-field shape so callers cannot smuggle extra
+  // keys (credentials, paths) into the published record.
+  const liveEvidence =
+    options.liveEvidence === undefined
+      ? undefined
+      : {
+          environment: options.liveEvidence.environment,
+          evidenceDigest: options.liveEvidence.evidenceDigest,
+        }
   const liveQualified = liveEvidence !== undefined
   if (liveQualified) {
     if (
@@ -668,6 +689,13 @@ export function validateAdapterQualificationRecord(
   if (
     !axes ||
     typeof axes !== "object" ||
+    Array.isArray(axes) ||
+    Object.keys(axes).some(
+      (key) =>
+        key !== "implemented" &&
+        key !== "fixtureConformant" &&
+        key !== "liveQualified",
+    ) ||
     typeof axes.implemented !== "boolean" ||
     typeof axes.fixtureConformant !== "boolean" ||
     typeof axes.liveQualified !== "boolean"
@@ -694,6 +722,10 @@ export function validateAdapterQualificationRecord(
     if (
       !evidence ||
       typeof evidence !== "object" ||
+      Array.isArray(evidence) ||
+      Object.keys(evidence).some(
+        (key) => key !== "environment" && key !== "evidenceDigest",
+      ) ||
       typeof evidence.environment !== "string" ||
       !ENVIRONMENT_ID_PATTERN.test(evidence.environment) ||
       typeof evidence.evidenceDigest !== "string" ||
@@ -709,20 +741,33 @@ export function validateAdapterQualificationRecord(
   const domains = record.domains as
     | Record<string, unknown>
     | undefined
-  if (!domains || typeof domains !== "object") {
+  if (!domains || typeof domains !== "object" || Array.isArray(domains)) {
     throw qualificationError(
       "INVALID_QUALIFICATION_RECORD",
       "domains is required",
     )
   }
+  for (const key of Object.keys(domains)) {
+    if (!(QUALIFICATION_DOMAINS as readonly string[]).includes(key)) {
+      throw qualificationError(
+        "INVALID_QUALIFICATION_RECORD",
+        `unknown qualification domain: ${key}`,
+      )
+    }
+  }
   for (const domain of QUALIFICATION_DOMAINS) {
-    const entry = domains[domain] as
-      | { passed?: unknown; failed?: unknown }
-      | undefined
+    const entry = domains[domain] as Record<string, unknown> | undefined
     if (
       !entry ||
+      typeof entry !== "object" ||
+      Array.isArray(entry) ||
+      Object.keys(entry).some((key) => key !== "passed" && key !== "failed") ||
       typeof entry.passed !== "number" ||
-      typeof entry.failed !== "number"
+      !Number.isInteger(entry.passed) ||
+      entry.passed < 0 ||
+      typeof entry.failed !== "number" ||
+      !Number.isInteger(entry.failed) ||
+      entry.failed < 0
     ) {
       throw qualificationError(
         "INVALID_QUALIFICATION_RECORD",
@@ -739,6 +784,23 @@ export function validateAdapterQualificationRecord(
   }
   const seenDomains = new Set<string>()
   for (const entry of record.cases as Array<Record<string, unknown>>) {
+    if (
+      !entry ||
+      typeof entry !== "object" ||
+      Array.isArray(entry) ||
+      Object.keys(entry).some(
+        (key) =>
+          key !== "domain" &&
+          key !== "id" &&
+          key !== "passed" &&
+          key !== "code",
+      )
+    ) {
+      throw qualificationError(
+        "INVALID_QUALIFICATION_RECORD",
+        "unknown qualification case field",
+      )
+    }
     if (
       typeof entry.domain !== "string" ||
       !(QUALIFICATION_DOMAINS as readonly string[]).includes(entry.domain)

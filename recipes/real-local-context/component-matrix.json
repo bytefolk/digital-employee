@@ -1,0 +1,31 @@
+{
+  "schema": "component-matrix.v1",
+  "components": [
+    {
+      "name": "mem",
+      "repository": "https://github.com/fullstack-ai-infra/mem",
+      "commit": "3335ebea211d7fb65a8ea0e5ea2285b2cbc2d0bd",
+      "contract": "durable-context.v1",
+      "startCommand": "make test-env-up && go run ./server/cmd/memd (see scripts/real-local-harness.mjs)",
+      "healthEndpoint": "/v1/version",
+      "ports": {
+        "http": 8321,
+        "postgres": 55432
+      }
+    },
+    {
+      "name": "doc",
+      "repository": "https://github.com/fullstack-ai-infra/doc",
+      "commit": "b22ff1dfa0da194add0e2e4e7dbb794617b46404",
+      "contract": "doc-api.v1",
+      "startCommand": "npm run doc -- init && npm run doc -- up --build (see scripts/real-local-harness.mjs)",
+      "healthEndpoint": "/api/health",
+      "ports": {
+        "web": 3100,
+        "collaboration": 1234,
+        "mailpit-smtp": 1025,
+        "mailpit-ui": 8025
+      }
+    }
+  ]
+}

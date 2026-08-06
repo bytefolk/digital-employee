@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "answer",
+    "citations"
+  ],
+  "properties": {
+    "status": {
+      "enum": [
+        "answered",
+        "escalated"
+      ]
+    },
+    "answer": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "citations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "label",
+          "uri"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "uri": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "escalation": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "reason",
+        "message"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "escalated"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "escalation"
+        ],
+        "properties": {
+          "escalation": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "employee-evals.v1alpha1",
+  "cases": [
+    {
+      "id": "approved-support-channel",
+      "input": {
+        "message": "What is the approved support channel?"
+      },
+      "expectedOutput": {
+        "status": "answered",
+        "answer": "The approved support channel is the repository issue tracker.",
+        "citations": [
+          {
+            "label": "Approved knowledge",
+            "uri": "./knowledge/README.md"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -121,6 +121,16 @@ export type {
   SyntheticMemoryFixture,
 } from "./src/mcp-conformance.js"
 export {
+  COMPONENT_MATRIX_SCHEMA_ID,
+  REAL_LOCAL_CODES,
+  requireMatrixComponent,
+  validateComponentMatrix,
+} from "./src/component-matrix.js"
+export type {
+  ComponentMatrix,
+  ComponentMatrixEntry,
+} from "./src/component-matrix.js"
+export {
   AGENT_HOST_STDIO_ERROR_CODES,
   AGENT_HOST_STDIO_MAX_LINE_BYTES,
   AGENT_HOST_STDIO_PROTOCOL_VERSION,

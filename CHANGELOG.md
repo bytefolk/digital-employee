@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Real-local Phase A path (#42): a `component-matrix.v1` contract that pins
+  the exact `mem` and `doc` service commits as the sole version authority, a
+  deterministic `real-local-stdio-host` Agent Host fixture that resumes
+  scoped durable memory (`durable-context.v1`) and reads ETag-pinned
+  documents from actual loopback services behind the operator
+  `capability-grant.v1` gate, the `recipes/real-local-context` employee
+  package with a deterministic fault-scenario table, and a credential-free
+  harness (`scripts/real-local-harness.mjs`) that bootstraps, seeds, runs,
+  emits `real-local-e2e` evidence with an empty secret scan, and cleans up.
+  Real-local failures use the frozen `real_local_*` code namespace, never
+  the synthetic `mcp_*` codes.
+
 ### Security
 
 - Qoder assistant text is now buffered until successful process and cleanup

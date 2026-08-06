@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "employee-mcp.v1alpha1",
+  "servers": [
+    {
+      "name": "real-mem",
+      "transport": {
+        "type": "stdio",
+        "command": "real-mem-server",
+        "args": [],
+        "environment": []
+      }
+    },
+    {
+      "name": "real-doc",
+      "transport": {
+        "type": "stdio",
+        "command": "real-doc-server",
+        "args": [],
+        "environment": []
+      }
+    }
+  ]
+}

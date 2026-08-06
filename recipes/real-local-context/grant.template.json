@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "capability-grant.v1",
+  "grantedBy": "operator",
+  "grants": [
+    {
+      "server": "real-mem",
+      "mode": "read",
+      "scopes": [
+        {
+          "principal": "alice",
+          "workspace": "__WORKSPACE_ID__"
+        }
+      ]
+    },
+    {
+      "server": "real-doc",
+      "mode": "read",
+      "scopes": [
+        {
+          "principal": "alice",
+          "workspace": "__WORKSPACE_ID__"
+        }
+      ]
+    }
+  ]
+}

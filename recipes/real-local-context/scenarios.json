@@ -1,0 +1,78 @@
+{
+  "schema": "real-local-scenarios.v1",
+  "cases": [
+    {
+      "id": "granted_recall_session_1",
+      "kind": "run",
+      "sessionRef": "session-1",
+      "expect": "completed",
+      "expectCitations": {
+        "memLocators": "approved-active-only",
+        "docLocator": "pinned"
+      }
+    },
+    {
+      "id": "granted_recall_session_2",
+      "kind": "run",
+      "sessionRef": "session-2",
+      "expect": "completed",
+      "expectCitations": {
+        "memLocators": "same-as-session-1",
+        "docLocator": "pinned"
+      }
+    },
+    {
+      "id": "cross_principal_denied",
+      "kind": "run",
+      "principal": "mallory",
+      "expect": "failed",
+      "expectCode": "real_local_scope_denied"
+    },
+    {
+      "id": "cross_workspace_denied",
+      "kind": "run",
+      "workspace": "other",
+      "expect": "failed",
+      "expectCode": "real_local_scope_denied"
+    },
+    {
+      "id": "doc_wrong_revision",
+      "kind": "run",
+      "docExpectedEtag": "0000000000000000000000000000000000000000",
+      "expect": "failed",
+      "expectCode": "real_local_revision_mismatch"
+    },
+    {
+      "id": "doc_unauthorized_token",
+      "kind": "run",
+      "docToken": "invalid",
+      "expect": "failed",
+      "expectCode": "real_local_scope_denied"
+    },
+    {
+      "id": "doc_revoked_or_unlisted",
+      "kind": "run",
+      "docToken": "outsider",
+      "expect": "failed",
+      "expectCode": "real_local_item_unavailable"
+    },
+    {
+      "id": "mem_unavailable",
+      "kind": "run",
+      "memBaseUrl": "http://127.0.0.1:9",
+      "expect": "failed",
+      "expectCode": "real_local_service_unavailable"
+    },
+    {
+      "id": "matrix_unsupported",
+      "kind": "run",
+      "matrix": "unsupported",
+      "expect": "failed",
+      "expectCode": "real_local_matrix_unsupported"
+    }
+  ],
+  "grantedRecallAssertions": {
+    "mustInclude": ["active"],
+    "mustExclude": ["superseded", "forgotten", "unapproved"]
+  }
+}

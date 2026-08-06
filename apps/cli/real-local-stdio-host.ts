@@ -63,6 +63,9 @@ const GRANT_CODE_MAP: Record<string, string> = {
   [MCP_CONFORMANCE_CODES.revoked]: REAL_LOCAL_CODES.grantRevoked,
   [MCP_CONFORMANCE_CODES.scopeDenied]: REAL_LOCAL_CODES.scopeDenied,
   [MCP_CONFORMANCE_CODES.modeExcessive]: REAL_LOCAL_CODES.modeExcessive,
+  // A grant file that is not even a plain object fails schema validation
+  // before the conformance codes apply; it is still an invalid grant.
+  VALIDATION_ERROR: REAL_LOCAL_CODES.grantInvalid,
 }
 
 export function realLocalStdioProbe(): AgentHostProbeResult {
@@ -179,6 +182,9 @@ async function fetchJson(
   try {
     response = await fetch(url, {
       ...init,
+      // A redirect could bounce the request off the loopback boundary; the
+      // pinned local services never redirect, so refuse instead of following.
+      redirect: "error",
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     })
   } catch {

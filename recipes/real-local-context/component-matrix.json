@@ -7,10 +7,11 @@
       "commit": "3335ebea211d7fb65a8ea0e5ea2285b2cbc2d0bd",
       "contract": "durable-context.v1",
       "startCommand": "make test-env-up && go run ./server/cmd/memd (see scripts/real-local-harness.mjs)",
-      "healthEndpoint": "/v1/version",
+      "healthEndpoint": "/healthz",
       "ports": {
         "http": 8321,
-        "postgres": 55432
+        "postgres": 55432,
+        "s3": 59100
       }
     },
     {

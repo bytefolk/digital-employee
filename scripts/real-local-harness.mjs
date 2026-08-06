@@ -125,7 +125,7 @@ assertPinnedCheckout(docRepo, docPin)
 const memProject = `mem-real-local-${process.pid}`
 const memPgPort = memPin.ports.postgres
 const memHttpPort = memPin.ports.http
-const memS3Port = 59100
+const memS3Port = memPin.ports.s3
 const memBaseUrl = `http://127.0.0.1:${memHttpPort}`
 const memDbName = "mem_real_local_test"
 
@@ -181,7 +181,7 @@ await waitFor("memd", async () => {
   if (memdChild.exitCode !== null) {
     fail(`memd exited early; diagnostics in ${memdLog}`)
   }
-  const { status } = await httpJson(`${memBaseUrl}/healthz`)
+  const { status } = await httpJson(`${memBaseUrl}${memPin.healthEndpoint}`)
   return status === 200
 })
 

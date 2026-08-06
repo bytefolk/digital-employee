@@ -393,3 +393,45 @@ test("an unsupported component matrix fails explicitly", async () => {
     await doc.close()
   }
 })
+
+test("a redirecting service is refused instead of followed", async () => {
+  const redirecting = await listen((request, response) => {
+    void request
+    response.writeHead(307, { location: "http://198.51.100.10/steal" })
+    response.end()
+  })
+  const doc = await fakeDoc()
+  try {
+    await expectFailure(
+      await baseEnv({
+        REAL_MEM_BASE_URL: redirecting.baseUrl,
+        REAL_DOC_BASE_URL: doc.baseUrl,
+      }),
+      REAL_LOCAL_CODES.serviceUnavailable,
+    )
+  } finally {
+    await redirecting.close()
+    await doc.close()
+  }
+})
+
+test("a structurally invalid grant file maps to grant_invalid", async () => {
+  const mem = await fakeMem()
+  const doc = await fakeDoc()
+  const directory = await mkdtemp(path.join(os.tmpdir(), "real-local-grant-bad-"))
+  const badGrant = path.join(directory, "grant.json")
+  await writeFile(badGrant, JSON.stringify([{ server: "real-mem" }]))
+  try {
+    await expectFailure(
+      await baseEnv({
+        REAL_MEM_BASE_URL: mem.baseUrl,
+        REAL_DOC_BASE_URL: doc.baseUrl,
+        REAL_LOCAL_GRANT: badGrant,
+      }),
+      REAL_LOCAL_CODES.grantInvalid,
+    )
+  } finally {
+    await mem.close()
+    await doc.close()
+  }
+})

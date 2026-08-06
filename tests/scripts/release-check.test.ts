@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import YAML from "yaml";
+import { validatePackOutput } from "../../scripts/release-pack-check.js";
 import { validateRelease } from "../../scripts/release-check.js";
 
 const repositoryRoot = path.resolve(
@@ -13,6 +15,10 @@ const repositoryRoot = path.resolve(
 const manifest = {
   name: "@fullstack-ai-infra/digital-employee",
   version: "0.1.0",
+  repository: {
+    type: "git",
+    url: "git+https://github.com/fullstack-ai-infra/digital-employee.git"
+  },
   publishConfig: { access: "public" },
   bin: { "digital-employee": "./dist/apps/cli/bin.js" },
   types: "./dist/packages/core/index.d.ts",
@@ -22,7 +28,9 @@ const manifest = {
   files: ["dist", "README.md", "LICENSE"]
 };
 const coreManifest = {
+  name: "@fullstack-ai-infra/digital-employee-core",
   version: "0.1.0",
+  repository: manifest.repository,
   publishConfig: { access: "public" },
   main: "./dist/index.js",
   types: "./dist/index.d.ts",
@@ -63,6 +71,23 @@ test("release check rejects a mismatched tag and package versions", () => {
     "release tag v0.2.0 does not match package version v0.1.0",
     "core and root package versions must match"
   ]);
+});
+
+test("release check rejects core repository drift", () => {
+  const errors = validateRelease({
+    manifest,
+    coreManifest: {
+      ...coreManifest,
+      repository: {
+        type: "git",
+        url: "git+https://github.com/example/fork.git"
+      }
+    },
+    lockfile,
+    changelog,
+    tag: "v0.1.0"
+  });
+  assert.deepEqual(errors, ["core repository must match root repository"]);
 });
 
 test("release check rejects private or incomplete packages", () => {
@@ -116,23 +141,159 @@ test("release check rejects package-lock version drift", () => {
   ]);
 });
 
+test("pack check accepts root and core package metadata", () => {
+  assert.deepEqual(validatePackOutput({
+    label: "root",
+    manifest,
+    output: [{
+      name: manifest.name,
+      version: manifest.version,
+      filename: "fullstack-ai-infra-digital-employee-0.1.0.tgz",
+      files: [
+        { path: "package.json" },
+        { path: "dist/apps/cli/bin.js" },
+        { path: "dist/packages/core/index.js" },
+        { path: "dist/packages/core/index.d.ts" }
+      ]
+    }],
+    requiredFiles: [
+      "package.json",
+      "dist/apps/cli/bin.js",
+      "dist/packages/core/index.js",
+      "dist/packages/core/index.d.ts"
+    ],
+    allowedFiles: ["package.json", "LICENSE", "NOTICE"],
+    allowedPrefixes: ["dist/"],
+    allowedPatterns: [/^README[^/]*\.md$/]
+  }), []);
+
+  assert.deepEqual(validatePackOutput({
+    label: "core",
+    manifest: coreManifest,
+    output: [{
+      name: coreManifest.name,
+      version: coreManifest.version,
+      filename: "fullstack-ai-infra-digital-employee-core-0.1.0.tgz",
+      files: [
+        { path: "package.json" },
+        { path: "dist/index.js" },
+        { path: "dist/index.d.ts" }
+      ]
+    }],
+    requiredFiles: ["package.json", "dist/index.js", "dist/index.d.ts"],
+    allowedFiles: ["package.json"],
+    allowedPrefixes: ["dist/"],
+    allowedPatterns: []
+  }), []);
+});
+
+test("pack check rejects mismatched identity and missing files", () => {
+  assert.deepEqual(validatePackOutput({
+    label: "core",
+    manifest: coreManifest,
+    output: [{
+      name: manifest.name,
+      version: "0.0.9",
+      filename: "wrong.tgz",
+      files: [{ path: "package.json" }]
+    }],
+    requiredFiles: ["package.json", "dist/index.js", "dist/index.d.ts"],
+    allowedFiles: ["package.json"],
+    allowedPrefixes: ["dist/"],
+    allowedPatterns: []
+  }), [
+    "core npm pack name must match package.json",
+    "core npm pack version must match package.json",
+    "core npm pack filename is unexpected",
+    "core npm pack is missing dist/index.js",
+    "core npm pack is missing dist/index.d.ts"
+  ]);
+  assert.deepEqual(validatePackOutput({
+    label: "core",
+    manifest: coreManifest,
+    output: [],
+    requiredFiles: [],
+    allowedFiles: [],
+    allowedPrefixes: [],
+    allowedPatterns: []
+  }), ["core npm pack output must contain exactly one package"]);
+});
+
+test("pack check rejects unexpected source paths", () => {
+  assert.deepEqual(validatePackOutput({
+    label: "root",
+    manifest,
+    output: [{
+      name: manifest.name,
+      version: manifest.version,
+      filename: "fullstack-ai-infra-digital-employee-0.1.0.tgz",
+      files: [
+        { path: "package.json" },
+        { path: "dist/apps/cli/bin.js" },
+        { path: "dist/packages/core/index.js" },
+        { path: "dist/packages/core/index.d.ts" },
+        { path: "packages/core/index.ts" }
+      ]
+    }],
+    requiredFiles: [
+      "package.json",
+      "dist/apps/cli/bin.js",
+      "dist/packages/core/index.js",
+      "dist/packages/core/index.d.ts"
+    ],
+    allowedFiles: ["package.json", "LICENSE", "NOTICE"],
+    allowedPrefixes: ["dist/"],
+    allowedPatterns: [/^README[^/]*\.md$/]
+  }), ["root npm pack includes unexpected packages/core/index.ts"]);
+});
+
 test("release workflow has independently scoped jobs for all channels", async () => {
-  const workflow = await readFile(
+  const workflowText = await readFile(
     path.join(repositoryRoot, ".github/workflows/release.yml"),
     "utf8"
   );
-  assert.match(workflow, /^\s{2}github-release:$/m);
-  assert.match(workflow, /^\s{2}npm:$/m);
-  assert.match(workflow, /^\s{2}ghcr:$/m);
-  assert.match(workflow, /^\s{6}id-token: write$/m);
-  assert.match(workflow, /npm install --global npm@11\.18\.0/);
-  assert.match(workflow, /npm run test:coverage/);
-  assert.match(workflow, /npm --prefix packages\/core pack --dry-run/);
-  assert.match(workflow, /npm publish \.\/packages\/core --access public/);
-  assert.match(workflow, /npm publish --access public/);
-  assert.doesNotMatch(workflow, /NPM_TOKEN|NODE_AUTH_TOKEN/);
-  assert.match(workflow, /actions\/checkout@v6/);
-  assert.match(workflow, /actions\/setup-node@v6/);
-  assert.match(workflow, /gh release (?:create|upload)/);
-  assert.match(workflow, /docker push/);
+  const workflow = YAML.parse(workflowText);
+  const npmRoot = workflow.jobs["npm-root"];
+  const npmCore = workflow.jobs["npm-core"];
+  for (const job of [npmRoot, npmCore]) {
+    assert.equal(job.needs, "verify");
+    assert.equal(job["runs-on"], "ubuntu-latest");
+    assert.deepEqual(job.permissions, {
+      contents: "read",
+      "id-token": "write"
+    });
+    assert.ok(job.steps.some((step: { uses?: string }) =>
+      step.uses === "actions/checkout@v6"
+    ));
+    assert.ok(job.steps.some((step: { uses?: string }) =>
+      step.uses === "actions/setup-node@v6"
+    ));
+    assert.ok(job.steps.some((step: { run?: string }) =>
+      step.run === "npm install --global npm@11.18.0"
+    ));
+  }
+
+  const rootPublish = npmRoot.steps.at(-1).run;
+  const corePublish = npmCore.steps.at(-1).run;
+  assert.match(rootPublish, /npm publish --access public/);
+  assert.doesNotMatch(rootPublish, /packages\/core/);
+  assert.match(corePublish, /npm publish \.\/packages\/core --access public/);
+  assert.doesNotMatch(workflowText, /NPM_TOKEN|NODE_AUTH_TOKEN/);
+  assert.match(workflowText, /mkdir -p "\$pack_destination"/);
+  assert.match(
+    workflowText,
+    /npm pack --json --pack-destination "\$pack_destination"/
+  );
+  assert.match(
+    workflowText,
+    /npm pack \.\/packages\/core --json --pack-destination "\$pack_destination"/
+  );
+  assert.doesNotMatch(workflowText, /npm pack[^\n]*--dry-run/);
+  assert.doesNotMatch(workflowText, /npm --prefix packages\/core pack/);
+  assert.match(workflowText, /release-pack-check\.js/);
+  assert.match(workflowText, /npm run test:coverage/);
+  assert.ok(workflow.jobs["github-release"]);
+  assert.ok(workflow.jobs.ghcr);
+  assert.match(workflowText, /gh release (?:create|upload)/);
+  assert.match(workflowText, /docker push/);
 });

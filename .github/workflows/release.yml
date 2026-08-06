@@ -31,8 +31,16 @@ jobs:
       - run: npm run test:coverage
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run release:check -- --tag "$GITHUB_REF_NAME"
-      - run: npm pack --dry-run
-      - run: npm --prefix packages/core pack --dry-run
+      - name: Verify npm package archives
+        run: |
+          pack_destination="$RUNNER_TEMP/release-pack"
+          mkdir -p "$pack_destination"
+          npm pack --json --pack-destination "$pack_destination" > "$RUNNER_TEMP/root-pack.json"
+          npm pack ./packages/core --json --pack-destination "$pack_destination" > "$RUNNER_TEMP/core-pack.json"
+          node ./scripts/release-pack-check.js \
+            "$pack_destination" \
+            "$RUNNER_TEMP/root-pack.json" \
+            "$RUNNER_TEMP/core-pack.json"
       - id: package
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
@@ -69,7 +77,7 @@ jobs:
               --title "Digital Employee $GITHUB_REF_NAME"
           fi
 
-  npm:
+  npm-root:
     needs: verify
     runs-on: ubuntu-latest
     permissions:
@@ -85,16 +93,8 @@ jobs:
       - name: Install npm with trusted publishing support
         run: npm install --global npm@11.18.0
       - run: npm ci
-      - name: Publish npm package
+      - name: Publish root npm package
         run: |
-          core_name="$(node -p "require('./packages/core/package.json').name")"
-          core_version="$(node -p "require('./packages/core/package.json').version")"
-          if npm view "$core_name@$core_version" version >/dev/null 2>&1; then
-            echo "$core_name@$core_version is already published"
-          else
-            npm publish ./packages/core --access public
-          fi
-
           package_name="$(node -p "require('./package.json').name")"
           package_version="$(node -p "require('./package.json').version")"
           if npm view "$package_name@$package_version" version >/dev/null 2>&1; then
@@ -102,6 +102,32 @@ jobs:
             exit 0
           fi
           npm publish --access public
+
+  npm-core:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+          registry-url: https://registry.npmjs.org
+      - name: Install npm with trusted publishing support
+        run: npm install --global npm@11.18.0
+      - run: npm ci
+      - name: Publish core npm package
+        run: |
+          package_name="$(node -p "require('./packages/core/package.json').name")"
+          package_version="$(node -p "require('./packages/core/package.json').version")"
+          if npm view "$package_name@$package_version" version >/dev/null 2>&1; then
+            echo "$package_name@$package_version is already published"
+            exit 0
+          fi
+          npm publish ./packages/core --access public
 
   ghcr:
     needs: verify

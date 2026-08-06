@@ -3,6 +3,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 
 const STABLE_SEMVER = /^\d+\.\d+\.\d+$/;
 
@@ -51,6 +52,9 @@ export function validateRelease({
   }
   if (coreManifest.version !== version) {
     errors.push("core and root package versions must match");
+  }
+  if (!isDeepStrictEqual(coreManifest.repository, manifest.repository)) {
+    errors.push("core repository must match root repository");
   }
   if (coreManifest.private === true) {
     errors.push("core package must be publishable");

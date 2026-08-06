@@ -3,6 +3,10 @@
   "version": "0.3.0",
   "description": "Dependency-free package, Agent-host, and compatibility primitives for digital employees.",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fullstack-ai-infra/digital-employee.git"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

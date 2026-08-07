@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "runner-device-vectors.v1",
+  "family": "transport",
+  "vectors": [
+    {
+      "id": "retry-unavailable-first-attempt",
+      "family": "transport",
+      "description": "503 Unavailable on attempt 0 should retry",
+      "input": {
+        "errorCode": "RUNNER_TRANSPORT_UNAVAILABLE",
+        "attempt": 0
+      },
+      "expect": { "kind": "accept" }
+    },
+    {
+      "id": "retry-timeout-second-attempt",
+      "family": "transport",
+      "description": "Timeout on attempt 1 should retry with increased backoff",
+      "input": {
+        "errorCode": "RUNNER_TRANSPORT_TIMEOUT",
+        "attempt": 1
+      },
+      "expect": { "kind": "accept" }
+    },
+    {
+      "id": "retry-rate-limited-with-retry-after",
+      "family": "transport",
+      "description": "Rate-limited with retryAfterMs should retry using that base",
+      "input": {
+        "errorCode": "RUNNER_TRANSPORT_RATE_LIMITED",
+        "attempt": 0,
+        "retryAfterMs": 5000
+      },
+      "expect": { "kind": "accept" }
+    },
+    {
+      "id": "no-retry-forbidden",
+      "family": "transport",
+      "description": "403 Forbidden should not retry",
+      "input": {
+        "errorCode": "RUNNER_TRANSPORT_FORBIDDEN",
+        "attempt": 0
+      },
+      "expect": { "kind": "reject", "code": "no_retry" }
+    },
+    {
+      "id": "no-retry-unauthorized",
+      "family": "transport",
+      "description": "401 Unauthorized should not retry",
+      "input": {
+        "errorCode": "RUNNER_TRANSPORT_UNAUTHORIZED",
+        "attempt": 0
+      },
+      "expect": { "kind": "reject", "code": "no_retry" }
+    },
+    {
+      "id": "no-retry-max-attempts-exceeded",
+      "family": "transport",
+      "description": "Even retryable errors stop after max attempts",
+      "input": {
+        "errorCode": "RUNNER_TRANSPORT_UNAVAILABLE",
+        "attempt": 5
+      },
+      "expect": { "kind": "reject", "code": "max_retries_exceeded" }
+    }
+  ]
+}

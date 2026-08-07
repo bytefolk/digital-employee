@@ -243,6 +243,57 @@ export type {
   VerifiedRunnerExecutionBundle,
 } from "./src/runner-protocol.js"
 export {
+  RUNNER_DEVICE_VERSION,
+  RUNNER_DEVICE_MAX_OVERLAP_SECONDS,
+  RUNNER_DEVICE_MIN_LIFETIME_SECONDS,
+  RUNNER_DEVICE_MAX_HISTORY,
+  RunnerDeviceError,
+  deriveDeviceKeyId,
+  validateDeviceEnrollment,
+  validateRotationEligibility,
+  validateRotationAck,
+} from "./src/runner-device.js"
+export type {
+  DeviceEnrollment,
+  DeviceKeyRecord,
+  DeviceKeyStatus,
+  DeviceRotationAck,
+  DeviceRotationRequest,
+  DeviceRevocation,
+  RunnerDeviceErrorCode,
+  RunnerDeviceKeyStorePort,
+} from "./src/runner-device.js"
+export {
+  RUNNER_TRANSPORT_VERSION,
+  RUNNER_TRANSPORT_MAX_RETRIES,
+  RUNNER_TRANSPORT_BASE_BACKOFF_MS,
+  RUNNER_TRANSPORT_MAX_BACKOFF_MS,
+  RUNNER_TRANSPORT_REQUEST_TIMEOUT_MS,
+  RunnerTransportError,
+  FakeRunnerTransport,
+  computeTransportBackoff,
+} from "./src/runner-transport.js"
+export type {
+  ClaimRequest,
+  ClaimResponse,
+  EnrollDeviceRequest,
+  EnrollDeviceResponse,
+  EventAppendRequest,
+  EventAppendResponse,
+  FakeTransportOptions,
+  HeartbeatRequest,
+  HeartbeatResponse,
+  ReceiptSubmitRequest,
+  ReceiptSubmitResponse,
+  RevokeKeyRequest,
+  RevokeKeyResponse,
+  RotateKeyRequest,
+  RotateKeyResponse,
+  RunnerTransportErrorCode,
+  RunnerTransportPort,
+  TransportRequestMeta,
+} from "./src/runner-transport.js"
+export {
   EMPLOYEE_PROFILE_SCHEMA_VERSION,
   RUNTIME_API_VERSION,
   runtimeVersionSatisfies,

@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "runner-device-vectors.v1",
+  "family": "enrollment",
+  "vectors": [
+    {
+      "id": "valid-enrollment",
+      "family": "enrollment",
+      "input": {
+        "version": "runner-device.v1",
+        "runnerId": "runner-fixture-001",
+        "sellerId": "seller-fixture-001",
+        "keyId": "device:a1b2c3d4e5f60718",
+        "publicKeySpki": "MCowBQYDK2VwAyEAGb1gaR2jOBHfaNktGSqKWoQAbpFBhQVUtFtFkPCfXR4=",
+        "enrolledAt": "2026-08-07T00:00:00.000Z"
+      },
+      "expect": { "kind": "accept" }
+    },
+    {
+      "id": "reject-missing-runner-id",
+      "family": "enrollment",
+      "input": {
+        "version": "runner-device.v1",
+        "sellerId": "seller-001",
+        "keyId": "device:abc",
+        "publicKeySpki": "MCowBQ...",
+        "enrolledAt": "2026-08-07T00:00:00.000Z"
+      },
+      "expect": { "kind": "reject", "code": "RUNNER_DEVICE_STORE_FAILED" }
+    },
+    {
+      "id": "reject-wrong-version",
+      "family": "enrollment",
+      "input": {
+        "version": "runner-device.v99",
+        "runnerId": "runner-001",
+        "sellerId": "seller-001",
+        "keyId": "device:abc",
+        "publicKeySpki": "MCowBQ...",
+        "enrolledAt": "2026-08-07T00:00:00.000Z"
+      },
+      "expect": { "kind": "reject", "code": "RUNNER_DEVICE_STORE_FAILED" }
+    },
+    {
+      "id": "reject-null-input",
+      "family": "enrollment",
+      "input": null,
+      "expect": { "kind": "reject", "code": "RUNNER_DEVICE_STORE_FAILED" }
+    },
+    {
+      "id": "reject-missing-seller-id",
+      "family": "enrollment",
+      "input": {
+        "version": "runner-device.v1",
+        "runnerId": "runner-001",
+        "keyId": "device:abc",
+        "publicKeySpki": "MCowBQ...",
+        "enrolledAt": "2026-08-07T00:00:00.000Z"
+      },
+      "expect": { "kind": "reject", "code": "RUNNER_DEVICE_STORE_FAILED" }
+    }
+  ]
+}

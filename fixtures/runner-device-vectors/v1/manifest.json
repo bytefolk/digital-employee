@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "runner-device-vectors.v1",
+  "deviceVersion": "runner-device.v1",
+  "transportVersion": "runner-transport.v1",
+  "families": [
+    "enrollment",
+    "rotation",
+    "transport"
+  ],
+  "files": [
+    {
+      "file": "enrollment.json",
+      "sha256": "bd6cd0b8ae8735430186742f9a44805157525072ae37b69a6c8b4fa56ef25105",
+      "vectorCount": 5
+    },
+    {
+      "file": "rotation.json",
+      "sha256": "dc6b7ad3e601bcf663a03a3b60040915f9a022d39d8c582a7df8556461ea0110",
+      "vectorCount": 4
+    },
+    {
+      "file": "transport.json",
+      "sha256": "284dc3b7dc7391803dde7feb6b4909544eac369261366d1ebfff85ac42225788",
+      "vectorCount": 6
+    }
+  ]
+}

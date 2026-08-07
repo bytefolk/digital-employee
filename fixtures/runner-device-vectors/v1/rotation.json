@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "runner-device-vectors.v1",
+  "family": "rotation",
+  "vectors": [
+    {
+      "id": "eligible-rotation-past-minimum-lifetime",
+      "family": "rotation",
+      "description": "Key active for more than RUNNER_DEVICE_MIN_LIFETIME_SECONDS",
+      "input": {
+        "record": {
+          "keyId": "device:current001",
+          "status": "active",
+          "activeSince": "2026-06-01T00:00:00.000Z"
+        },
+        "nowMs": 1722988800000
+      },
+      "expect": { "kind": "accept" }
+    },
+    {
+      "id": "reject-rotation-too-early",
+      "family": "rotation",
+      "description": "Key active for less than minimum lifetime",
+      "input": {
+        "record": {
+          "keyId": "device:recent001",
+          "status": "active",
+          "activeSince": "2026-08-07T00:00:00.000Z"
+        },
+        "nowMs": 1722988810000
+      },
+      "expect": { "kind": "reject", "code": "RUNNER_DEVICE_ROTATION_TOO_EARLY" }
+    },
+    {
+      "id": "reject-rotation-non-active-key",
+      "family": "rotation",
+      "description": "Cannot rotate a revoked key",
+      "input": {
+        "record": {
+          "keyId": "device:revoked001",
+          "status": "revoked",
+          "activeSince": "2025-01-01T00:00:00.000Z",
+          "revokedAt": "2026-07-01T00:00:00.000Z"
+        },
+        "nowMs": 1722988800000
+      },
+      "expect": { "kind": "reject", "code": "RUNNER_DEVICE_ROTATION_TOO_EARLY" }
+    },
+    {
+      "id": "reject-rotation-rotating-key",
+      "family": "rotation",
+      "description": "Cannot rotate a key already in rotation",
+      "input": {
+        "record": {
+          "keyId": "device:rotating001",
+          "status": "rotating",
+          "activeSince": "2025-01-01T00:00:00.000Z",
+          "nextKeyId": "device:next001"
+        },
+        "nowMs": 1722988800000
+      },
+      "expect": { "kind": "reject", "code": "RUNNER_DEVICE_ROTATION_TOO_EARLY" }
+    }
+  ]
+}

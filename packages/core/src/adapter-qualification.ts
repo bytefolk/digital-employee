@@ -654,10 +654,14 @@ export function validateAdapterQualificationRecord(
       "hostId must be a lowercase ASCII identifier",
     )
   }
-  if (typeof record.hostVersion !== "string" || record.hostVersion === "") {
+  if (
+    typeof record.hostVersion !== "string" ||
+    record.hostVersion === "" ||
+    record.hostVersion.length > 256
+  ) {
     throw qualificationError(
       "INVALID_QUALIFICATION_RECORD",
-      "hostVersion is required",
+      "hostVersion must be a non-empty string of at most 256 characters",
     )
   }
   if (

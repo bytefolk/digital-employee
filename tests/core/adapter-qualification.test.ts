@@ -763,3 +763,28 @@ test("the policy digest is content-addressed, order-free and collision-free", ()
     canonicalPolicyDigest(permissive),
   )
 })
+
+test("the record validator rejects hostVersion exceeding 256 characters", async () => {
+  const directory = await workingDirectory()
+  const record = await runQualificationSuite(qualificationAdapter(), {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+  })
+  assert.throws(
+    () =>
+      validateAdapterQualificationRecord({
+        ...record,
+        hostVersion: "x".repeat(257),
+      }),
+    (error: unknown) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "INVALID_QUALIFICATION_RECORD",
+  )
+  assert.doesNotThrow(() =>
+    validateAdapterQualificationRecord({
+      ...record,
+      hostVersion: "v".repeat(256),
+    }),
+  )
+})

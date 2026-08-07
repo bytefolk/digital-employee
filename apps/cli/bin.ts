@@ -25,6 +25,7 @@ import {
   inspectEmployeePackage,
 } from "./employee-package.js";
 import { evaluateEmployeePackage } from "./employee-eval.js";
+import { deploy } from "./deploy/index.js";
 
 type EmployeeResult = Awaited<ReturnType<DigitalEmployee["answer"]>>;
 
@@ -53,6 +54,7 @@ function usage() {
   return `Digital Employee
 
 Agent-native usage:
+  digital-employee deploy
   digital-employee doctor [--engine claude-code|qoder|codex|qwen-code|codebuddy] [--json]
   digital-employee init <directory> [--recipe minimal-answer.v1|structured-action.v1] [--name employee-name] [--author author]
   digital-employee validate [directory] [--engine claude-code|qoder|codex|qwen-code|codebuddy] [--json]
@@ -526,6 +528,7 @@ async function main() {
     warnLegacyAlias(command);
     return runLegacyCommand(command, values, positionals);
   }
+  if (command === "deploy") return deploy();
   if (command === "doctor") return doctor(values);
   if (command === "init") return init(values, positionals);
   if (command === "validate") return validate(values, positionals);

@@ -38,6 +38,7 @@
   ],
   "files": [
     "dist",
+    "locales",
     "README.md",
     "README.zh-CN.md",
     "LICENSE",
@@ -56,6 +57,7 @@
     "legacy:serve": "npm run build --silent && node ./dist/apps/cli/bin.js legacy serve",
     "legacy:start": "npm run build --silent && node ./dist/apps/cli/bin.js legacy start",
     "legacy:sync": "npm run build --silent && node ./dist/apps/cli/bin.js legacy sync",
+    "deploy": "npm run build --silent && node ./dist/apps/cli/bin.js deploy",
     "employee:init": "npm run build --silent && node ./dist/apps/cli/bin.js init",
     "employee:validate": "npm run build --silent && node ./dist/apps/cli/bin.js validate",
     "employee:run": "npm run build --silent && node ./dist/apps/cli/bin.js run",

@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "runner-protocol-vectors.v1",
+  "family": "version_negotiation",
+  "vectors": [
+    {
+      "id": "accept-v1",
+      "family": "version_negotiation",
+      "description": "Protocol version v1 accepted",
+      "input": {
+        "protocolVersion": "digital-employee.runner-protocol.v1"
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "reject-v2",
+      "family": "version_negotiation",
+      "description": "Unsupported major v2 rejected",
+      "input": {
+        "protocolVersion": "digital-employee.runner-protocol.v2"
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "VERSION_UNSUPPORTED"
+      }
+    },
+    {
+      "id": "reject-v0",
+      "family": "version_negotiation",
+      "description": "Version v0 rejected",
+      "input": {
+        "protocolVersion": "digital-employee.runner-protocol.v0"
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "VERSION_UNSUPPORTED"
+      }
+    },
+    {
+      "id": "reject-missing-version",
+      "family": "version_negotiation",
+      "description": "Missing version rejected",
+      "input": {},
+      "expect": {
+        "kind": "reject",
+        "code": "VERSION_UNSUPPORTED"
+      }
+    },
+    {
+      "id": "reject-invalid-format",
+      "family": "version_negotiation",
+      "description": "Non-standard format rejected",
+      "input": {
+        "protocolVersion": "runner.v1"
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "VERSION_UNSUPPORTED"
+      }
+    },
+    {
+      "id": "reject-unknown-security-field",
+      "family": "version_negotiation",
+      "description": "Unknown security field triggers fail-closed",
+      "input": {
+        "protocolVersion": "digital-employee.runner-protocol.v1",
+        "unknownSecurityField": "bypass-auth"
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "UNKNOWN_FIELD_UNSAFE"
+      }
+    },
+    {
+      "id": "reject-downgrade-v2-to-v1",
+      "family": "version_negotiation",
+      "description": "Downgrade from v2 to v1 rejected",
+      "input": {
+        "protocolVersion": "digital-employee.runner-protocol.v1",
+        "downgradeFrom": "digital-employee.runner-protocol.v2"
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "DOWNGRADE_REJECTED"
+      }
+    }
+  ]
+}

@@ -1,0 +1,231 @@
+{
+  "schemaVersion": "runner-protocol-vectors.v1",
+  "family": "usage_binding",
+  "vectors": [
+    {
+      "id": "valid-binding",
+      "family": "usage_binding",
+      "description": "Evidence identity matches receipt",
+      "input": {
+        "receipt": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.receipt",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "startedAt": "2026-08-04T00:00:01.000Z",
+          "completedAt": "2026-08-04T00:00:02.000Z",
+          "eventCount": 0,
+          "finalEventDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "durationMilliseconds": 1000,
+            "actions": [
+              {
+                "name": "knowledge.search",
+                "count": 1
+              }
+            ]
+          },
+          "outcome": {
+            "status": "completed",
+            "output": {
+              "mediaType": "application/json",
+              "encoding": "base64url",
+              "data": "eyJhbnN3ZXIiOiJvayJ9"
+            }
+          }
+        },
+        "evidence": {
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1
+        }
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "reject-task-mismatch",
+      "family": "usage_binding",
+      "description": "Evidence with different taskId fails",
+      "input": {
+        "receipt": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.receipt",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "startedAt": "2026-08-04T00:00:01.000Z",
+          "completedAt": "2026-08-04T00:00:02.000Z",
+          "eventCount": 0,
+          "finalEventDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "durationMilliseconds": 1000,
+            "actions": [
+              {
+                "name": "knowledge.search",
+                "count": 1
+              }
+            ]
+          },
+          "outcome": {
+            "status": "completed",
+            "output": {
+              "mediaType": "application/json",
+              "encoding": "base64url",
+              "data": "eyJhbnN3ZXIiOiJvayJ9"
+            }
+          }
+        },
+        "evidence": {
+          "taskId": "task-wrong",
+          "runId": "run-golden",
+          "attempt": 1
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "USAGE_BINDING_MISMATCH"
+      }
+    },
+    {
+      "id": "reject-attempt-mismatch",
+      "family": "usage_binding",
+      "description": "Evidence with different attempt fails",
+      "input": {
+        "receipt": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.receipt",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "startedAt": "2026-08-04T00:00:01.000Z",
+          "completedAt": "2026-08-04T00:00:02.000Z",
+          "eventCount": 0,
+          "finalEventDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "durationMilliseconds": 1000,
+            "actions": [
+              {
+                "name": "knowledge.search",
+                "count": 1
+              }
+            ]
+          },
+          "outcome": {
+            "status": "completed",
+            "output": {
+              "mediaType": "application/json",
+              "encoding": "base64url",
+              "data": "eyJhbnN3ZXIiOiJvayJ9"
+            }
+          }
+        },
+        "evidence": {
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 2
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "USAGE_BINDING_MISMATCH"
+      }
+    },
+    {
+      "id": "valid-no-evidence",
+      "family": "usage_binding",
+      "description": "Receipt without evidence is valid",
+      "input": {
+        "receipt": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.receipt",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "startedAt": "2026-08-04T00:00:01.000Z",
+          "completedAt": "2026-08-04T00:00:02.000Z",
+          "eventCount": 0,
+          "finalEventDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "durationMilliseconds": 1000,
+            "actions": [
+              {
+                "name": "knowledge.search",
+                "count": 1
+              }
+            ]
+          },
+          "outcome": {
+            "status": "completed",
+            "output": {
+              "mediaType": "application/json",
+              "encoding": "base64url",
+              "data": "eyJhbnN3ZXIiOiJvayJ9"
+            }
+          }
+        }
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    }
+  ]
+}

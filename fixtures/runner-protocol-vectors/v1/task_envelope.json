@@ -1,0 +1,405 @@
+{
+  "schemaVersion": "runner-protocol-vectors.v1",
+  "family": "task_envelope",
+  "vectors": [
+    {
+      "id": "valid-task-payload",
+      "family": "task_envelope",
+      "description": "Valid task payload passes validation",
+      "input": {
+        "target": "validate_task",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.task",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "input": {
+            "mediaType": "application/json",
+            "encoding": "base64url",
+            "data": "eyJxdWVzdGlvbiI6ImhlbGxvIn0"
+          },
+          "issuedAt": "2026-08-04T00:00:00.000Z",
+          "expiresAt": "2026-08-04T00:05:00.000Z",
+          "leaseExpiresAt": "2026-08-04T00:04:00.000Z",
+          "nonce": "BwcHBwcHBwcHBwcHBwcHBw"
+        }
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "reject-extra-field",
+      "family": "task_envelope",
+      "description": "Unknown field is rejected (fail-closed)",
+      "input": {
+        "target": "validate_task",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.task",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "input": {
+            "mediaType": "application/json",
+            "encoding": "base64url",
+            "data": "eyJxdWVzdGlvbiI6ImhlbGxvIn0"
+          },
+          "issuedAt": "2026-08-04T00:00:00.000Z",
+          "expiresAt": "2026-08-04T00:05:00.000Z",
+          "leaseExpiresAt": "2026-08-04T00:04:00.000Z",
+          "nonce": "BwcHBwcHBwcHBwcHBwcHBw",
+          "unknownField": true
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_TASK_INVALID"
+      }
+    },
+    {
+      "id": "reject-wrong-protocol-version",
+      "family": "task_envelope",
+      "description": "Unsupported protocol version rejected",
+      "input": {
+        "target": "validate_task",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v2",
+          "kind": "runner.task",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "input": {
+            "mediaType": "application/json",
+            "encoding": "base64url",
+            "data": "eyJxdWVzdGlvbiI6ImhlbGxvIn0"
+          },
+          "issuedAt": "2026-08-04T00:00:00.000Z",
+          "expiresAt": "2026-08-04T00:05:00.000Z",
+          "leaseExpiresAt": "2026-08-04T00:04:00.000Z",
+          "nonce": "BwcHBwcHBwcHBwcHBwcHBw"
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_TASK_INVALID"
+      }
+    },
+    {
+      "id": "reject-short-nonce",
+      "family": "task_envelope",
+      "description": "Nonce shorter than 16 bytes rejected",
+      "input": {
+        "target": "validate_task",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.task",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "input": {
+            "mediaType": "application/json",
+            "encoding": "base64url",
+            "data": "eyJxdWVzdGlvbiI6ImhlbGxvIn0"
+          },
+          "issuedAt": "2026-08-04T00:00:00.000Z",
+          "expiresAt": "2026-08-04T00:05:00.000Z",
+          "leaseExpiresAt": "2026-08-04T00:04:00.000Z",
+          "nonce": "AQEBAQEBAQE"
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_TASK_INVALID"
+      }
+    },
+    {
+      "id": "reject-non-iso-timestamp",
+      "family": "task_envelope",
+      "description": "Timestamp without milliseconds rejected",
+      "input": {
+        "target": "validate_task",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.task",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "input": {
+            "mediaType": "application/json",
+            "encoding": "base64url",
+            "data": "eyJxdWVzdGlvbiI6ImhlbGxvIn0"
+          },
+          "issuedAt": "2026-08-04T00:00:00Z",
+          "expiresAt": "2026-08-04T00:05:00.000Z",
+          "leaseExpiresAt": "2026-08-04T00:04:00.000Z",
+          "nonce": "BwcHBwcHBwcHBwcHBwcHBw"
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_TASK_INVALID"
+      }
+    },
+    {
+      "id": "reject-lease-too-short",
+      "family": "task_envelope",
+      "description": "Lease below MIN_RUNNER_LEASE_MILLISECONDS rejected",
+      "input": {
+        "target": "validate_task",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.task",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "input": {
+            "mediaType": "application/json",
+            "encoding": "base64url",
+            "data": "eyJxdWVzdGlvbiI6ImhlbGxvIn0"
+          },
+          "issuedAt": "2026-08-04T00:00:00.000Z",
+          "expiresAt": "2026-08-04T00:05:00.000Z",
+          "leaseExpiresAt": "2026-08-04T00:00:09.999Z",
+          "nonce": "BwcHBwcHBwcHBwcHBwcHBw"
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_TASK_INVALID"
+      }
+    },
+    {
+      "id": "reject-attempt-exceeds-max",
+      "family": "task_envelope",
+      "description": "Attempt > MAX_RUNNER_ATTEMPTS rejected",
+      "input": {
+        "target": "validate_task",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.task",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 33,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "input": {
+            "mediaType": "application/json",
+            "encoding": "base64url",
+            "data": "eyJxdWVzdGlvbiI6ImhlbGxvIn0"
+          },
+          "issuedAt": "2026-08-04T00:00:00.000Z",
+          "expiresAt": "2026-08-04T00:05:00.000Z",
+          "leaseExpiresAt": "2026-08-04T00:04:00.000Z",
+          "nonce": "BwcHBwcHBwcHBwcHBwcHBw"
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_TASK_INVALID"
+      }
+    },
+    {
+      "id": "reject-invalid-semver",
+      "family": "task_envelope",
+      "description": "Invalid SemVer rejected",
+      "input": {
+        "target": "validate_task",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.task",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.0.0-01",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "input": {
+            "mediaType": "application/json",
+            "encoding": "base64url",
+            "data": "eyJxdWVzdGlvbiI6ImhlbGxvIn0"
+          },
+          "issuedAt": "2026-08-04T00:00:00.000Z",
+          "expiresAt": "2026-08-04T00:05:00.000Z",
+          "leaseExpiresAt": "2026-08-04T00:04:00.000Z",
+          "nonce": "BwcHBwcHBwcHBwcHBwcHBw"
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_TASK_INVALID"
+      }
+    },
+    {
+      "id": "valid-envelope-structure",
+      "family": "task_envelope",
+      "description": "Signed envelope structure is valid",
+      "input": {
+        "target": "validate_envelope",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "keyId": "platform-rfc8032-1",
+          "algorithm": "Ed25519",
+          "payload": "eyJhdHRlbXB0IjoxLCJlbXBsb3llZSI6eyJpZCI6ImVtcGxveWVlLWdvbGRlbiIsInBhY2thZ2VEaWdlc3QiOiJzaGEyNTY6YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSIsInZlcnNpb24iOiIxLjIuMyJ9LCJlbmdpbmUiOiJjbGF1ZGUtY29kZSIsImV4cGlyZXNBdCI6IjIwMjYtMDgtMDRUMDA6MDU6MDAuMDAwWiIsImZlbmNpbmdUb2tlbiI6MSwiaW5wdXQiOnsiZGF0YSI6ImV5SnhkV1Z6ZEdsdmJpSTZJbWhsYkd4dkluMCIsImVuY29kaW5nIjoiYmFzZTY0dXJsIiwibWVkaWFUeXBlIjoiYXBwbGljYXRpb24vanNvbiJ9LCJpc3N1ZWRBdCI6IjIwMjYtMDgtMDRUMDA6MDA6MDAuMDAwWiIsImtpbmQiOiJydW5uZXIudGFzayIsImxlYXNlRXhwaXJlc0F0IjoiMjAyNi0wOC0wNFQwMDowNDowMC4wMDBaIiwibGVhc2VJZCI6ImxlYXNlLWdvbGRlbiIsIm5vbmNlIjoiQndjSEJ3Y0hCd2NIQndjSEJ3Y0hCdyIsInByb3RvY29sVmVyc2lvbiI6ImRpZ2l0YWwtZW1wbG95ZWUucnVubmVyLXByb3RvY29sLnYxIiwicXVvdGVJZCI6InF1b3RlLWdvbGRlbiIsInJlc2VydmF0aW9uSWQiOiJyZXNlcnZhdGlvbi1nb2xkZW4iLCJydW5JZCI6InJ1bi1nb2xkZW4iLCJydW5uZXJJZCI6InJ1bm5lci1nb2xkZW4iLCJzZWxsZXJJZCI6InNlbGxlci1nb2xkZW4iLCJ0YXNrSWQiOiJ0YXNrLWdvbGRlbiJ9",
+          "signature": "1TWJyM4v6Db5GEft-xxdONniqJ6A6duJoJf1IKLL3F8pZTQ2tjlaWXUBJIB1mBFqp7-gxKasEWfOZ3yDpjSnCw"
+        }
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "reject-empty-payload",
+      "family": "task_envelope",
+      "description": "Empty payload rejected",
+      "input": {
+        "target": "validate_envelope",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "keyId": "key-1",
+          "algorithm": "Ed25519",
+          "payload": "",
+          "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_ENVELOPE_INVALID"
+      }
+    },
+    {
+      "id": "reject-wrong-signature-length",
+      "family": "task_envelope",
+      "description": "Non-64-byte signature rejected",
+      "input": {
+        "target": "validate_envelope",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "keyId": "key-1",
+          "algorithm": "Ed25519",
+          "payload": "e30",
+          "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_ENVELOPE_INVALID"
+      }
+    },
+    {
+      "id": "verify-task-valid",
+      "family": "task_envelope",
+      "description": "Signed task verifies with correct public key",
+      "input": {
+        "target": "verify_task",
+        "envelope": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "keyId": "platform-rfc8032-1",
+          "algorithm": "Ed25519",
+          "payload": "eyJhdHRlbXB0IjoxLCJlbXBsb3llZSI6eyJpZCI6ImVtcGxveWVlLWdvbGRlbiIsInBhY2thZ2VEaWdlc3QiOiJzaGEyNTY6YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSIsInZlcnNpb24iOiIxLjIuMyJ9LCJlbmdpbmUiOiJjbGF1ZGUtY29kZSIsImV4cGlyZXNBdCI6IjIwMjYtMDgtMDRUMDA6MDU6MDAuMDAwWiIsImZlbmNpbmdUb2tlbiI6MSwiaW5wdXQiOnsiZGF0YSI6ImV5SnhkV1Z6ZEdsdmJpSTZJbWhsYkd4dkluMCIsImVuY29kaW5nIjoiYmFzZTY0dXJsIiwibWVkaWFUeXBlIjoiYXBwbGljYXRpb24vanNvbiJ9LCJpc3N1ZWRBdCI6IjIwMjYtMDgtMDRUMDA6MDA6MDAuMDAwWiIsImtpbmQiOiJydW5uZXIudGFzayIsImxlYXNlRXhwaXJlc0F0IjoiMjAyNi0wOC0wNFQwMDowNDowMC4wMDBaIiwibGVhc2VJZCI6ImxlYXNlLWdvbGRlbiIsIm5vbmNlIjoiQndjSEJ3Y0hCd2NIQndjSEJ3Y0hCdyIsInByb3RvY29sVmVyc2lvbiI6ImRpZ2l0YWwtZW1wbG95ZWUucnVubmVyLXByb3RvY29sLnYxIiwicXVvdGVJZCI6InF1b3RlLWdvbGRlbiIsInJlc2VydmF0aW9uSWQiOiJyZXNlcnZhdGlvbi1nb2xkZW4iLCJydW5JZCI6InJ1bi1nb2xkZW4iLCJydW5uZXJJZCI6InJ1bm5lci1nb2xkZW4iLCJzZWxsZXJJZCI6InNlbGxlci1nb2xkZW4iLCJ0YXNrSWQiOiJ0YXNrLWdvbGRlbiJ9",
+          "signature": "1TWJyM4v6Db5GEft-xxdONniqJ6A6duJoJf1IKLL3F8pZTQ2tjlaWXUBJIB1mBFqp7-gxKasEWfOZ3yDpjSnCw"
+        },
+        "publicKey": {
+          "format": "der",
+          "type": "spki",
+          "data": "302a300506032b6570032100d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+        }
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    }
+  ]
+}

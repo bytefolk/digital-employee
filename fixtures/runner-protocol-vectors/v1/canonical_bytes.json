@@ -1,0 +1,211 @@
+{
+  "schemaVersion": "runner-protocol-vectors.v1",
+  "family": "canonical_bytes",
+  "vectors": [
+    {
+      "id": "sorted-keys",
+      "family": "canonical_bytes",
+      "description": "Object keys are sorted lexicographically",
+      "input": {
+        "value": {
+          "z": 1,
+          "a": 2,
+          "m": 3
+        }
+      },
+      "expect": {
+        "kind": "accept",
+        "output": {
+          "canonical": "{\"a\":2,\"m\":3,\"z\":1}"
+        }
+      }
+    },
+    {
+      "id": "nested-sorted",
+      "family": "canonical_bytes",
+      "description": "Nested objects have keys sorted recursively",
+      "input": {
+        "value": {
+          "outer": {
+            "z": true,
+            "a": false
+          }
+        }
+      },
+      "expect": {
+        "kind": "accept",
+        "output": {
+          "canonical": "{\"outer\":{\"a\":false,\"z\":true}}"
+        }
+      }
+    },
+    {
+      "id": "array-preserved",
+      "family": "canonical_bytes",
+      "description": "Array element order is preserved",
+      "input": {
+        "value": [
+          3,
+          1,
+          2
+        ]
+      },
+      "expect": {
+        "kind": "accept",
+        "output": {
+          "canonical": "[3,1,2]"
+        }
+      }
+    },
+    {
+      "id": "string-unicode",
+      "family": "canonical_bytes",
+      "description": "Unicode strings are preserved",
+      "input": {
+        "value": {
+          "key": "你好"
+        }
+      },
+      "expect": {
+        "kind": "accept",
+        "output": {
+          "canonical": "{\"key\":\"你好\"}"
+        }
+      }
+    },
+    {
+      "id": "integer-boundary-max-safe",
+      "family": "canonical_bytes",
+      "description": "MAX_SAFE_INTEGER is valid",
+      "input": {
+        "value": {
+          "n": 9007199254740991
+        }
+      },
+      "expect": {
+        "kind": "accept",
+        "output": {
+          "canonical": "{\"n\":9007199254740991}"
+        }
+      }
+    },
+    {
+      "id": "integer-negative",
+      "family": "canonical_bytes",
+      "description": "Negative integers are valid",
+      "input": {
+        "value": {
+          "n": -42
+        }
+      },
+      "expect": {
+        "kind": "accept",
+        "output": {
+          "canonical": "{\"n\":-42}"
+        }
+      }
+    },
+    {
+      "id": "integer-zero",
+      "family": "canonical_bytes",
+      "description": "Zero is valid",
+      "input": {
+        "value": {
+          "n": 0
+        }
+      },
+      "expect": {
+        "kind": "accept",
+        "output": {
+          "canonical": "{\"n\":0}"
+        }
+      }
+    },
+    {
+      "id": "null-value",
+      "family": "canonical_bytes",
+      "description": "null serializes as 'null'",
+      "input": {
+        "value": null
+      },
+      "expect": {
+        "kind": "accept",
+        "output": {
+          "canonical": "null"
+        }
+      }
+    },
+    {
+      "id": "boolean-values",
+      "family": "canonical_bytes",
+      "description": "Booleans serialize correctly",
+      "input": {
+        "value": {
+          "f": false,
+          "t": true
+        }
+      },
+      "expect": {
+        "kind": "accept",
+        "output": {
+          "canonical": "{\"f\":false,\"t\":true}"
+        }
+      }
+    },
+    {
+      "id": "empty-object",
+      "family": "canonical_bytes",
+      "description": "Empty object serializes to '{}'",
+      "input": {
+        "value": {}
+      },
+      "expect": {
+        "kind": "accept",
+        "output": {
+          "canonical": "{}"
+        }
+      }
+    },
+    {
+      "id": "empty-array",
+      "family": "canonical_bytes",
+      "description": "Empty array serializes to '[]'",
+      "input": {
+        "value": []
+      },
+      "expect": {
+        "kind": "accept",
+        "output": {
+          "canonical": "[]"
+        }
+      }
+    },
+    {
+      "id": "deeply-nested",
+      "family": "canonical_bytes",
+      "description": "Deep nesting serializes deterministically",
+      "input": {
+        "value": {
+          "a": {
+            "b": {
+              "c": [
+                1,
+                2,
+                {
+                  "z": true,
+                  "a": false
+                }
+              ]
+            }
+          }
+        }
+      },
+      "expect": {
+        "kind": "accept",
+        "output": {
+          "canonical": "{\"a\":{\"b\":{\"c\":[1,2,{\"a\":false,\"z\":true}]}}}"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "runner-protocol-vectors.v1",
+  "protocolVersion": "digital-employee.runner-protocol.v1",
+  "families": [
+    "canonical_bytes",
+    "task_envelope",
+    "event_chain",
+    "receipt_envelope",
+    "execution_bundle",
+    "usage_binding",
+    "version_negotiation",
+    "migration"
+  ],
+  "files": [
+    {
+      "file": "canonical_bytes.json",
+      "sha256": "4b71233a3e021f85f22505c3ba7ecd9a228544e97680f8cffe5ab51853946739",
+      "vectorCount": 12
+    },
+    {
+      "file": "task_envelope.json",
+      "sha256": "280cffbba2fce119985b2360959f1daeb426114c0e03f76b994ba6f957e78e47",
+      "vectorCount": 12
+    },
+    {
+      "file": "event_chain.json",
+      "sha256": "baa553282d45b02469986c6ab0ed3c80328c6000465136f509e37e2ae0d1108d",
+      "vectorCount": 8
+    },
+    {
+      "file": "receipt_envelope.json",
+      "sha256": "1095ed945975051c17b7c2defda5891db06508a35cd15521df5b47aacdedcd22",
+      "vectorCount": 9
+    },
+    {
+      "file": "execution_bundle.json",
+      "sha256": "1a746894e0a746a5bfc7e1d31db4724c9256c3bbd5d6a796bcb30c5c07894fca",
+      "vectorCount": 3
+    },
+    {
+      "file": "usage_binding.json",
+      "sha256": "b7ae95416d6582a3c83aa0d625a4092f9993ce9a86a93cf998114b8784a98a3a",
+      "vectorCount": 4
+    },
+    {
+      "file": "version_negotiation.json",
+      "sha256": "a85dd0236955061d5f5e336be53fd0f9ca207a0a9df75b633246cb401dd4ad6a",
+      "vectorCount": 7
+    },
+    {
+      "file": "migration.json",
+      "sha256": "970c1ef067fdf235c44f8f45eb38a74d119c4ecc64af6c71bafb505ece0ca218",
+      "vectorCount": 6
+    }
+  ]
+}

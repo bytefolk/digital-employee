@@ -75,6 +75,26 @@ export type {
   AgentHostVectorResult,
 } from "./src/agent-host-vectors.js"
 export {
+  RUNNER_PROTOCOL_VECTOR_FAMILIES,
+  RUNNER_PROTOCOL_VECTOR_RESULT_SCHEMA_VERSION,
+  RUNNER_PROTOCOL_VECTOR_SCHEMA_VERSION,
+  classifyRunnerProtocolVector,
+  parseRunnerProtocolVectorFile,
+  parseRunnerProtocolVectorManifest,
+  runRunnerProtocolVectorCorpus,
+} from "./src/runner-protocol-vectors.js"
+export type {
+  RunnerProtocolVector,
+  RunnerProtocolVectorClassification,
+  RunnerProtocolVectorExpectation,
+  RunnerProtocolVectorFailure,
+  RunnerProtocolVectorFamily,
+  RunnerProtocolVectorFile,
+  RunnerProtocolVectorManifest,
+  RunnerProtocolVectorManifestEntry,
+  RunnerProtocolVectorResult,
+} from "./src/runner-protocol-vectors.js"
+export {
   ADAPTER_QUALIFICATION_KIT_VERSION,
   ADAPTER_QUALIFICATION_SCHEMA_ID,
   QUALIFICATION_DOMAINS,

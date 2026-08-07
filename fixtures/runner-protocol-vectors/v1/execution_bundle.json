@@ -1,0 +1,188 @@
+{
+  "schemaVersion": "runner-protocol-vectors.v1",
+  "family": "execution_bundle",
+  "vectors": [
+    {
+      "id": "valid-bundle",
+      "family": "execution_bundle",
+      "description": "Complete valid execution bundle verifies",
+      "input": {
+        "taskEnvelope": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "keyId": "platform-rfc8032-1",
+          "algorithm": "Ed25519",
+          "payload": "eyJhdHRlbXB0IjoxLCJlbXBsb3llZSI6eyJpZCI6ImVtcGxveWVlLWdvbGRlbiIsInBhY2thZ2VEaWdlc3QiOiJzaGEyNTY6YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSIsInZlcnNpb24iOiIxLjIuMyJ9LCJlbmdpbmUiOiJjbGF1ZGUtY29kZSIsImV4cGlyZXNBdCI6IjIwMjYtMDgtMDRUMDA6MDU6MDAuMDAwWiIsImZlbmNpbmdUb2tlbiI6MSwiaW5wdXQiOnsiZGF0YSI6ImV5SnhkV1Z6ZEdsdmJpSTZJbWhsYkd4dkluMCIsImVuY29kaW5nIjoiYmFzZTY0dXJsIiwibWVkaWFUeXBlIjoiYXBwbGljYXRpb24vanNvbiJ9LCJpc3N1ZWRBdCI6IjIwMjYtMDgtMDRUMDA6MDA6MDAuMDAwWiIsImtpbmQiOiJydW5uZXIudGFzayIsImxlYXNlRXhwaXJlc0F0IjoiMjAyNi0wOC0wNFQwMDowNDowMC4wMDBaIiwibGVhc2VJZCI6ImxlYXNlLWdvbGRlbiIsIm5vbmNlIjoiQndjSEJ3Y0hCd2NIQndjSEJ3Y0hCdyIsInByb3RvY29sVmVyc2lvbiI6ImRpZ2l0YWwtZW1wbG95ZWUucnVubmVyLXByb3RvY29sLnYxIiwicXVvdGVJZCI6InF1b3RlLWdvbGRlbiIsInJlc2VydmF0aW9uSWQiOiJyZXNlcnZhdGlvbi1nb2xkZW4iLCJydW5JZCI6InJ1bi1nb2xkZW4iLCJydW5uZXJJZCI6InJ1bm5lci1nb2xkZW4iLCJzZWxsZXJJZCI6InNlbGxlci1nb2xkZW4iLCJ0YXNrSWQiOiJ0YXNrLWdvbGRlbiJ9",
+          "signature": "1TWJyM4v6Db5GEft-xxdONniqJ6A6duJoJf1IKLL3F8pZTQ2tjlaWXUBJIB1mBFqp7-gxKasEWfOZ3yDpjSnCw"
+        },
+        "platformPublicKey": {
+          "format": "der",
+          "type": "spki",
+          "data": "302a300506032b6570032100d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+        },
+        "events": [
+          {
+            "protocolVersion": "digital-employee.runner-protocol.v1",
+            "kind": "runner.event",
+            "taskId": "task-golden",
+            "runId": "run-golden",
+            "attempt": 1,
+            "fencingToken": 1,
+            "leaseId": "lease-golden",
+            "quoteId": "quote-golden",
+            "runnerId": "runner-golden",
+            "employeeId": "employee-golden",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sequence": 1,
+            "timestamp": "2026-08-04T00:00:01.000Z",
+            "type": "run.started",
+            "data": {
+              "mediaType": "application/json",
+              "encoding": "base64url",
+              "data": ""
+            },
+            "previousDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "digest": "sha256:5ded5f44a88c80f68205e10d67d082cfa387e979bada69ea8632c2da1e7f3ef3"
+          }
+        ],
+        "receiptEnvelope": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "keyId": "runner-key-1",
+          "algorithm": "Ed25519",
+          "payload": "eyJhdHRlbXB0IjoxLCJjb21wbGV0ZWRBdCI6IjIwMjYtMDgtMDRUMDA6MDA6MDIuMDAwWiIsImVtcGxveWVlIjp7ImlkIjoiZW1wbG95ZWUtZ29sZGVuIiwicGFja2FnZURpZ2VzdCI6InNoYTI1NjphYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwidmVyc2lvbiI6IjEuMi4zIn0sImVuZ2luZSI6ImNsYXVkZS1jb2RlIiwiZXZlbnRDb3VudCI6MSwiZmVuY2luZ1Rva2VuIjoxLCJmaW5hbEV2ZW50RGlnZXN0Ijoic2hhMjU2OjVkZWQ1ZjQ0YTg4YzgwZjY4MjA1ZTEwZDY3ZDA4MmNmYTM4N2U5NzliYWRhNjllYTg2MzJjMmRhMWU3ZjNlZjMiLCJraW5kIjoicnVubmVyLnJlY2VpcHQiLCJsZWFzZUlkIjoibGVhc2UtZ29sZGVuIiwib3V0Y29tZSI6eyJvdXRwdXQiOnsiZGF0YSI6ImV5Smhibk4zWlhJaU9pSnZheUo5IiwiZW5jb2RpbmciOiJiYXNlNjR1cmwiLCJtZWRpYVR5cGUiOiJhcHBsaWNhdGlvbi9qc29uIn0sInN0YXR1cyI6ImNvbXBsZXRlZCJ9LCJwcm90b2NvbFZlcnNpb24iOiJkaWdpdGFsLWVtcGxveWVlLnJ1bm5lci1wcm90b2NvbC52MSIsInF1b3RlSWQiOiJxdW90ZS1nb2xkZW4iLCJyZXNlcnZhdGlvbklkIjoicmVzZXJ2YXRpb24tZ29sZGVuIiwicnVuSWQiOiJydW4tZ29sZGVuIiwicnVubmVySWQiOiJydW5uZXItZ29sZGVuIiwic2VsbGVySWQiOiJzZWxsZXItZ29sZGVuIiwic3RhcnRlZEF0IjoiMjAyNi0wOC0wNFQwMDowMDowMS4wMDBaIiwidGFza0lkIjoidGFzay1nb2xkZW4iLCJ1c2FnZSI6eyJhY3Rpb25zIjpbeyJjb3VudCI6MSwibmFtZSI6Imtub3dsZWRnZS5zZWFyY2gifV0sImR1cmF0aW9uTWlsbGlzZWNvbmRzIjoxMDAwLCJpbnB1dFRva2VucyI6MTAsIm91dHB1dFRva2VucyI6NX19",
+          "signature": "WRRlEyBPug1zREt26CW_L-umdAPCb6_OCsyfWZcHCr3Kyh7R2GG3ngaCMOyUHQTX6uuFcttIjI8vQbCtRhWiCw"
+        },
+        "runnerPublicKey": {
+          "format": "der",
+          "type": "spki",
+          "data": "302a300506032b6570032100d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+        },
+        "observedAt": "2026-08-04T00:00:03.000Z"
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "reject-receipt-runner-mismatch",
+      "family": "execution_bundle",
+      "description": "Receipt with wrong runnerId fails binding",
+      "input": {
+        "taskEnvelope": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "keyId": "platform-rfc8032-1",
+          "algorithm": "Ed25519",
+          "payload": "eyJhdHRlbXB0IjoxLCJlbXBsb3llZSI6eyJpZCI6ImVtcGxveWVlLWdvbGRlbiIsInBhY2thZ2VEaWdlc3QiOiJzaGEyNTY6YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSIsInZlcnNpb24iOiIxLjIuMyJ9LCJlbmdpbmUiOiJjbGF1ZGUtY29kZSIsImV4cGlyZXNBdCI6IjIwMjYtMDgtMDRUMDA6MDU6MDAuMDAwWiIsImZlbmNpbmdUb2tlbiI6MSwiaW5wdXQiOnsiZGF0YSI6ImV5SnhkV1Z6ZEdsdmJpSTZJbWhsYkd4dkluMCIsImVuY29kaW5nIjoiYmFzZTY0dXJsIiwibWVkaWFUeXBlIjoiYXBwbGljYXRpb24vanNvbiJ9LCJpc3N1ZWRBdCI6IjIwMjYtMDgtMDRUMDA6MDA6MDAuMDAwWiIsImtpbmQiOiJydW5uZXIudGFzayIsImxlYXNlRXhwaXJlc0F0IjoiMjAyNi0wOC0wNFQwMDowNDowMC4wMDBaIiwibGVhc2VJZCI6ImxlYXNlLWdvbGRlbiIsIm5vbmNlIjoiQndjSEJ3Y0hCd2NIQndjSEJ3Y0hCdyIsInByb3RvY29sVmVyc2lvbiI6ImRpZ2l0YWwtZW1wbG95ZWUucnVubmVyLXByb3RvY29sLnYxIiwicXVvdGVJZCI6InF1b3RlLWdvbGRlbiIsInJlc2VydmF0aW9uSWQiOiJyZXNlcnZhdGlvbi1nb2xkZW4iLCJydW5JZCI6InJ1bi1nb2xkZW4iLCJydW5uZXJJZCI6InJ1bm5lci1nb2xkZW4iLCJzZWxsZXJJZCI6InNlbGxlci1nb2xkZW4iLCJ0YXNrSWQiOiJ0YXNrLWdvbGRlbiJ9",
+          "signature": "1TWJyM4v6Db5GEft-xxdONniqJ6A6duJoJf1IKLL3F8pZTQ2tjlaWXUBJIB1mBFqp7-gxKasEWfOZ3yDpjSnCw"
+        },
+        "platformPublicKey": {
+          "format": "der",
+          "type": "spki",
+          "data": "302a300506032b6570032100d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+        },
+        "events": [
+          {
+            "protocolVersion": "digital-employee.runner-protocol.v1",
+            "kind": "runner.event",
+            "taskId": "task-golden",
+            "runId": "run-golden",
+            "attempt": 1,
+            "fencingToken": 1,
+            "leaseId": "lease-golden",
+            "quoteId": "quote-golden",
+            "runnerId": "runner-golden",
+            "employeeId": "employee-golden",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sequence": 1,
+            "timestamp": "2026-08-04T00:00:01.000Z",
+            "type": "run.started",
+            "data": {
+              "mediaType": "application/json",
+              "encoding": "base64url",
+              "data": ""
+            },
+            "previousDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "digest": "sha256:5ded5f44a88c80f68205e10d67d082cfa387e979bada69ea8632c2da1e7f3ef3"
+          }
+        ],
+        "receiptEnvelope": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "keyId": "runner-key-1",
+          "algorithm": "Ed25519",
+          "payload": "eyJhdHRlbXB0IjoxLCJjb21wbGV0ZWRBdCI6IjIwMjYtMDgtMDRUMDA6MDA6MDIuMDAwWiIsImVtcGxveWVlIjp7ImlkIjoiZW1wbG95ZWUtZ29sZGVuIiwicGFja2FnZURpZ2VzdCI6InNoYTI1NjphYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwidmVyc2lvbiI6IjEuMi4zIn0sImVuZ2luZSI6ImNsYXVkZS1jb2RlIiwiZXZlbnRDb3VudCI6MSwiZmVuY2luZ1Rva2VuIjoxLCJmaW5hbEV2ZW50RGlnZXN0Ijoic2hhMjU2OjVkZWQ1ZjQ0YTg4YzgwZjY4MjA1ZTEwZDY3ZDA4MmNmYTM4N2U5NzliYWRhNjllYTg2MzJjMmRhMWU3ZjNlZjMiLCJraW5kIjoicnVubmVyLnJlY2VpcHQiLCJsZWFzZUlkIjoibGVhc2UtZ29sZGVuIiwib3V0Y29tZSI6eyJvdXRwdXQiOnsiZGF0YSI6ImV5Smhibk4zWlhJaU9pSnZheUo5IiwiZW5jb2RpbmciOiJiYXNlNjR1cmwiLCJtZWRpYVR5cGUiOiJhcHBsaWNhdGlvbi9qc29uIn0sInN0YXR1cyI6ImNvbXBsZXRlZCJ9LCJwcm90b2NvbFZlcnNpb24iOiJkaWdpdGFsLWVtcGxveWVlLnJ1bm5lci1wcm90b2NvbC52MSIsInF1b3RlSWQiOiJxdW90ZS1nb2xkZW4iLCJyZXNlcnZhdGlvbklkIjoicmVzZXJ2YXRpb24tZ29sZGVuIiwicnVuSWQiOiJydW4tZ29sZGVuIiwicnVubmVySWQiOiJmb3JlaWduLXJ1bm5lciIsInNlbGxlcklkIjoic2VsbGVyLWdvbGRlbiIsInN0YXJ0ZWRBdCI6IjIwMjYtMDgtMDRUMDA6MDA6MDEuMDAwWiIsInRhc2tJZCI6InRhc2stZ29sZGVuIiwidXNhZ2UiOnsiYWN0aW9ucyI6W3siY291bnQiOjEsIm5hbWUiOiJrbm93bGVkZ2Uuc2VhcmNoIn1dLCJkdXJhdGlvbk1pbGxpc2Vjb25kcyI6MTAwMCwiaW5wdXRUb2tlbnMiOjEwLCJvdXRwdXRUb2tlbnMiOjV9fQ",
+          "signature": "siImmRgDaey_swn53PoRQbWfPPTUg4UTJXeJDz03A3OvqyAnlmWtNRarv-xWduz0Vi4BDJmK3jEwkoJxfuz0BA"
+        },
+        "runnerPublicKey": {
+          "format": "der",
+          "type": "spki",
+          "data": "302a300506032b6570032100d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+        },
+        "observedAt": "2026-08-04T00:00:03.000Z"
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_RECEIPT_INVALID"
+      }
+    },
+    {
+      "id": "reject-completed-at-lease-expiry",
+      "family": "execution_bundle",
+      "description": "completedAt at lease expiry fails",
+      "input": {
+        "taskEnvelope": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "keyId": "platform-rfc8032-1",
+          "algorithm": "Ed25519",
+          "payload": "eyJhdHRlbXB0IjoxLCJlbXBsb3llZSI6eyJpZCI6ImVtcGxveWVlLWdvbGRlbiIsInBhY2thZ2VEaWdlc3QiOiJzaGEyNTY6YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYSIsInZlcnNpb24iOiIxLjIuMyJ9LCJlbmdpbmUiOiJjbGF1ZGUtY29kZSIsImV4cGlyZXNBdCI6IjIwMjYtMDgtMDRUMDA6MDU6MDAuMDAwWiIsImZlbmNpbmdUb2tlbiI6MSwiaW5wdXQiOnsiZGF0YSI6ImV5SnhkV1Z6ZEdsdmJpSTZJbWhsYkd4dkluMCIsImVuY29kaW5nIjoiYmFzZTY0dXJsIiwibWVkaWFUeXBlIjoiYXBwbGljYXRpb24vanNvbiJ9LCJpc3N1ZWRBdCI6IjIwMjYtMDgtMDRUMDA6MDA6MDAuMDAwWiIsImtpbmQiOiJydW5uZXIudGFzayIsImxlYXNlRXhwaXJlc0F0IjoiMjAyNi0wOC0wNFQwMDowNDowMC4wMDBaIiwibGVhc2VJZCI6ImxlYXNlLWdvbGRlbiIsIm5vbmNlIjoiQndjSEJ3Y0hCd2NIQndjSEJ3Y0hCdyIsInByb3RvY29sVmVyc2lvbiI6ImRpZ2l0YWwtZW1wbG95ZWUucnVubmVyLXByb3RvY29sLnYxIiwicXVvdGVJZCI6InF1b3RlLWdvbGRlbiIsInJlc2VydmF0aW9uSWQiOiJyZXNlcnZhdGlvbi1nb2xkZW4iLCJydW5JZCI6InJ1bi1nb2xkZW4iLCJydW5uZXJJZCI6InJ1bm5lci1nb2xkZW4iLCJzZWxsZXJJZCI6InNlbGxlci1nb2xkZW4iLCJ0YXNrSWQiOiJ0YXNrLWdvbGRlbiJ9",
+          "signature": "1TWJyM4v6Db5GEft-xxdONniqJ6A6duJoJf1IKLL3F8pZTQ2tjlaWXUBJIB1mBFqp7-gxKasEWfOZ3yDpjSnCw"
+        },
+        "platformPublicKey": {
+          "format": "der",
+          "type": "spki",
+          "data": "302a300506032b6570032100d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+        },
+        "events": [
+          {
+            "protocolVersion": "digital-employee.runner-protocol.v1",
+            "kind": "runner.event",
+            "taskId": "task-golden",
+            "runId": "run-golden",
+            "attempt": 1,
+            "fencingToken": 1,
+            "leaseId": "lease-golden",
+            "quoteId": "quote-golden",
+            "runnerId": "runner-golden",
+            "employeeId": "employee-golden",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sequence": 1,
+            "timestamp": "2026-08-04T00:00:01.000Z",
+            "type": "run.started",
+            "data": {
+              "mediaType": "application/json",
+              "encoding": "base64url",
+              "data": ""
+            },
+            "previousDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "digest": "sha256:5ded5f44a88c80f68205e10d67d082cfa387e979bada69ea8632c2da1e7f3ef3"
+          }
+        ],
+        "receiptEnvelope": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "keyId": "runner-key-1",
+          "algorithm": "Ed25519",
+          "payload": "eyJhdHRlbXB0IjoxLCJjb21wbGV0ZWRBdCI6IjIwMjYtMDgtMDRUMDA6MDQ6MDAuMDAwWiIsImVtcGxveWVlIjp7ImlkIjoiZW1wbG95ZWUtZ29sZGVuIiwicGFja2FnZURpZ2VzdCI6InNoYTI1NjphYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwidmVyc2lvbiI6IjEuMi4zIn0sImVuZ2luZSI6ImNsYXVkZS1jb2RlIiwiZXZlbnRDb3VudCI6MSwiZmVuY2luZ1Rva2VuIjoxLCJmaW5hbEV2ZW50RGlnZXN0Ijoic2hhMjU2OjVkZWQ1ZjQ0YTg4YzgwZjY4MjA1ZTEwZDY3ZDA4MmNmYTM4N2U5NzliYWRhNjllYTg2MzJjMmRhMWU3ZjNlZjMiLCJraW5kIjoicnVubmVyLnJlY2VpcHQiLCJsZWFzZUlkIjoibGVhc2UtZ29sZGVuIiwib3V0Y29tZSI6eyJvdXRwdXQiOnsiZGF0YSI6ImV5Smhibk4zWlhJaU9pSnZheUo5IiwiZW5jb2RpbmciOiJiYXNlNjR1cmwiLCJtZWRpYVR5cGUiOiJhcHBsaWNhdGlvbi9qc29uIn0sInN0YXR1cyI6ImNvbXBsZXRlZCJ9LCJwcm90b2NvbFZlcnNpb24iOiJkaWdpdGFsLWVtcGxveWVlLnJ1bm5lci1wcm90b2NvbC52MSIsInF1b3RlSWQiOiJxdW90ZS1nb2xkZW4iLCJyZXNlcnZhdGlvbklkIjoicmVzZXJ2YXRpb24tZ29sZGVuIiwicnVuSWQiOiJydW4tZ29sZGVuIiwicnVubmVySWQiOiJydW5uZXItZ29sZGVuIiwic2VsbGVySWQiOiJzZWxsZXItZ29sZGVuIiwic3RhcnRlZEF0IjoiMjAyNi0wOC0wNFQwMDowMDowMS4wMDBaIiwidGFza0lkIjoidGFzay1nb2xkZW4iLCJ1c2FnZSI6eyJhY3Rpb25zIjpbeyJjb3VudCI6MSwibmFtZSI6Imtub3dsZWRnZS5zZWFyY2gifV0sImR1cmF0aW9uTWlsbGlzZWNvbmRzIjoxMDAwLCJpbnB1dFRva2VucyI6MTAsIm91dHB1dFRva2VucyI6NX19",
+          "signature": "SjVMdzGAyEcvvAv5Xkv-6WNkeYJT67s7sbACJoRqkcpOCX9Vf2fpdYxp55zmse9vQnGp2DURj4J7SpigiDwzBQ"
+        },
+        "runnerPublicKey": {
+          "format": "der",
+          "type": "spki",
+          "data": "302a300506032b6570032100d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+        },
+        "observedAt": "2026-08-04T00:04:00.000Z"
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_RECEIPT_INVALID"
+      }
+    }
+  ]
+}

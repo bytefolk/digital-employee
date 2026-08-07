@@ -1,0 +1,341 @@
+{
+  "schemaVersion": "runner-protocol-vectors.v1",
+  "family": "event_chain",
+  "vectors": [
+    {
+      "id": "valid-single-event",
+      "family": "event_chain",
+      "description": "Single valid event with correct digest",
+      "input": {
+        "target": "validate_event",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.event",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "runnerId": "runner-golden",
+          "employeeId": "employee-golden",
+          "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sequence": 1,
+          "timestamp": "2026-08-04T00:00:01.000Z",
+          "type": "run.started",
+          "data": {
+            "mediaType": "application/json",
+            "encoding": "base64url",
+            "data": ""
+          },
+          "previousDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "digest": "sha256:5ded5f44a88c80f68205e10d67d082cfa387e979bada69ea8632c2da1e7f3ef3"
+        }
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "valid-event-digest",
+      "family": "event_chain",
+      "description": "createRunnerEvent produces deterministic digest",
+      "input": {
+        "target": "create_event",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.event",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "runnerId": "runner-golden",
+          "employeeId": "employee-golden",
+          "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sequence": 1,
+          "timestamp": "2026-08-04T00:00:01.000Z",
+          "type": "run.started",
+          "data": {
+            "mediaType": "application/json",
+            "encoding": "base64url",
+            "data": ""
+          },
+          "previousDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      },
+      "expect": {
+        "kind": "accept",
+        "output": {
+          "digest": "sha256:5ded5f44a88c80f68205e10d67d082cfa387e979bada69ea8632c2da1e7f3ef3"
+        }
+      }
+    },
+    {
+      "id": "reject-tampered-digest",
+      "family": "event_chain",
+      "description": "Incorrect digest rejected",
+      "input": {
+        "target": "validate_event",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.event",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "runnerId": "runner-golden",
+          "employeeId": "employee-golden",
+          "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sequence": 1,
+          "timestamp": "2026-08-04T00:00:01.000Z",
+          "type": "run.started",
+          "data": {
+            "mediaType": "application/json",
+            "encoding": "base64url",
+            "data": ""
+          },
+          "previousDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_EVENT_INVALID"
+      }
+    },
+    {
+      "id": "reject-invalid-type-case",
+      "family": "event_chain",
+      "description": "Uppercase type rejected (machine code)",
+      "input": {
+        "target": "create_event",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.event",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "runnerId": "runner-golden",
+          "employeeId": "employee-golden",
+          "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "sequence": 1,
+          "timestamp": "2026-08-04T00:00:01.000Z",
+          "type": "Run.Started",
+          "data": {
+            "mediaType": "application/json",
+            "encoding": "base64url",
+            "data": ""
+          },
+          "previousDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_EVENT_INVALID"
+      }
+    },
+    {
+      "id": "valid-two-event-chain",
+      "family": "event_chain",
+      "description": "Two-event chain verifies",
+      "input": {
+        "target": "verify_chain",
+        "events": [
+          {
+            "protocolVersion": "digital-employee.runner-protocol.v1",
+            "kind": "runner.event",
+            "taskId": "task-golden",
+            "runId": "run-golden",
+            "attempt": 1,
+            "fencingToken": 1,
+            "leaseId": "lease-golden",
+            "quoteId": "quote-golden",
+            "runnerId": "runner-golden",
+            "employeeId": "employee-golden",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sequence": 1,
+            "timestamp": "2026-08-04T00:00:01.000Z",
+            "type": "run.started",
+            "data": {
+              "mediaType": "application/json",
+              "encoding": "base64url",
+              "data": ""
+            },
+            "previousDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "digest": "sha256:5ded5f44a88c80f68205e10d67d082cfa387e979bada69ea8632c2da1e7f3ef3"
+          },
+          {
+            "protocolVersion": "digital-employee.runner-protocol.v1",
+            "kind": "runner.event",
+            "taskId": "task-golden",
+            "runId": "run-golden",
+            "attempt": 1,
+            "fencingToken": 1,
+            "leaseId": "lease-golden",
+            "quoteId": "quote-golden",
+            "runnerId": "runner-golden",
+            "employeeId": "employee-golden",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sequence": 2,
+            "timestamp": "2026-08-04T00:00:02.000Z",
+            "type": "usage",
+            "data": {
+              "mediaType": "application/json",
+              "encoding": "base64url",
+              "data": "eyJpbnB1dFRva2VucyI6MTAsIm91dHB1dFRva2VucyI6NX0"
+            },
+            "previousDigest": "sha256:5ded5f44a88c80f68205e10d67d082cfa387e979bada69ea8632c2da1e7f3ef3",
+            "digest": "sha256:1e9f56e12161fd40bc3fdcc0cdf6c4512a194718fa5286c089a891ecff67807c"
+          }
+        ],
+        "identity": {
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "runnerId": "runner-golden",
+          "employeeId": "employee-golden",
+          "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      },
+      "expect": {
+        "kind": "accept",
+        "output": {
+          "finalDigest": "sha256:1e9f56e12161fd40bc3fdcc0cdf6c4512a194718fa5286c089a891ecff67807c"
+        }
+      }
+    },
+    {
+      "id": "reject-out-of-order-chain",
+      "family": "event_chain",
+      "description": "Wrong order fails chain verification",
+      "input": {
+        "target": "verify_chain",
+        "events": [
+          {
+            "protocolVersion": "digital-employee.runner-protocol.v1",
+            "kind": "runner.event",
+            "taskId": "task-golden",
+            "runId": "run-golden",
+            "attempt": 1,
+            "fencingToken": 1,
+            "leaseId": "lease-golden",
+            "quoteId": "quote-golden",
+            "runnerId": "runner-golden",
+            "employeeId": "employee-golden",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sequence": 2,
+            "timestamp": "2026-08-04T00:00:02.000Z",
+            "type": "usage",
+            "data": {
+              "mediaType": "application/json",
+              "encoding": "base64url",
+              "data": "eyJpbnB1dFRva2VucyI6MTAsIm91dHB1dFRva2VucyI6NX0"
+            },
+            "previousDigest": "sha256:5ded5f44a88c80f68205e10d67d082cfa387e979bada69ea8632c2da1e7f3ef3",
+            "digest": "sha256:1e9f56e12161fd40bc3fdcc0cdf6c4512a194718fa5286c089a891ecff67807c"
+          },
+          {
+            "protocolVersion": "digital-employee.runner-protocol.v1",
+            "kind": "runner.event",
+            "taskId": "task-golden",
+            "runId": "run-golden",
+            "attempt": 1,
+            "fencingToken": 1,
+            "leaseId": "lease-golden",
+            "quoteId": "quote-golden",
+            "runnerId": "runner-golden",
+            "employeeId": "employee-golden",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sequence": 1,
+            "timestamp": "2026-08-04T00:00:01.000Z",
+            "type": "run.started",
+            "data": {
+              "mediaType": "application/json",
+              "encoding": "base64url",
+              "data": ""
+            },
+            "previousDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "digest": "sha256:5ded5f44a88c80f68205e10d67d082cfa387e979bada69ea8632c2da1e7f3ef3"
+          }
+        ]
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_EVENT_CHAIN_INVALID"
+      }
+    },
+    {
+      "id": "reject-identity-mismatch",
+      "family": "event_chain",
+      "description": "Wrong taskId fails chain verification",
+      "input": {
+        "target": "verify_chain",
+        "events": [
+          {
+            "protocolVersion": "digital-employee.runner-protocol.v1",
+            "kind": "runner.event",
+            "taskId": "task-golden",
+            "runId": "run-golden",
+            "attempt": 1,
+            "fencingToken": 1,
+            "leaseId": "lease-golden",
+            "quoteId": "quote-golden",
+            "runnerId": "runner-golden",
+            "employeeId": "employee-golden",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sequence": 1,
+            "timestamp": "2026-08-04T00:00:01.000Z",
+            "type": "run.started",
+            "data": {
+              "mediaType": "application/json",
+              "encoding": "base64url",
+              "data": ""
+            },
+            "previousDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "digest": "sha256:5ded5f44a88c80f68205e10d67d082cfa387e979bada69ea8632c2da1e7f3ef3"
+          }
+        ],
+        "identity": {
+          "taskId": "task-wrong",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "runnerId": "runner-golden",
+          "employeeId": "employee-golden",
+          "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_EVENT_CHAIN_INVALID"
+      }
+    },
+    {
+      "id": "valid-empty-chain",
+      "family": "event_chain",
+      "description": "Empty chain valid with genesis digest",
+      "input": {
+        "target": "verify_chain",
+        "events": []
+      },
+      "expect": {
+        "kind": "accept",
+        "output": {
+          "finalDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      }
+    }
+  ]
+}

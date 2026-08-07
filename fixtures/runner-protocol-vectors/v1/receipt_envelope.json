@@ -1,0 +1,483 @@
+{
+  "schemaVersion": "runner-protocol-vectors.v1",
+  "family": "receipt_envelope",
+  "vectors": [
+    {
+      "id": "valid-receipt-completed",
+      "family": "receipt_envelope",
+      "description": "Valid completed receipt passes",
+      "input": {
+        "target": "validate_receipt",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.receipt",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "startedAt": "2026-08-04T00:00:01.000Z",
+          "completedAt": "2026-08-04T00:00:02.000Z",
+          "eventCount": 0,
+          "finalEventDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "durationMilliseconds": 1000,
+            "actions": [
+              {
+                "name": "knowledge.search",
+                "count": 1
+              }
+            ]
+          },
+          "outcome": {
+            "status": "completed",
+            "output": {
+              "mediaType": "application/json",
+              "encoding": "base64url",
+              "data": "eyJhbnN3ZXIiOiJvayJ9"
+            }
+          }
+        }
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "valid-receipt-failed",
+      "family": "receipt_envelope",
+      "description": "Valid failed receipt passes",
+      "input": {
+        "target": "validate_receipt",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.receipt",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "startedAt": "2026-08-04T00:00:01.000Z",
+          "completedAt": "2026-08-04T00:00:02.000Z",
+          "eventCount": 0,
+          "finalEventDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "durationMilliseconds": 1000,
+            "actions": [
+              {
+                "name": "knowledge.search",
+                "count": 1
+              }
+            ]
+          },
+          "outcome": {
+            "status": "failed",
+            "errorCode": "timeout"
+          }
+        }
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "valid-receipt-cancelled",
+      "family": "receipt_envelope",
+      "description": "Valid cancelled_by_runner receipt passes",
+      "input": {
+        "target": "validate_receipt",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.receipt",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "startedAt": "2026-08-04T00:00:01.000Z",
+          "completedAt": "2026-08-04T00:00:02.000Z",
+          "eventCount": 0,
+          "finalEventDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "durationMilliseconds": 1000,
+            "actions": [
+              {
+                "name": "knowledge.search",
+                "count": 1
+              }
+            ]
+          },
+          "outcome": {
+            "status": "cancelled_by_runner",
+            "reasonCode": "resource.exhausted"
+          }
+        }
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "reject-user-cancelled-outcome",
+      "family": "receipt_envelope",
+      "description": "user_cancelled outcome rejected",
+      "input": {
+        "target": "validate_receipt",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.receipt",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "startedAt": "2026-08-04T00:00:01.000Z",
+          "completedAt": "2026-08-04T00:00:02.000Z",
+          "eventCount": 0,
+          "finalEventDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "durationMilliseconds": 1000,
+            "actions": [
+              {
+                "name": "knowledge.search",
+                "count": 1
+              }
+            ]
+          },
+          "outcome": {
+            "status": "user_cancelled"
+          }
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_RECEIPT_INVALID"
+      }
+    },
+    {
+      "id": "reject-unsorted-actions",
+      "family": "receipt_envelope",
+      "description": "Unsorted actions rejected",
+      "input": {
+        "target": "validate_receipt",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.receipt",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "startedAt": "2026-08-04T00:00:01.000Z",
+          "completedAt": "2026-08-04T00:00:02.000Z",
+          "eventCount": 0,
+          "finalEventDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "durationMilliseconds": 1000,
+            "actions": [
+              {
+                "name": "z.action",
+                "count": 1
+              },
+              {
+                "name": "a.action",
+                "count": 1
+              }
+            ]
+          },
+          "outcome": {
+            "status": "completed",
+            "output": {
+              "mediaType": "application/json",
+              "encoding": "base64url",
+              "data": "eyJhbnN3ZXIiOiJvayJ9"
+            }
+          }
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_RECEIPT_INVALID"
+      }
+    },
+    {
+      "id": "reject-event-count-digest-mismatch",
+      "family": "receipt_envelope",
+      "description": "eventCount > 0 with genesis digest rejected",
+      "input": {
+        "target": "validate_receipt",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.receipt",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "startedAt": "2026-08-04T00:00:01.000Z",
+          "completedAt": "2026-08-04T00:00:02.000Z",
+          "eventCount": 1,
+          "finalEventDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "durationMilliseconds": 1000,
+            "actions": [
+              {
+                "name": "knowledge.search",
+                "count": 1
+              }
+            ]
+          },
+          "outcome": {
+            "status": "completed",
+            "output": {
+              "mediaType": "application/json",
+              "encoding": "base64url",
+              "data": "eyJhbnN3ZXIiOiJvayJ9"
+            }
+          }
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_RECEIPT_INVALID"
+      }
+    },
+    {
+      "id": "reject-zero-count-nongenesis",
+      "family": "receipt_envelope",
+      "description": "eventCount 0 with non-genesis rejected",
+      "input": {
+        "target": "validate_receipt",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.receipt",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "startedAt": "2026-08-04T00:00:01.000Z",
+          "completedAt": "2026-08-04T00:00:02.000Z",
+          "eventCount": 0,
+          "finalEventDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "durationMilliseconds": 1000,
+            "actions": [
+              {
+                "name": "knowledge.search",
+                "count": 1
+              }
+            ]
+          },
+          "outcome": {
+            "status": "completed",
+            "output": {
+              "mediaType": "application/json",
+              "encoding": "base64url",
+              "data": "eyJhbnN3ZXIiOiJvayJ9"
+            }
+          }
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_RECEIPT_INVALID"
+      }
+    },
+    {
+      "id": "reject-completed-before-started",
+      "family": "receipt_envelope",
+      "description": "completedAt < startedAt rejected",
+      "input": {
+        "target": "validate_receipt",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.receipt",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "startedAt": "2026-08-04T00:00:02.000Z",
+          "completedAt": "2026-08-04T00:00:01.000Z",
+          "eventCount": 0,
+          "finalEventDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "durationMilliseconds": 1000,
+            "actions": [
+              {
+                "name": "knowledge.search",
+                "count": 1
+              }
+            ]
+          },
+          "outcome": {
+            "status": "completed",
+            "output": {
+              "mediaType": "application/json",
+              "encoding": "base64url",
+              "data": "eyJhbnN3ZXIiOiJvayJ9"
+            }
+          }
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_RECEIPT_INVALID"
+      }
+    },
+    {
+      "id": "reject-extra-field-receipt",
+      "family": "receipt_envelope",
+      "description": "Unknown field rejected",
+      "input": {
+        "target": "validate_receipt",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.receipt",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "startedAt": "2026-08-04T00:00:01.000Z",
+          "completedAt": "2026-08-04T00:00:02.000Z",
+          "eventCount": 0,
+          "finalEventDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "usage": {
+            "inputTokens": 10,
+            "outputTokens": 5,
+            "durationMilliseconds": 1000,
+            "actions": [
+              {
+                "name": "knowledge.search",
+                "count": 1
+              }
+            ]
+          },
+          "outcome": {
+            "status": "completed",
+            "output": {
+              "mediaType": "application/json",
+              "encoding": "base64url",
+              "data": "eyJhbnN3ZXIiOiJvayJ9"
+            }
+          },
+          "billing": {
+            "amount": 100
+          }
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "RUNNER_RECEIPT_INVALID"
+      }
+    }
+  ]
+}

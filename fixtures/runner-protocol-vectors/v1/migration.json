@@ -1,0 +1,109 @@
+{
+  "schemaVersion": "runner-protocol-vectors.v1",
+  "family": "migration",
+  "vectors": [
+    {
+      "id": "preview-to-v1-valid",
+      "family": "migration",
+      "description": "Preview to v1 migration supported",
+      "input": {
+        "fromVersion": "digital-employee.runner-protocol.preview",
+        "toVersion": "digital-employee.runner-protocol.v1"
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "preview-to-v1-with-payload",
+      "family": "migration",
+      "description": "Preview payload validates as v1",
+      "input": {
+        "fromVersion": "digital-employee.runner-protocol.preview",
+        "toVersion": "digital-employee.runner-protocol.v1",
+        "payload": {
+          "protocolVersion": "digital-employee.runner-protocol.v1",
+          "kind": "runner.task",
+          "taskId": "task-golden",
+          "runId": "run-golden",
+          "attempt": 1,
+          "fencingToken": 1,
+          "leaseId": "lease-golden",
+          "quoteId": "quote-golden",
+          "reservationId": "reservation-golden",
+          "sellerId": "seller-golden",
+          "runnerId": "runner-golden",
+          "employee": {
+            "id": "employee-golden",
+            "version": "1.2.3",
+            "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "engine": "claude-code",
+          "input": {
+            "mediaType": "application/json",
+            "encoding": "base64url",
+            "data": "eyJxdWVzdGlvbiI6ImhlbGxvIn0"
+          },
+          "issuedAt": "2026-08-04T00:00:00.000Z",
+          "expiresAt": "2026-08-04T00:05:00.000Z",
+          "leaseExpiresAt": "2026-08-04T00:04:00.000Z",
+          "nonce": "BwcHBwcHBwcHBwcHBwcHBw"
+        }
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "v1-to-v1-noop",
+      "family": "migration",
+      "description": "v1 to v1 identity migration",
+      "input": {
+        "fromVersion": "digital-employee.runner-protocol.v1",
+        "toVersion": "digital-employee.runner-protocol.v1"
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "reject-v2-to-v1",
+      "family": "migration",
+      "description": "v2 to v1 downgrade not supported",
+      "input": {
+        "fromVersion": "digital-employee.runner-protocol.v2",
+        "toVersion": "digital-employee.runner-protocol.v1"
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "MIGRATION_UNSUPPORTED"
+      }
+    },
+    {
+      "id": "reject-v1-to-v2",
+      "family": "migration",
+      "description": "v1 to v2 not yet supported",
+      "input": {
+        "fromVersion": "digital-employee.runner-protocol.v1",
+        "toVersion": "digital-employee.runner-protocol.v2"
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "MIGRATION_UNSUPPORTED"
+      }
+    },
+    {
+      "id": "reject-missing-versions",
+      "family": "migration",
+      "description": "Missing version fields rejected",
+      "input": {
+        "fromVersion": null,
+        "toVersion": null
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "MIGRATION_INVALID"
+      }
+    }
+  ]
+}

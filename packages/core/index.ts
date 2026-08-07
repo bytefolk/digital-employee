@@ -251,6 +251,29 @@ export type {
   RunnerReplayGuardPort,
 } from "./src/runner-replay-guard.js"
 export {
+  DURABLE_OUTBOX_COMPACTION_THRESHOLD,
+  DURABLE_OUTBOX_MAX_RETRIES,
+  DURABLE_OUTBOX_MAX_SIZE,
+  DURABLE_STORE_MAX_DEPLOYMENTS,
+  DURABLE_STORE_SCHEMA_VERSION,
+  DurableRunnerReplayGuard,
+  InMemoryDurableStore,
+} from "./src/runner-durable-store.js"
+export type {
+  DurableStoreCorruption,
+  DurableStoreCorruptionKind,
+  DurableStoreDegradedReason,
+  DurableStoreDegradedState,
+  OutboxEntryKind,
+  OutboxEntryStatus,
+  RunnerAttemptState,
+  RunnerAttemptStatus,
+  RunnerDeploymentRecord,
+  RunnerDurableStorePort,
+  RunnerOutbox,
+  RunnerOutboxEntry,
+} from "./src/runner-durable-store.js"
+export {
   RUNNER_LEASE_SAFETY_MARGIN_MS,
   RunnerLeaseError,
   RunnerLeaseState,

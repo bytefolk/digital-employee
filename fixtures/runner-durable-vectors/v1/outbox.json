@@ -1,0 +1,88 @@
+{
+  "family": "outbox",
+  "vectors": [
+    {
+      "id": "outbox-append",
+      "description": "Append an event to the outbox",
+      "input": {
+        "kind": "event",
+        "taskId": "task-100",
+        "fencingToken": 1,
+        "payload": "eyJ0eXBlIjoicHJvZ3Jlc3MifQ"
+      },
+      "expect": {
+        "outcome": "accepted",
+        "sequence": 1,
+        "status": "pending",
+        "retryCount": 0
+      }
+    },
+    {
+      "id": "outbox-retry",
+      "description": "Mark entry for retry increments retry count",
+      "precondition": {
+        "existingEntry": { "sequence": 1, "status": "inflight" }
+      },
+      "input": {
+        "action": "markRetry",
+        "sequence": 1,
+        "nextRetryAt": "2026-01-01T00:01:00.000Z"
+      },
+      "expect": {
+        "outcome": true,
+        "retryCount": 1,
+        "status": "pending"
+      }
+    },
+    {
+      "id": "outbox-ack",
+      "description": "Acknowledge successful delivery",
+      "precondition": {
+        "existingEntry": { "sequence": 1, "status": "inflight" }
+      },
+      "input": {
+        "action": "ack",
+        "sequence": 1
+      },
+      "expect": {
+        "outcome": true,
+        "status": "acknowledged"
+      }
+    },
+    {
+      "id": "outbox-compaction",
+      "description": "Compact removes acknowledged and dead entries",
+      "precondition": {
+        "entries": [
+          { "sequence": 1, "status": "acknowledged" },
+          { "sequence": 2, "status": "dead" },
+          { "sequence": 3, "status": "pending" }
+        ]
+      },
+      "input": {
+        "action": "compact"
+      },
+      "expect": {
+        "removed": 2,
+        "remainingSize": 1
+      }
+    },
+    {
+      "id": "outbox-overflow",
+      "description": "Append rejected when outbox at maximum capacity (4096 entries)",
+      "precondition": {
+        "currentSize": 4096
+      },
+      "input": {
+        "kind": "event",
+        "taskId": "overflow",
+        "fencingToken": 1,
+        "payload": "eA"
+      },
+      "expect": {
+        "outcome": "rejected",
+        "errorCode": "DURABLE_OUTBOX_OVERFLOW"
+      }
+    }
+  ]
+}

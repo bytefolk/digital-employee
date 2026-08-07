@@ -11,14 +11,14 @@
  * 7. Done message
  */
 
-import { detectSystemLocale, setLocale, t, getLocale } from "./i18n.js"
+import { detectSystemLocale, setLocale, t, getLocale, getAvailableLocales, getLocaleDisplayName } from "./i18n.js"
 import type { SupportedLocale } from "./i18n.js"
 import { selectPrompt, textPrompt, confirmPrompt, secretPrompt } from "./prompts.js"
 import { loadConfig, saveConfig, hasExistingDeployment } from "./config.js"
 import type { DeployConfig } from "./config.js"
 import { detectEngines } from "./engines.js"
 import type { EngineStatus } from "./engines.js"
-import { deployDingTalk, deployConsole, deployHttp } from "./channels.js"
+import { deployDingTalk, deployLark, deployWeCom, deployConsole, deployHttp } from "./channels.js"
 import type { ChannelId } from "./channels.js"
 
 export async function deploy(): Promise<void> {
@@ -29,10 +29,13 @@ export async function deploy(): Promise<void> {
   const detectedLocale = existing.locale || detectSystemLocale()
   setLocale(detectedLocale)
 
-  const locale = await selectPrompt(t("deploy.lang_prompt"), [
-    { label: t("deploy.lang_english"), value: "en" },
-    { label: t("deploy.lang_chinese"), value: "zh-CN" },
-  ]) as SupportedLocale
+  // Dynamically build locale choices from available locale files
+  const localeChoices = getAvailableLocales().map((code) => ({
+    label: getLocaleDisplayName(code),
+    value: code,
+  }))
+
+  const locale = await selectPrompt(t("deploy.lang_prompt"), localeChoices) as SupportedLocale
 
   setLocale(locale)
 
@@ -52,6 +55,8 @@ export async function deploy(): Promise<void> {
   // Step 2: Channel selection
   const channel = await selectPrompt(t("deploy.channel_prompt"), [
     { label: t("deploy.channel_dingtalk"), value: "dingtalk" },
+    { label: t("deploy.channel_lark"), value: "lark" },
+    { label: t("deploy.channel_wecom"), value: "wecom" },
     { label: t("deploy.channel_console"), value: "console" },
     { label: t("deploy.channel_http"), value: "http" },
   ]) as ChannelId
@@ -112,6 +117,10 @@ export async function deploy(): Promise<void> {
   let result
   if (channel === "dingtalk") {
     result = await deployDingTalk(config)
+  } else if (channel === "lark") {
+    result = await deployLark(config)
+  } else if (channel === "wecom") {
+    result = await deployWeCom(config)
   } else if (channel === "console") {
     result = await deployConsole(config)
   } else {
@@ -134,6 +143,10 @@ export async function deploy(): Promise<void> {
   process.stdout.write("\n")
   if (channel === "dingtalk") {
     process.stdout.write(`${t("deploy.done_dingtalk", { name: botName })}\n`)
+  } else if (channel === "lark") {
+    process.stdout.write(`${t("deploy.done_lark", { name: botName })}\n`)
+  } else if (channel === "wecom") {
+    process.stdout.write(`${t("deploy.done_wecom", { name: botName })}\n`)
   } else if (channel === "console") {
     process.stdout.write(`${t("deploy.done_console")}\n`)
   } else {

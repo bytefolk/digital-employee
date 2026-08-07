@@ -370,3 +370,30 @@ export type {
   UsageEvidenceTimeBounds,
   UsageEvidenceNormalization,
 } from "./src/runner-usage-evidence.js"
+export {
+  RUNNER_LIFECYCLE_VERSION,
+  RUNNER_POLL_MAX_BACKOFF_MS,
+  RUNNER_POLL_BASE_INTERVAL_MS,
+  RUNNER_MAX_CONSECUTIVE_FAILURES,
+  RUNNER_HEARTBEAT_FRACTION,
+  RunnerLifecycleError,
+  runnerInit,
+  runnerDoctor,
+  runnerStart,
+  runnerStatus,
+} from "./src/runner-lifecycle.js"
+export type {
+  RunnerLifecycleErrorCode,
+  RunnerConfig,
+  RunnerProcessStatus,
+  RunnerStatus,
+  DoctorCheckName,
+  DoctorCheckResult,
+  DoctorCheck,
+  DoctorReport,
+  RunnerInitOptions,
+  RunnerInitResult,
+  RunnerDoctorOptions,
+  RunnerStartOptions,
+  RunnerProcess,
+} from "./src/runner-lifecycle.js"

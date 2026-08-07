@@ -156,6 +156,7 @@ export function validateAgentHostProbeWire(
     ADAPTER_STATUSES.has(value.adapterStatus as string) &&
     (value.version === undefined || boundedString(value.version, 256)) &&
     plainRecord(capabilities) &&
+    exactKeys(capabilities, AGENT_HOST_CAPABILITIES as unknown as readonly string[]) &&
     AGENT_HOST_CAPABILITIES.every((capability) =>
       CAPABILITY_SUPPORT.has(capabilities[capability] as string),
     ) &&

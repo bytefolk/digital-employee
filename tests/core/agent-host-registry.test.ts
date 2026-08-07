@@ -9,7 +9,10 @@ import type {
   AgentHostAdapter,
   AgentHostProbeResult,
 } from "../../packages/core/src/agent-host.js"
-import { AgentHostRegistry } from "../../packages/core/src/agent-host-registry.js"
+import {
+  AgentHostRegistry,
+  validateAgentHostProbeResult,
+} from "../../packages/core/src/agent-host-registry.js"
 import { CoreError } from "../../packages/core/src/contracts.js"
 
 function probe(
@@ -312,4 +315,40 @@ test("registration validates callbacks before changing registry state", () => {
     isCoreError({ code: "INVALID_AGENT_HOST_REGISTRATION", status: 400 }),
   )
   assert.deepEqual(registry.list(), [])
+})
+
+test("validateAgentHostProbeResult rejects unknown top-level fields", () => {
+  const valid = probe("test-host")
+  const withExtra = { ...valid, vendorExtension: "smuggled" }
+  assert.throws(
+    () => validateAgentHostProbeResult(withExtra, "test-host"),
+    isCoreError({ code: "AGENT_HOST_PROBE_INVALID", status: 500 }),
+  )
+})
+
+test("validateAgentHostProbeResult rejects unknown issue fields", () => {
+  const valid = probe("test-host")
+  const withBadIssue = {
+    ...valid,
+    issues: [{ code: "x", message: "m", blocking: false, severity: "high" }],
+  }
+  assert.throws(
+    () => validateAgentHostProbeResult(withBadIssue, "test-host"),
+    isCoreError({ code: "AGENT_HOST_PROBE_INVALID", status: 500 }),
+  )
+})
+
+test("validateAgentHostProbeResult rejects unknown capability keys", () => {
+  const valid = probe("test-host")
+  const withExtraCap = {
+    ...valid,
+    capabilities: {
+      ...valid.capabilities,
+      vendor_extension: "supported",
+    },
+  }
+  assert.throws(
+    () => validateAgentHostProbeResult(withExtraCap, "test-host"),
+    isCoreError({ code: "AGENT_HOST_PROBE_INVALID", status: 500 }),
+  )
 })

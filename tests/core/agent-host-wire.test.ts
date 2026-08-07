@@ -86,6 +86,17 @@ test("probe wire rejects host id mismatch and unknown issue keys", () => {
   assert.throws(() => validateAgentHostProbeWire(probe, "fixture"))
 })
 
+test("probe wire rejects unknown capability keys", () => {
+  const probe = readyProbe()
+  ;(probe.capabilities as Record<string, string>).vendor_extension = "supported"
+  assert.throws(
+    () => validateAgentHostProbeWire(probe, "fixture"),
+    (error) =>
+      error instanceof CoreError &&
+      error.code === AGENT_HOST_VECTOR_CODES.probeInvalid,
+  )
+})
+
 test("run request wire accepts a minimal request", () => {
   const parsed = validateAgentHostRunRequestWire(minimalRunRequest())
   assert.equal(parsed.runId, "run-1")

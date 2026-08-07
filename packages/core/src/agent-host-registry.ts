@@ -198,6 +198,9 @@ export function validateAgentHostProbeResult(
         ADAPTER_STATUSES.has(value.adapterStatus as string) &&
         (value.version === undefined || boundedString(value.version, 256)) &&
         plainRecord(capabilities) &&
+        Object.keys(capabilities).every((key) =>
+          (AGENT_HOST_CAPABILITIES as readonly string[]).includes(key),
+        ) &&
         AGENT_HOST_CAPABILITIES.every((capability) =>
           CAPABILITY_SUPPORT.has(capabilities[capability] as string),
         ) &&

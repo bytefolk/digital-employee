@@ -161,7 +161,7 @@ function requireLoopbackBaseUrl(name: string): string {
   }
   const loopback =
     url.hostname === "127.0.0.1" ||
-    url.hostname === "::1" ||
+    url.hostname === "[::1]" ||
     url.hostname === "localhost"
   if (url.protocol !== "http:" || !loopback) {
     // Phase A is local-only by design; anything non-loopback is refused so a

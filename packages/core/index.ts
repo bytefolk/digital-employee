@@ -158,6 +158,34 @@ export {
 } from "./src/employee-package-digest.js"
 export type { EmployeePackageDigestEntry } from "./src/employee-package-digest.js"
 export {
+  ARCHIVE_FORMAT_VERSION,
+  ARCHIVE_EXTENSION,
+  ARCHIVE_META_NAME,
+  ARCHIVE_MAX_BYTES,
+  ArchiveError,
+  InMemoryInstallStore,
+  inspectArchive,
+  installArchive,
+  packArchive,
+  rollbackArchive,
+  upgradeArchive,
+  verifyArchive,
+} from "./src/employee-package-archive.js"
+export type {
+  ArchiveEntry,
+  ArchiveMeta,
+  ArchiveSignature,
+  InspectResult,
+  InstallOptions,
+  InstallRecord,
+  InstallStorePort,
+  PackInput,
+  PackResult,
+  RollbackOptions,
+  UpgradeOptions,
+  VerifyResult,
+} from "./src/employee-package-archive.js"
+export {
   EMPLOYEE_PACKAGE_SCHEMA_VERSIONS,
   EMPLOYEE_PACKAGE_DIGEST_RULES,
   EMPLOYEE_PACKAGE_KNOWN_FIELDS,

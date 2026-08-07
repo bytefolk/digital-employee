@@ -419,6 +419,27 @@ export type {
   UsageEvidenceNormalization,
 } from "./src/runner-usage-evidence.js"
 export {
+  TASK_INTAKE_APPROVAL_VERSION,
+  TASK_INTAKE_DEFAULT_TIMEOUT_MS,
+  TASK_INTAKE_MAX_TIMEOUT_MS,
+  TASK_INTAKE_MIN_TIMEOUT_MS,
+  TaskIntakeApprovalError,
+  TaskIntakeGate,
+  computeTaskIntakeDigest,
+  evaluateIntakeGate,
+  validateTaskIntakePolicy,
+  validateTaskIntakeRequest,
+} from "./src/task-intake-approval.js"
+export type {
+  TaskIntakeApprovalErrorCode,
+  TaskIntakeDecision,
+  TaskIntakeEvent,
+  TaskIntakePolicy,
+  TaskIntakeRecord,
+  TaskIntakeRequest,
+  TaskIntakeState,
+} from "./src/task-intake-approval.js"
+export {
   WRITE_APPROVAL_VERSION,
   WriteApprovalValidationError,
   classifyApprovalGuard,

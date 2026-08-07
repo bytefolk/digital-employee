@@ -60,6 +60,7 @@ export {
   AGENT_HOST_VECTOR_RESULT_SCHEMA_VERSION,
   AGENT_HOST_VECTOR_SCHEMA_VERSION,
   classifyAgentHostVector,
+  computeCorpusDigest,
   parseAgentHostVectorFile,
   parseAgentHostVectorManifest,
   runAgentHostVectorCorpus,
@@ -150,6 +151,19 @@ export type {
   ComponentMatrix,
   ComponentMatrixEntry,
 } from "./src/component-matrix.js"
+export {
+  EVIDENCE_CLASSES,
+  REAL_LOCAL_HARNESS_VERSION,
+  buildPhaseResult,
+  loadHarnessContext,
+  validatePhaseAMatrix,
+} from "./src/real-local-harness.js"
+export type {
+  EvidenceClass,
+  HarnessConfig,
+  HarnessContext,
+  HarnessPhaseResult,
+} from "./src/real-local-harness.js"
 export {
   AGENT_HOST_STDIO_ERROR_CODES,
   AGENT_HOST_STDIO_MAX_LINE_BYTES,

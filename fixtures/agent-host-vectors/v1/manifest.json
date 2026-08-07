@@ -1,6 +1,7 @@
 {
   "schemaVersion": "agent-host-vectors.v1",
   "protocolVersion": "agent-host.v1",
+  "corpusDigest": "2ac92b971c5131b9b3076d0052809592fc9f3d05716c2dfceb8dd27fe745ecf0",
   "families": [
     "probe",
     "preflight",

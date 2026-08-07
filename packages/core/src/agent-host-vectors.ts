@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { CoreError } from "./contracts.js"
 import { AGENT_HOST_PROTOCOL_VERSION } from "./agent-host.js"
 import {
@@ -57,6 +58,7 @@ export interface AgentHostVectorManifestEntry {
 export interface AgentHostVectorManifest {
   schemaVersion: string
   protocolVersion: string
+  corpusDigest: string
   families: readonly string[]
   files: AgentHostVectorManifestEntry[]
 }
@@ -148,6 +150,17 @@ export function parseAgentHostVectorFile(
   return { schemaVersion: AGENT_HOST_VECTOR_SCHEMA_VERSION, family: expectedFamily, vectors }
 }
 
+/**
+ * Computes the corpus aggregate digest: sha256 over the sorted
+ * "filename:filedigest" entries joined by newlines.
+ */
+export function computeCorpusDigest(
+  files: readonly { file: string; sha256: string }[],
+): string {
+  const entries = files.map((f) => `${f.file}:${f.sha256}`).sort()
+  return createHash("sha256").update(entries.join("\n")).digest("hex")
+}
+
 /** Validates the manifest contract and returns it typed. */
 export function parseAgentHostVectorManifest(
   value: unknown,
@@ -156,6 +169,8 @@ export function parseAgentHostVectorManifest(
     !plainRecord(value) ||
     value.schemaVersion !== AGENT_HOST_VECTOR_SCHEMA_VERSION ||
     value.protocolVersion !== AGENT_HOST_PROTOCOL_VERSION ||
+    typeof value.corpusDigest !== "string" ||
+    !/^[0-9a-f]{64}$/.test(value.corpusDigest) ||
     !Array.isArray(value.families) ||
     value.families.length !== AGENT_HOST_VECTOR_FAMILIES.length ||
     !AGENT_HOST_VECTOR_FAMILIES.every((family) =>
@@ -176,6 +191,13 @@ export function parseAgentHostVectorManifest(
     )
   ) {
     throw vectorError("vector manifest is malformed")
+  }
+  const files = value.files as Array<{ file: string; sha256: string }>
+  const expectedDigest = computeCorpusDigest(files)
+  if (value.corpusDigest !== expectedDigest) {
+    throw vectorError(
+      "vector manifest corpusDigest does not match file entries",
+    )
   }
   return value as unknown as AgentHostVectorManifest
 }

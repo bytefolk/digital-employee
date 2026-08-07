@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "capability-grant.v1",
+  "grantedBy": "operator",
+  "grants": [
+    {
+      "server": "mem",
+      "mode": "read",
+      "scopes": [
+        { "principal": "alice", "workspace": "ws-alpha" },
+        { "principal": "alice", "workspace": "ws-beta" }
+      ],
+      "revoked": false
+    },
+    {
+      "server": "doc",
+      "mode": "read",
+      "scopes": [
+        { "principal": "alice", "workspace": "ws-alpha" }
+      ],
+      "revoked": false
+    }
+  ]
+}

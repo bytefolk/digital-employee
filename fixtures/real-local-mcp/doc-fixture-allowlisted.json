@@ -1,0 +1,29 @@
+{
+  "workspace": "ws-alpha",
+  "documents": [
+    {
+      "id": "doc-allow-001",
+      "revision": 5,
+      "title": "Architecture Overview",
+      "body": "The system uses a modular connector architecture with strict scope isolation.",
+      "listed": true,
+      "revoked": false
+    },
+    {
+      "id": "doc-revoked-001",
+      "revision": 2,
+      "title": "Revoked Document",
+      "body": "This document has been revoked and must fail closed.",
+      "listed": true,
+      "revoked": true
+    },
+    {
+      "id": "doc-unlisted-001",
+      "revision": 1,
+      "title": "Unlisted Document",
+      "body": "This document is unlisted and must fail closed as unavailable.",
+      "listed": false,
+      "revoked": false
+    }
+  ]
+}

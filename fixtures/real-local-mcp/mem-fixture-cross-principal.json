@@ -1,0 +1,13 @@
+{
+  "workspace": "ws-alpha",
+  "principal": "bob",
+  "memories": [
+    {
+      "id": "mem-cross-001",
+      "revision": 1,
+      "state": "active",
+      "approved": true,
+      "text": "Cross-principal memory that must be denied for alice."
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "family": "replay_claim",
+  "vectors": [
+    {
+      "id": "claim-valid-first",
+      "description": "First claim for a nonce succeeds",
+      "input": {
+        "taskId": "task-100",
+        "runnerId": "runner-A",
+        "nonce": "dGVzdC1ub25jZS0xMjM0NTY3OA",
+        "fencingToken": 1,
+        "expiresAt": "2026-01-01T00:05:00.000Z"
+      },
+      "clock": "2026-01-01T00:01:00.000Z",
+      "expect": {
+        "outcome": true
+      }
+    },
+    {
+      "id": "claim-duplicate-nonce",
+      "description": "Duplicate nonce for same task is rejected",
+      "precondition": {
+        "existingClaim": {
+          "taskId": "task-100",
+          "nonce": "dGVzdC1ub25jZS0xMjM0NTY3OA",
+          "fencingToken": 1
+        }
+      },
+      "input": {
+        "taskId": "task-100",
+        "runnerId": "runner-A",
+        "nonce": "dGVzdC1ub25jZS0xMjM0NTY3OA",
+        "fencingToken": 1,
+        "expiresAt": "2026-01-01T00:05:00.000Z"
+      },
+      "clock": "2026-01-01T00:02:00.000Z",
+      "expect": {
+        "outcome": false
+      }
+    },
+    {
+      "id": "claim-fencing-conflict",
+      "description": "Claim with stale fencing token is rejected when newer exists",
+      "precondition": {
+        "existingClaim": {
+          "taskId": "task-100",
+          "nonce": "bmV3LW5vbmNlLTk4NzY1NDMyMQ",
+          "fencingToken": 10
+        }
+      },
+      "input": {
+        "taskId": "task-100",
+        "runnerId": "runner-B",
+        "nonce": "c3RhbGUtbm9uY2UtMTIzNDU2Nzg",
+        "fencingToken": 5,
+        "expiresAt": "2026-01-01T00:05:00.000Z"
+      },
+      "clock": "2026-01-01T00:01:00.000Z",
+      "expect": {
+        "outcome": false
+      }
+    }
+  ]
+}

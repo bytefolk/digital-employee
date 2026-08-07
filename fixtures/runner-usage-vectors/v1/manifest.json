@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "runner-usage-vectors.v1",
+  "evidenceVersion": "usage-evidence.v1",
+  "families": ["validation", "normalization", "proof_quality"],
+  "files": [
+    {
+      "file": "validation.json",
+      "sha256": "2ab9d3867fa5c9937883fbdf1da413a36556d736558fa9e72f7d6c9e90e94a8d",
+      "vectorCount": 11
+    },
+    {
+      "file": "normalization.json",
+      "sha256": "b62c65b7339dfd301491384916fcc78e52c0850bc2b9a9352c63a95ec768d480",
+      "vectorCount": 3
+    },
+    {
+      "file": "proof_quality.json",
+      "sha256": "4932e2090dd7ce33896681aaf42bd4c6fb116b08d90777d48f78f9402dddf3f6",
+      "vectorCount": 7
+    }
+  ]
+}

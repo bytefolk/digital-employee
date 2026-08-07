@@ -1,0 +1,147 @@
+{
+  "family": "proof_quality",
+  "vectors": [
+    {
+      "id": "unverified-self-report",
+      "description": "Runner self-report always classifies as unverified",
+      "input": {
+        "evidenceId": "ev-pq1",
+        "version": "usage-evidence.v1",
+        "taskId": "task-pq1",
+        "runId": "run-pq1",
+        "attempt": 1,
+        "runnerId": "runner-pq1",
+        "timestamp": "2026-01-15T10:00:00.000Z",
+        "provider": { "id": "openai", "model": "gpt-4o" },
+        "tokens": { "input": 100, "output": 50 },
+        "requests": { "count": 1 },
+        "timeBounds": { "startedAt": "2026-01-15T09:59:50.000Z", "completedAt": "2026-01-15T10:00:00.000Z" },
+        "source": "runner_self_report",
+        "proofQuality": "runner_attested"
+      },
+      "expected": "unverified"
+    },
+    {
+      "id": "attested-provider-mismatch",
+      "description": "Provider-signed source but proofQuality is not provider_signed yields runner_attested",
+      "input": {
+        "evidenceId": "ev-pq2",
+        "version": "usage-evidence.v1",
+        "taskId": "task-pq2",
+        "runId": "run-pq2",
+        "attempt": 1,
+        "runnerId": "runner-pq2",
+        "timestamp": "2026-01-15T10:00:00.000Z",
+        "provider": { "id": "anthropic", "model": "claude-4" },
+        "tokens": { "input": 200, "output": 100 },
+        "requests": { "count": 1 },
+        "timeBounds": { "startedAt": "2026-01-15T09:59:50.000Z", "completedAt": "2026-01-15T10:00:00.000Z" },
+        "source": "provider_signed",
+        "proofQuality": "runner_attested"
+      },
+      "expected": "runner_attested"
+    },
+    {
+      "id": "provider-signed-match",
+      "description": "Provider-signed source with matching proofQuality yields provider_signed",
+      "input": {
+        "evidenceId": "ev-pq3",
+        "version": "usage-evidence.v1",
+        "taskId": "task-pq3",
+        "runId": "run-pq3",
+        "attempt": 1,
+        "runnerId": "runner-pq3",
+        "timestamp": "2026-01-15T10:00:00.000Z",
+        "provider": { "id": "anthropic", "model": "claude-4" },
+        "tokens": { "input": 200, "output": 100 },
+        "requests": { "count": 1 },
+        "timeBounds": { "startedAt": "2026-01-15T09:59:50.000Z", "completedAt": "2026-01-15T10:00:00.000Z" },
+        "source": "provider_signed",
+        "proofQuality": "provider_signed",
+        "proofReference": "sig:verified"
+      },
+      "expected": "provider_signed"
+    },
+    {
+      "id": "gateway-verified-match",
+      "description": "Gateway trusted source with gateway_verified quality",
+      "input": {
+        "evidenceId": "ev-pq4",
+        "version": "usage-evidence.v1",
+        "taskId": "task-pq4",
+        "runId": "run-pq4",
+        "attempt": 1,
+        "runnerId": "runner-pq4",
+        "timestamp": "2026-01-15T10:00:00.000Z",
+        "provider": { "id": "azure-openai", "model": "gpt-4o" },
+        "tokens": { "input": 300, "output": 150 },
+        "requests": { "count": 1 },
+        "timeBounds": { "startedAt": "2026-01-15T09:59:50.000Z", "completedAt": "2026-01-15T10:00:00.000Z" },
+        "source": "gateway_trusted",
+        "proofQuality": "gateway_verified",
+        "proofReference": "gw:receipt:abc"
+      },
+      "expected": "gateway_verified"
+    },
+    {
+      "id": "unverified-unknown-source",
+      "description": "Unknown source always classifies as unverified",
+      "input": {
+        "evidenceId": "ev-pq5",
+        "version": "usage-evidence.v1",
+        "taskId": "task-pq5",
+        "runId": "run-pq5",
+        "attempt": 1,
+        "runnerId": "runner-pq5",
+        "timestamp": "2026-01-15T10:00:00.000Z",
+        "provider": { "id": "openai", "model": "gpt-4o" },
+        "tokens": { "input": 100, "output": 50 },
+        "requests": { "count": 1 },
+        "timeBounds": { "startedAt": "2026-01-15T09:59:50.000Z", "completedAt": "2026-01-15T10:00:00.000Z" },
+        "source": "unknown",
+        "proofQuality": "unverified"
+      },
+      "expected": "unverified"
+    },
+    {
+      "id": "gateway-without-verified-quality",
+      "description": "Gateway trusted but proofQuality not gateway_verified yields runner_attested",
+      "input": {
+        "evidenceId": "ev-pq6",
+        "version": "usage-evidence.v1",
+        "taskId": "task-pq6",
+        "runId": "run-pq6",
+        "attempt": 1,
+        "runnerId": "runner-pq6",
+        "timestamp": "2026-01-15T10:00:00.000Z",
+        "provider": { "id": "azure-openai", "model": "gpt-4o" },
+        "tokens": { "input": 300, "output": 150 },
+        "requests": { "count": 1 },
+        "timeBounds": { "startedAt": "2026-01-15T09:59:50.000Z", "completedAt": "2026-01-15T10:00:00.000Z" },
+        "source": "gateway_trusted",
+        "proofQuality": "runner_attested"
+      },
+      "expected": "runner_attested"
+    },
+    {
+      "id": "self-report-cannot-escalate",
+      "description": "Runner self-report with provider_signed quality still classifies as unverified",
+      "input": {
+        "evidenceId": "ev-pq7",
+        "version": "usage-evidence.v1",
+        "taskId": "task-pq7",
+        "runId": "run-pq7",
+        "attempt": 1,
+        "runnerId": "runner-pq7",
+        "timestamp": "2026-01-15T10:00:00.000Z",
+        "provider": { "id": "openai", "model": "gpt-4o" },
+        "tokens": { "input": 100, "output": 50 },
+        "requests": { "count": 1 },
+        "timeBounds": { "startedAt": "2026-01-15T09:59:50.000Z", "completedAt": "2026-01-15T10:00:00.000Z" },
+        "source": "runner_self_report",
+        "proofQuality": "provider_signed"
+      },
+      "expected": "unverified"
+    }
+  ]
+}

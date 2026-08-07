@@ -1,0 +1,54 @@
+{
+  "family": "deployment",
+  "vectors": [
+    {
+      "id": "deployment-valid-register",
+      "description": "Valid deployment registration with all required fields",
+      "input": {
+        "employeeId": "emp-001",
+        "employeeVersion": "1.0.0",
+        "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "localPackageRef": "oci://registry.local/emp-001:1.0.0",
+        "agentHostId": "host-alpha",
+        "registeredAt": "2026-01-01T00:00:00.000Z"
+      },
+      "expect": {
+        "outcome": "accepted"
+      }
+    },
+    {
+      "id": "deployment-valid-update-same-digest",
+      "description": "Update existing deployment with same digest succeeds",
+      "input": {
+        "employeeId": "emp-001",
+        "employeeVersion": "1.0.0",
+        "packageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "localPackageRef": "oci://registry.local/emp-001:1.0.0-updated",
+        "agentHostId": "host-beta",
+        "registeredAt": "2026-01-02T00:00:00.000Z"
+      },
+      "expect": {
+        "outcome": "accepted"
+      }
+    },
+    {
+      "id": "deployment-invalid-digest-mismatch",
+      "description": "Reject registration when digest differs for same employee+version",
+      "precondition": {
+        "existingDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "input": {
+        "employeeId": "emp-001",
+        "employeeVersion": "1.0.0",
+        "packageDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "localPackageRef": "oci://registry.local/emp-001:1.0.0",
+        "agentHostId": "host-alpha",
+        "registeredAt": "2026-01-01T00:00:00.000Z"
+      },
+      "expect": {
+        "outcome": "rejected",
+        "errorCode": "DURABLE_STORE_DIGEST_MISMATCH"
+      }
+    }
+  ]
+}

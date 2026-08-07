@@ -1,0 +1,129 @@
+{
+  "family": "normalization",
+  "vectors": [
+    {
+      "id": "monotonicity-valid",
+      "description": "Tokens increase monotonically across events",
+      "events": [
+        {
+          "evidenceId": "ev-n1",
+          "version": "usage-evidence.v1",
+          "taskId": "task-norm",
+          "runId": "run-norm",
+          "attempt": 1,
+          "runnerId": "runner-n1",
+          "timestamp": "2026-01-15T10:00:00.000Z",
+          "provider": { "id": "openai", "model": "gpt-4o" },
+          "tokens": { "input": 100, "output": 50 },
+          "requests": { "count": 1 },
+          "timeBounds": { "startedAt": "2026-01-15T09:59:50.000Z", "completedAt": "2026-01-15T10:00:00.000Z" },
+          "source": "runner_self_report",
+          "proofQuality": "unverified"
+        },
+        {
+          "evidenceId": "ev-n2",
+          "version": "usage-evidence.v1",
+          "taskId": "task-norm",
+          "runId": "run-norm",
+          "attempt": 1,
+          "runnerId": "runner-n1",
+          "timestamp": "2026-01-15T10:01:00.000Z",
+          "provider": { "id": "openai", "model": "gpt-4o" },
+          "tokens": { "input": 200, "output": 100 },
+          "requests": { "count": 1 },
+          "timeBounds": { "startedAt": "2026-01-15T10:00:00.000Z", "completedAt": "2026-01-15T10:01:00.000Z" },
+          "source": "runner_self_report",
+          "proofQuality": "unverified"
+        }
+      ],
+      "expected": {
+        "tokens": { "input": 200, "output": 100 },
+        "requests": { "count": 2 },
+        "proofQuality": "unverified"
+      }
+    },
+    {
+      "id": "monotonicity-violation",
+      "description": "Tokens decrease — violation forces unverified quality",
+      "events": [
+        {
+          "evidenceId": "ev-v1",
+          "version": "usage-evidence.v1",
+          "taskId": "task-viol",
+          "runId": "run-viol",
+          "attempt": 1,
+          "runnerId": "runner-v1",
+          "timestamp": "2026-01-15T10:00:00.000Z",
+          "provider": { "id": "anthropic", "model": "claude-4" },
+          "tokens": { "input": 500, "output": 200 },
+          "requests": { "count": 1 },
+          "timeBounds": { "startedAt": "2026-01-15T09:59:50.000Z", "completedAt": "2026-01-15T10:00:00.000Z" },
+          "source": "provider_signed",
+          "proofQuality": "provider_signed"
+        },
+        {
+          "evidenceId": "ev-v2",
+          "version": "usage-evidence.v1",
+          "taskId": "task-viol",
+          "runId": "run-viol",
+          "attempt": 1,
+          "runnerId": "runner-v1",
+          "timestamp": "2026-01-15T10:01:00.000Z",
+          "provider": { "id": "anthropic", "model": "claude-4" },
+          "tokens": { "input": 300, "output": 100 },
+          "requests": { "count": 1 },
+          "timeBounds": { "startedAt": "2026-01-15T10:00:00.000Z", "completedAt": "2026-01-15T10:01:00.000Z" },
+          "source": "provider_signed",
+          "proofQuality": "provider_signed"
+        }
+      ],
+      "expected": {
+        "tokens": { "input": 500, "output": 200 },
+        "requests": { "count": 2 },
+        "proofQuality": "unverified"
+      }
+    },
+    {
+      "id": "aggregation-wide-time-bounds",
+      "description": "Aggregation picks widest time bounds",
+      "events": [
+        {
+          "evidenceId": "ev-a1",
+          "version": "usage-evidence.v1",
+          "taskId": "task-agg",
+          "runId": "run-agg",
+          "attempt": 1,
+          "runnerId": "runner-a1",
+          "timestamp": "2026-01-15T10:00:00.000Z",
+          "provider": { "id": "openai", "model": "gpt-4o" },
+          "tokens": { "input": 100, "output": 50 },
+          "requests": { "count": 2, "toolCalls": 1 },
+          "timeBounds": { "startedAt": "2026-01-15T09:58:00.000Z", "completedAt": "2026-01-15T10:00:00.000Z" },
+          "source": "gateway_trusted",
+          "proofQuality": "gateway_verified"
+        },
+        {
+          "evidenceId": "ev-a2",
+          "version": "usage-evidence.v1",
+          "taskId": "task-agg",
+          "runId": "run-agg",
+          "attempt": 1,
+          "runnerId": "runner-a1",
+          "timestamp": "2026-01-15T10:02:00.000Z",
+          "provider": { "id": "openai", "model": "gpt-4o" },
+          "tokens": { "input": 300, "output": 150 },
+          "requests": { "count": 1, "toolCalls": 3 },
+          "timeBounds": { "startedAt": "2026-01-15T10:00:00.000Z", "completedAt": "2026-01-15T10:02:00.000Z" },
+          "source": "gateway_trusted",
+          "proofQuality": "gateway_verified"
+        }
+      ],
+      "expected": {
+        "tokens": { "input": 300, "output": 150 },
+        "requests": { "count": 3, "toolCalls": 4 },
+        "timeBounds": { "startedAt": "2026-01-15T09:58:00.000Z", "completedAt": "2026-01-15T10:02:00.000Z" },
+        "proofQuality": "gateway_verified"
+      }
+    }
+  ]
+}

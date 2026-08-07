@@ -1,0 +1,228 @@
+{
+  "family": "validation",
+  "vectors": [
+    {
+      "id": "valid-runner-self-report",
+      "description": "Valid evidence with runner self-report source",
+      "input": {
+        "evidenceId": "ev-001",
+        "version": "usage-evidence.v1",
+        "taskId": "task-abc",
+        "runId": "run-xyz",
+        "attempt": 1,
+        "runnerId": "runner-01",
+        "timestamp": "2026-01-15T10:00:00.000Z",
+        "provider": { "id": "openai", "model": "gpt-4o", "region": "us-east-1" },
+        "tokens": { "input": 500, "output": 200 },
+        "requests": { "count": 1 },
+        "timeBounds": {
+          "startedAt": "2026-01-15T09:59:50.000Z",
+          "completedAt": "2026-01-15T10:00:00.000Z"
+        },
+        "source": "runner_self_report",
+        "proofQuality": "unverified"
+      },
+      "expected": { "valid": true }
+    },
+    {
+      "id": "valid-provider-signed",
+      "description": "Valid evidence with provider-signed source",
+      "input": {
+        "evidenceId": "ev-002",
+        "version": "usage-evidence.v1",
+        "taskId": "task-def",
+        "runId": "run-uvw",
+        "attempt": 2,
+        "runnerId": "runner-02",
+        "timestamp": "2026-02-20T14:30:00.000Z",
+        "provider": { "id": "anthropic", "model": "claude-4", "region": "eu-west-1" },
+        "tokens": { "input": 1000, "output": 400, "cached": 50 },
+        "requests": { "count": 3, "toolCalls": 2 },
+        "timeBounds": {
+          "startedAt": "2026-02-20T14:29:00.000Z",
+          "completedAt": "2026-02-20T14:30:00.000Z"
+        },
+        "source": "provider_signed",
+        "proofQuality": "provider_signed",
+        "proofReference": "sig:abc123def456"
+      },
+      "expected": { "valid": true }
+    },
+    {
+      "id": "valid-gateway-trusted",
+      "description": "Valid evidence from gateway trusted source",
+      "input": {
+        "evidenceId": "ev-003",
+        "version": "usage-evidence.v1",
+        "taskId": "task-ghi",
+        "runId": "run-rst",
+        "attempt": 1,
+        "runnerId": "runner-03",
+        "timestamp": "2026-03-10T08:00:00.000Z",
+        "provider": { "id": "azure-openai", "model": "gpt-4o-mini" },
+        "tokens": { "input": 250, "output": 100 },
+        "requests": { "count": 1 },
+        "timeBounds": {
+          "startedAt": "2026-03-10T07:59:55.000Z",
+          "completedAt": "2026-03-10T08:00:00.000Z"
+        },
+        "source": "gateway_trusted",
+        "proofQuality": "gateway_verified",
+        "proofReference": "gw:receipt:xyz789"
+      },
+      "expected": { "valid": true }
+    },
+    {
+      "id": "valid-with-unknown-provider-fields",
+      "description": "Valid evidence with extra provider fields preserved",
+      "input": {
+        "evidenceId": "ev-004",
+        "version": "usage-evidence.v1",
+        "taskId": "task-jkl",
+        "runId": "run-opq",
+        "attempt": 1,
+        "runnerId": "runner-04",
+        "timestamp": "2026-04-01T12:00:00.000Z",
+        "provider": { "id": "custom-llm", "model": "my-model-v2", "datacenter": "dc-west", "tier": "premium" },
+        "tokens": { "input": 100, "output": 50 },
+        "requests": { "count": 1 },
+        "timeBounds": {
+          "startedAt": "2026-04-01T11:59:50.000Z",
+          "completedAt": "2026-04-01T12:00:00.000Z"
+        },
+        "source": "runner_self_report",
+        "proofQuality": "unverified"
+      },
+      "expected": { "valid": true, "preservedProviderFields": ["datacenter", "tier"] }
+    },
+    {
+      "id": "valid-with-redactions",
+      "description": "Valid evidence with redacted fields",
+      "input": {
+        "evidenceId": "ev-005",
+        "version": "usage-evidence.v1",
+        "taskId": "task-mno",
+        "runId": "run-stu",
+        "attempt": 1,
+        "runnerId": "runner-05",
+        "timestamp": "2026-05-15T16:00:00.000Z",
+        "provider": { "id": "openai", "model": "gpt-4o" },
+        "tokens": { "input": 300, "output": 150 },
+        "requests": { "count": 2 },
+        "timeBounds": {
+          "startedAt": "2026-05-15T15:59:00.000Z",
+          "completedAt": "2026-05-15T16:00:00.000Z"
+        },
+        "source": "runner_self_report",
+        "proofQuality": "unverified",
+        "redactions": ["provider.region", "tokens.cached"]
+      },
+      "expected": { "valid": true }
+    },
+    {
+      "id": "invalid-missing-evidenceId",
+      "description": "Reject: missing evidenceId",
+      "input": {
+        "version": "usage-evidence.v1",
+        "taskId": "task-abc",
+        "runId": "run-xyz",
+        "attempt": 1,
+        "runnerId": "runner-01",
+        "timestamp": "2026-01-15T10:00:00.000Z",
+        "provider": { "id": "openai", "model": "gpt-4o" },
+        "tokens": { "input": 500, "output": 200 },
+        "requests": { "count": 1 },
+        "timeBounds": { "startedAt": "2026-01-15T09:59:50.000Z", "completedAt": "2026-01-15T10:00:00.000Z" },
+        "source": "runner_self_report",
+        "proofQuality": "unverified"
+      },
+      "expected": { "valid": false, "errorContains": "evidenceId" }
+    },
+    {
+      "id": "invalid-wrong-version",
+      "description": "Reject: wrong version string",
+      "input": {
+        "evidenceId": "ev-bad-version",
+        "version": "usage-evidence.v99",
+        "taskId": "task-abc",
+        "runId": "run-xyz",
+        "attempt": 1,
+        "runnerId": "runner-01",
+        "timestamp": "2026-01-15T10:00:00.000Z",
+        "provider": { "id": "openai", "model": "gpt-4o" },
+        "tokens": { "input": 500, "output": 200 },
+        "requests": { "count": 1 },
+        "timeBounds": { "startedAt": "2026-01-15T09:59:50.000Z", "completedAt": "2026-01-15T10:00:00.000Z" },
+        "source": "runner_self_report",
+        "proofQuality": "unverified"
+      },
+      "expected": { "valid": false, "errorContains": "version" }
+    },
+    {
+      "id": "invalid-negative-tokens",
+      "description": "Reject: negative token count",
+      "input": {
+        "evidenceId": "ev-neg-tokens",
+        "version": "usage-evidence.v1",
+        "taskId": "task-abc",
+        "runId": "run-xyz",
+        "attempt": 1,
+        "runnerId": "runner-01",
+        "timestamp": "2026-01-15T10:00:00.000Z",
+        "provider": { "id": "openai", "model": "gpt-4o" },
+        "tokens": { "input": -1, "output": 200 },
+        "requests": { "count": 1 },
+        "timeBounds": { "startedAt": "2026-01-15T09:59:50.000Z", "completedAt": "2026-01-15T10:00:00.000Z" },
+        "source": "runner_self_report",
+        "proofQuality": "unverified"
+      },
+      "expected": { "valid": false, "errorContains": "tokens.input" }
+    },
+    {
+      "id": "invalid-bad-source",
+      "description": "Reject: invalid source value",
+      "input": {
+        "evidenceId": "ev-bad-source",
+        "version": "usage-evidence.v1",
+        "taskId": "task-abc",
+        "runId": "run-xyz",
+        "attempt": 1,
+        "runnerId": "runner-01",
+        "timestamp": "2026-01-15T10:00:00.000Z",
+        "provider": { "id": "openai", "model": "gpt-4o" },
+        "tokens": { "input": 500, "output": 200 },
+        "requests": { "count": 1 },
+        "timeBounds": { "startedAt": "2026-01-15T09:59:50.000Z", "completedAt": "2026-01-15T10:00:00.000Z" },
+        "source": "magic_trust",
+        "proofQuality": "unverified"
+      },
+      "expected": { "valid": false, "errorContains": "source" }
+    },
+    {
+      "id": "invalid-completedAt-before-startedAt",
+      "description": "Reject: completedAt before startedAt",
+      "input": {
+        "evidenceId": "ev-time-inversion",
+        "version": "usage-evidence.v1",
+        "taskId": "task-abc",
+        "runId": "run-xyz",
+        "attempt": 1,
+        "runnerId": "runner-01",
+        "timestamp": "2026-01-15T10:00:00.000Z",
+        "provider": { "id": "openai", "model": "gpt-4o" },
+        "tokens": { "input": 500, "output": 200 },
+        "requests": { "count": 1 },
+        "timeBounds": { "startedAt": "2026-01-15T10:00:00.000Z", "completedAt": "2026-01-15T09:59:50.000Z" },
+        "source": "runner_self_report",
+        "proofQuality": "unverified"
+      },
+      "expected": { "valid": false, "errorContains": "completedAt" }
+    },
+    {
+      "id": "invalid-not-object",
+      "description": "Reject: input is a string",
+      "input": "not-an-object",
+      "expected": { "valid": false, "errorContains": "plain object" }
+    }
+  ]
+}

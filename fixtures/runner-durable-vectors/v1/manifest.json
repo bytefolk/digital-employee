@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "runner-durable-vectors.v1",
+  "families": [
+    "deployment",
+    "replay_claim",
+    "outbox"
+  ],
+  "files": [
+    {
+      "file": "deployment.json",
+      "sha256": "5ffe57187653ae82edb41120d16ee695c702dc7730dfa9a5cc91d4ad2fd13cc2",
+      "vectorCount": 3
+    },
+    {
+      "file": "replay-claim.json",
+      "sha256": "85d4cf0dcdeb22cfbcf9233eb6dee5fa98e136aa9af41169f4228b49885a7afc",
+      "vectorCount": 3
+    },
+    {
+      "file": "outbox.json",
+      "sha256": "508f20c1594009e8e8ce342eff847497206ac70a852957d588f03593b7d5ae93",
+      "vectorCount": 5
+    }
+  ]
+}

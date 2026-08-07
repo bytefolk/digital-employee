@@ -419,6 +419,27 @@ export type {
   UsageEvidenceNormalization,
 } from "./src/runner-usage-evidence.js"
 export {
+  WRITE_APPROVAL_VERSION,
+  WriteApprovalValidationError,
+  classifyApprovalGuard,
+  computePreviewDigest,
+  deriveIdempotencyKey,
+  validateWriteApprovalDecision,
+  validateWritePreviewRequest,
+} from "./src/write-approval.js"
+export type {
+  WriteApprovalDecision,
+  WriteApprovalErrorCode,
+  WriteApprovalState,
+  WriteAuditEvent,
+  WriteEffect,
+  WriteExecutionResult,
+  WritePreview,
+  WritePreviewRequest,
+  WriteTarget,
+} from "./src/write-approval.js"
+export { WriteApprovalEngine } from "./src/write-approval-engine.js"
+export {
   RUNNER_LIFECYCLE_VERSION,
   RUNNER_POLL_MAX_BACKOFF_MS,
   RUNNER_POLL_BASE_INTERVAL_MS,

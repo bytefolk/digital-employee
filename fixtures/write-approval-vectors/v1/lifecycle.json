@@ -1,0 +1,45 @@
+{
+  "family": "lifecycle",
+  "schemaVersion": "write-approval.v1",
+  "vectors": [
+    {
+      "id": "happy_path_create",
+      "description": "Full lifecycle: create preview, approve, execute successfully",
+      "request": {
+        "taskId": "task-001",
+        "toolName": "file_write",
+        "target": { "uri": "file:///tmp/hello.txt", "baseRevision": "rev-0" },
+        "effect": { "type": "create", "canonicalPayload": "{\"content\":\"hello world\"}" }
+      },
+      "decision": { "approved": true },
+      "execution": { "success": true, "revision": "rev-1" },
+      "expectedFinalState": "success"
+    },
+    {
+      "id": "happy_path_update",
+      "description": "Full lifecycle: update existing resource",
+      "request": {
+        "taskId": "task-002",
+        "toolName": "file_write",
+        "target": { "uri": "file:///tmp/hello.txt", "baseRevision": "rev-1" },
+        "effect": { "type": "update", "canonicalPayload": "{\"content\":\"updated\"}" }
+      },
+      "decision": { "approved": true },
+      "execution": { "success": true, "revision": "rev-2" },
+      "expectedFinalState": "success"
+    },
+    {
+      "id": "denial_terminal",
+      "description": "Denied approval is terminal",
+      "request": {
+        "taskId": "task-003",
+        "toolName": "file_write",
+        "target": { "uri": "file:///tmp/secret.txt" },
+        "effect": { "type": "create", "canonicalPayload": "{\"content\":\"secret\"}" }
+      },
+      "decision": { "approved": false },
+      "execution": null,
+      "expectedFinalState": "denied"
+    }
+  ]
+}

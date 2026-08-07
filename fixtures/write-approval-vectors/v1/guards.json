@@ -1,0 +1,36 @@
+{
+  "family": "guards",
+  "schemaVersion": "write-approval.v1",
+  "vectors": [
+    {
+      "id": "tampered_preview",
+      "description": "Reject when decision previewDigest does not match preview",
+      "guardCode": "tampered_preview"
+    },
+    {
+      "id": "stale_attempt",
+      "description": "Reject when decision attempt does not match current attempt",
+      "guardCode": "stale_attempt"
+    },
+    {
+      "id": "fencing_mismatch",
+      "description": "Reject when decision fencingToken does not match current token",
+      "guardCode": "fencing_mismatch"
+    },
+    {
+      "id": "already_consumed",
+      "description": "Reject when idempotency key has already been consumed",
+      "guardCode": "already_consumed"
+    },
+    {
+      "id": "approval_expired",
+      "description": "Reject when current time exceeds decision expiresAt",
+      "guardCode": "approval_expired"
+    },
+    {
+      "id": "undeclared_tool",
+      "description": "Reject when toolName is not in declaredTools list",
+      "guardCode": "undeclared_tool"
+    }
+  ]
+}

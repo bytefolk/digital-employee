@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "write-approval.v1",
+  "families": ["lifecycle", "guards", "idempotency"],
+  "files": [
+    {
+      "file": "lifecycle.json",
+      "family": "lifecycle",
+      "sha256": "cc37ab6c47fa31b398903cf70c8da7972153cdc004900db563a3d389c29b36eb"
+    },
+    {
+      "file": "guards.json",
+      "family": "guards",
+      "sha256": "2ccbb9449657ef1f129e0d96907e160a541c5c5e257646adf0d9eb12481d6f27"
+    },
+    {
+      "file": "idempotency.json",
+      "family": "idempotency",
+      "sha256": "8f5df907617b24e1592fa9db62cdb76ccad95693dfa2cbdeffd582b425b6c352"
+    }
+  ]
+}

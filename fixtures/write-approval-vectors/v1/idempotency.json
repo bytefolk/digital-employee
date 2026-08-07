@@ -1,0 +1,21 @@
+{
+  "family": "idempotency",
+  "schemaVersion": "write-approval.v1",
+  "vectors": [
+    {
+      "id": "idempotent_success",
+      "description": "Second execute with same key returns cached success without calling executor",
+      "expectedBehavior": "return_cached"
+    },
+    {
+      "id": "idempotent_retry_after_fail",
+      "description": "After failure, retry is allowed with new attempt and fencing token",
+      "expectedBehavior": "allow_retry"
+    },
+    {
+      "id": "partial_fail_compensation",
+      "description": "Partial failure reports compensation requirement",
+      "expectedBehavior": "partial_fail_with_compensation"
+    }
+  ]
+}

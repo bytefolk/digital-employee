@@ -1,0 +1,132 @@
+{
+  "schemaVersion": "employee-package-vectors.v1",
+  "family": "field_constraints",
+  "vectors": [
+    {
+      "id": "reject-name-uppercase",
+      "family": "field_constraints",
+      "description": "Package name must be lowercase kebab-case",
+      "input": {
+        "schemaVersion": "employee-package.v1alpha1",
+        "name": "Invalid-Name",
+        "version": "1.0.0",
+        "description": "Name with uppercase",
+        "license": "MIT",
+        "authors": ["Test"],
+        "host": { "protocol": "agent-host.v1", "requiredCapabilities": [] },
+        "entrypoints": { "skill": "./SKILL.md", "inputSchema": "./in.json", "outputSchema": "./out.json" },
+        "policy": { "mode": "read_only", "network": "deny", "filesystem": { "read": [], "write": [] }, "mcpTools": [] },
+        "assets": []
+      },
+      "expect": { "kind": "reject", "code": "employee_package_invalid_field" }
+    },
+    {
+      "id": "reject-version-not-semver",
+      "family": "field_constraints",
+      "description": "Version must be valid semver",
+      "input": {
+        "schemaVersion": "employee-package.v1alpha1",
+        "name": "bad-version",
+        "version": "not.a.version.at.all",
+        "description": "Invalid semver",
+        "license": "MIT",
+        "authors": ["Test"],
+        "host": { "protocol": "agent-host.v1", "requiredCapabilities": [] },
+        "entrypoints": { "skill": "./SKILL.md", "inputSchema": "./in.json", "outputSchema": "./out.json" },
+        "policy": { "mode": "read_only", "network": "deny", "filesystem": { "read": [], "write": [] }, "mcpTools": [] },
+        "assets": []
+      },
+      "expect": { "kind": "reject", "code": "employee_package_invalid_field" }
+    },
+    {
+      "id": "reject-empty-authors",
+      "family": "field_constraints",
+      "description": "Authors array must have at least one entry",
+      "input": {
+        "schemaVersion": "employee-package.v1alpha1",
+        "name": "empty-authors",
+        "version": "1.0.0",
+        "description": "No authors",
+        "license": "MIT",
+        "authors": [],
+        "host": { "protocol": "agent-host.v1", "requiredCapabilities": [] },
+        "entrypoints": { "skill": "./SKILL.md", "inputSchema": "./in.json", "outputSchema": "./out.json" },
+        "policy": { "mode": "read_only", "network": "deny", "filesystem": { "read": [], "write": [] }, "mcpTools": [] },
+        "assets": []
+      },
+      "expect": { "kind": "reject", "code": "employee_package_invalid_field" }
+    },
+    {
+      "id": "reject-path-backslash",
+      "family": "field_constraints",
+      "description": "Paths must not contain backslashes",
+      "input": {
+        "schemaVersion": "employee-package.v1alpha1",
+        "name": "bad-path",
+        "version": "1.0.0",
+        "description": "Backslash in path",
+        "license": "MIT",
+        "authors": ["Test"],
+        "host": { "protocol": "agent-host.v1", "requiredCapabilities": [] },
+        "entrypoints": { "skill": ".\\SKILL.md", "inputSchema": "./in.json", "outputSchema": "./out.json" },
+        "policy": { "mode": "read_only", "network": "deny", "filesystem": { "read": [], "write": [] }, "mcpTools": [] },
+        "assets": []
+      },
+      "expect": { "kind": "reject", "code": "employee_package_invalid_field" }
+    },
+    {
+      "id": "reject-path-traversal",
+      "family": "field_constraints",
+      "description": "Paths must not contain .. traversal",
+      "input": {
+        "schemaVersion": "employee-package.v1alpha1",
+        "name": "traversal",
+        "version": "1.0.0",
+        "description": "Path traversal attempt",
+        "license": "MIT",
+        "authors": ["Test"],
+        "host": { "protocol": "agent-host.v1", "requiredCapabilities": [] },
+        "entrypoints": { "skill": "./../etc/passwd", "inputSchema": "./in.json", "outputSchema": "./out.json" },
+        "policy": { "mode": "read_only", "network": "deny", "filesystem": { "read": [], "write": [] }, "mcpTools": [] },
+        "assets": []
+      },
+      "expect": { "kind": "reject", "code": "employee_package_invalid_field" }
+    },
+    {
+      "id": "reject-duplicate-assets",
+      "family": "field_constraints",
+      "description": "Assets list must not contain duplicates",
+      "input": {
+        "schemaVersion": "employee-package.v1alpha1",
+        "name": "dup-assets",
+        "version": "1.0.0",
+        "description": "Duplicate assets",
+        "license": "MIT",
+        "authors": ["Test"],
+        "host": { "protocol": "agent-host.v1", "requiredCapabilities": [] },
+        "entrypoints": { "skill": "./SKILL.md", "inputSchema": "./in.json", "outputSchema": "./out.json" },
+        "policy": { "mode": "read_only", "network": "deny", "filesystem": { "read": [], "write": [] }, "mcpTools": [] },
+        "assets": ["./SKILL.md", "./SKILL.md"]
+      },
+      "expect": { "kind": "reject", "code": "employee_package_duplicate_value" }
+    },
+    {
+      "id": "reject-unknown-capability",
+      "family": "field_constraints",
+      "description": "Host capabilities must be from the known set",
+      "input": {
+        "schemaVersion": "employee-package.v1alpha1",
+        "name": "bad-cap",
+        "version": "1.0.0",
+        "description": "Unknown capability",
+        "license": "MIT",
+        "authors": ["Test"],
+        "host": { "protocol": "agent-host.v1", "requiredCapabilities": ["quantum_teleport"] },
+        "entrypoints": { "skill": "./SKILL.md", "inputSchema": "./in.json", "outputSchema": "./out.json" },
+        "policy": { "mode": "read_only", "network": "deny", "filesystem": { "read": [], "write": [] }, "mcpTools": [] },
+        "assets": []
+      },
+      "expect": { "kind": "reject", "code": "employee_package_unknown_host_capability" }
+    }
+  ]
+}

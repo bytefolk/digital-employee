@@ -1,0 +1,133 @@
+{
+  "schemaVersion": "employee-package-vectors.v1",
+  "family": "schema_validation",
+  "vectors": [
+    {
+      "id": "valid-minimal-read-only",
+      "family": "schema_validation",
+      "description": "Minimal valid manifest with read-only policy and network deny",
+      "input": {
+        "schemaVersion": "employee-package.v1alpha1",
+        "name": "minimal-answer",
+        "version": "1.0.0",
+        "description": "A minimal read-only employee",
+        "license": "MIT",
+        "authors": ["Test Author"],
+        "host": {
+          "protocol": "agent-host.v1",
+          "requiredCapabilities": ["tool_allowlist"]
+        },
+        "entrypoints": {
+          "skill": "./SKILL.md",
+          "inputSchema": "./schemas/input.schema.json",
+          "outputSchema": "./schemas/output.schema.json"
+        },
+        "policy": {
+          "mode": "read_only",
+          "network": "deny",
+          "filesystem": { "read": [], "write": [] },
+          "mcpTools": []
+        },
+        "assets": ["./SKILL.md", "./schemas/input.schema.json", "./schemas/output.schema.json"]
+      },
+      "expect": { "kind": "accept" }
+    },
+    {
+      "id": "valid-full-featured",
+      "family": "schema_validation",
+      "description": "Full-featured manifest with MCP, filesystem, and approval required",
+      "input": {
+        "schemaVersion": "employee-package.v1alpha1",
+        "name": "structured-action",
+        "version": "2.1.0-beta.1",
+        "description": "An employee that performs structured file operations with MCP tools",
+        "license": "Apache-2.0",
+        "authors": ["Engineering Team", "QA Team"],
+        "host": {
+          "protocol": "agent-host.v1",
+          "requiredCapabilities": ["tool_allowlist", "filesystem_scope", "mcp", "approval_callback", "network_policy"]
+        },
+        "entrypoints": {
+          "skill": "./SKILL.md",
+          "inputSchema": "./schemas/input.schema.json",
+          "outputSchema": "./schemas/output.schema.json",
+          "mcp": "./mcp.json"
+        },
+        "policy": {
+          "mode": "approval_required",
+          "network": "deny",
+          "filesystem": {
+            "read": ["./data/input"],
+            "write": ["./data/output"]
+          },
+          "mcpTools": [
+            { "name": "file-reader", "requestedMode": "read" },
+            { "name": "file-writer", "requestedMode": "write" }
+          ]
+        },
+        "assets": ["./SKILL.md", "./schemas/input.schema.json", "./schemas/output.schema.json", "./mcp.json"]
+      },
+      "expect": { "kind": "accept" }
+    },
+    {
+      "id": "reject-missing-schema-version",
+      "family": "schema_validation",
+      "description": "Reject manifest without schemaVersion",
+      "input": {
+        "name": "missing-schema",
+        "version": "1.0.0",
+        "description": "Missing schemaVersion field",
+        "license": "MIT",
+        "authors": ["Test"],
+        "host": { "protocol": "agent-host.v1", "requiredCapabilities": [] },
+        "entrypoints": { "skill": "./SKILL.md", "inputSchema": "./in.json", "outputSchema": "./out.json" },
+        "policy": { "mode": "read_only", "network": "deny", "filesystem": { "read": [], "write": [] }, "mcpTools": [] },
+        "assets": []
+      },
+      "expect": { "kind": "reject", "code": "unsupported_employee_package_schema" }
+    },
+    {
+      "id": "reject-wrong-schema-version",
+      "family": "schema_validation",
+      "description": "Reject manifest with unrecognised schemaVersion",
+      "input": {
+        "schemaVersion": "employee-package.v99",
+        "name": "future-schema",
+        "version": "1.0.0",
+        "description": "Future version not supported",
+        "license": "MIT",
+        "authors": ["Test"],
+        "host": { "protocol": "agent-host.v1", "requiredCapabilities": [] },
+        "entrypoints": { "skill": "./SKILL.md", "inputSchema": "./in.json", "outputSchema": "./out.json" },
+        "policy": { "mode": "read_only", "network": "deny", "filesystem": { "read": [], "write": [] }, "mcpTools": [] },
+        "assets": []
+      },
+      "expect": { "kind": "reject", "code": "unsupported_employee_package_schema" }
+    },
+    {
+      "id": "reject-wrong-host-protocol",
+      "family": "schema_validation",
+      "description": "Reject manifest with wrong host protocol version",
+      "input": {
+        "schemaVersion": "employee-package.v1alpha1",
+        "name": "wrong-protocol",
+        "version": "1.0.0",
+        "description": "Wrong host protocol",
+        "license": "MIT",
+        "authors": ["Test"],
+        "host": { "protocol": "agent-host.v2", "requiredCapabilities": [] },
+        "entrypoints": { "skill": "./SKILL.md", "inputSchema": "./in.json", "outputSchema": "./out.json" },
+        "policy": { "mode": "read_only", "network": "deny", "filesystem": { "read": [], "write": [] }, "mcpTools": [] },
+        "assets": []
+      },
+      "expect": { "kind": "reject", "code": "unsupported_agent_host_protocol" }
+    },
+    {
+      "id": "reject-not-an-object",
+      "family": "schema_validation",
+      "description": "Reject non-object input",
+      "input": "this is a string",
+      "expect": { "kind": "reject", "code": "manifest must be a plain object" }
+    }
+  ]
+}

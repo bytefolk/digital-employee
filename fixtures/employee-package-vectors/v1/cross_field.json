@@ -1,0 +1,98 @@
+{
+  "schemaVersion": "employee-package-vectors.v1",
+  "family": "cross_field",
+  "vectors": [
+    {
+      "id": "reject-read-only-with-write-paths",
+      "family": "cross_field",
+      "description": "read_only mode cannot declare write filesystem paths",
+      "input": {
+        "schemaVersion": "employee-package.v1alpha1",
+        "name": "cross-field-write",
+        "version": "1.0.0",
+        "description": "Read-only with write paths",
+        "license": "MIT",
+        "authors": ["Test"],
+        "host": { "protocol": "agent-host.v1", "requiredCapabilities": ["tool_allowlist", "filesystem_scope"] },
+        "entrypoints": { "skill": "./SKILL.md", "inputSchema": "./in.json", "outputSchema": "./out.json" },
+        "policy": {
+          "mode": "read_only",
+          "network": "deny",
+          "filesystem": { "read": ["./data"], "write": ["./output"] },
+          "mcpTools": []
+        },
+        "assets": []
+      },
+      "expect": { "kind": "reject", "code": "read_only_employee_cannot_request_write_paths" }
+    },
+    {
+      "id": "reject-read-only-with-write-mcp",
+      "family": "cross_field",
+      "description": "read_only mode cannot request write MCP tools",
+      "input": {
+        "schemaVersion": "employee-package.v1alpha1",
+        "name": "cross-field-mcp",
+        "version": "1.0.0",
+        "description": "Read-only with write MCP tools",
+        "license": "MIT",
+        "authors": ["Test"],
+        "host": { "protocol": "agent-host.v1", "requiredCapabilities": ["tool_allowlist", "mcp"] },
+        "entrypoints": { "skill": "./SKILL.md", "inputSchema": "./in.json", "outputSchema": "./out.json", "mcp": "./mcp.json" },
+        "policy": {
+          "mode": "read_only",
+          "network": "deny",
+          "filesystem": { "read": [], "write": [] },
+          "mcpTools": [{ "name": "dangerous-tool", "requestedMode": "write" }]
+        },
+        "assets": []
+      },
+      "expect": { "kind": "reject", "code": "read_only_employee_cannot_request_write_mcp_tools" }
+    },
+    {
+      "id": "reject-mcp-tools-without-entrypoint",
+      "family": "cross_field",
+      "description": "mcpTools requires mcp entrypoint to be declared",
+      "input": {
+        "schemaVersion": "employee-package.v1alpha1",
+        "name": "cross-field-mcp-no-entry",
+        "version": "1.0.0",
+        "description": "MCP tools without MCP entrypoint",
+        "license": "MIT",
+        "authors": ["Test"],
+        "host": { "protocol": "agent-host.v1", "requiredCapabilities": ["tool_allowlist", "mcp"] },
+        "entrypoints": { "skill": "./SKILL.md", "inputSchema": "./in.json", "outputSchema": "./out.json" },
+        "policy": {
+          "mode": "approval_required",
+          "network": "deny",
+          "filesystem": { "read": [], "write": [] },
+          "mcpTools": [{ "name": "some-tool", "requestedMode": "read" }]
+        },
+        "assets": []
+      },
+      "expect": { "kind": "reject", "code": "mcp_tools_require_mcp_entrypoint" }
+    },
+    {
+      "id": "valid-approval-with-writes",
+      "family": "cross_field",
+      "description": "approval_required mode can declare write paths and write MCP tools",
+      "input": {
+        "schemaVersion": "employee-package.v1alpha1",
+        "name": "approval-writes",
+        "version": "1.0.0",
+        "description": "Approval mode with all write access",
+        "license": "MIT",
+        "authors": ["Test"],
+        "host": { "protocol": "agent-host.v1", "requiredCapabilities": ["tool_allowlist", "filesystem_scope", "mcp", "approval_callback", "network_policy"] },
+        "entrypoints": { "skill": "./SKILL.md", "inputSchema": "./in.json", "outputSchema": "./out.json", "mcp": "./mcp.json" },
+        "policy": {
+          "mode": "approval_required",
+          "network": "deny",
+          "filesystem": { "read": ["./data"], "write": ["./output"] },
+          "mcpTools": [{ "name": "writer", "requestedMode": "write" }]
+        },
+        "assets": []
+      },
+      "expect": { "kind": "accept" }
+    }
+  ]
+}

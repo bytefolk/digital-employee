@@ -158,6 +158,35 @@ export {
 } from "./src/employee-package-digest.js"
 export type { EmployeePackageDigestEntry } from "./src/employee-package-digest.js"
 export {
+  EMPLOYEE_PACKAGE_SCHEMA_VERSIONS,
+  EMPLOYEE_PACKAGE_DIGEST_RULES,
+  EMPLOYEE_PACKAGE_KNOWN_FIELDS,
+  classifySchemaCompatibility,
+  detectUnknownManifestFields,
+  isDowngradeRequired,
+} from "./src/employee-package-compat.js"
+export type { CompatAction, CompatDecision } from "./src/employee-package-compat.js"
+export {
+  EMPLOYEE_PACKAGE_VECTOR_SCHEMA_VERSION,
+  EMPLOYEE_PACKAGE_VECTOR_RESULT_SCHEMA_VERSION,
+  EMPLOYEE_PACKAGE_VECTOR_FAMILIES,
+  classifyEmployeePackageVector,
+  parseEmployeePackageVectorFile,
+  parseEmployeePackageVectorManifest,
+  runEmployeePackageVectorCorpus,
+} from "./src/employee-package-vectors.js"
+export type {
+  EmployeePackageVector,
+  EmployeePackageVectorClassification,
+  EmployeePackageVectorExpectation,
+  EmployeePackageVectorFailure,
+  EmployeePackageVectorFamily,
+  EmployeePackageVectorFile,
+  EmployeePackageVectorManifest,
+  EmployeePackageVectorManifestEntry,
+  EmployeePackageVectorResult,
+} from "./src/employee-package-vectors.js"
+export {
   EMPLOYEE_MCP_SCHEMA_VERSION,
   validateEmployeeMcpManifest,
 } from "./src/employee-mcp.js"

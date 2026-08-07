@@ -1,0 +1,83 @@
+{
+  "schemaVersion": "employee-package-vectors.v1",
+  "family": "digest",
+  "vectors": [
+    {
+      "id": "accept-single-file-digest",
+      "family": "digest",
+      "description": "Single file produces a valid sha256 digest",
+      "input": {
+        "entries": [
+          { "path": "./hello.txt", "bytesHex": "48656c6c6f" }
+        ]
+      },
+      "expect": { "kind": "accept" }
+    },
+    {
+      "id": "accept-multiple-files-sorted",
+      "family": "digest",
+      "description": "Multiple files are sorted by path before hashing",
+      "input": {
+        "entries": [
+          { "path": "./z-last.txt", "bytesHex": "7a" },
+          { "path": "./a-first.txt", "bytesHex": "61" }
+        ]
+      },
+      "expect": { "kind": "accept" }
+    },
+    {
+      "id": "reject-empty-entries",
+      "family": "digest",
+      "description": "Empty entries array is rejected",
+      "input": {
+        "entries": []
+      },
+      "expect": { "kind": "reject", "code": "employee_package_digest_input_invalid" }
+    },
+    {
+      "id": "reject-path-without-dot-slash",
+      "family": "digest",
+      "description": "Path must start with ./",
+      "input": {
+        "entries": [
+          { "path": "no-prefix.txt", "bytesHex": "00" }
+        ]
+      },
+      "expect": { "kind": "reject", "code": "employee_package_digest_input_invalid" }
+    },
+    {
+      "id": "reject-path-with-backslash",
+      "family": "digest",
+      "description": "Path must not contain backslash",
+      "input": {
+        "entries": [
+          { "path": ".\\windows\\path.txt", "bytesHex": "00" }
+        ]
+      },
+      "expect": { "kind": "reject", "code": "employee_package_digest_input_invalid" }
+    },
+    {
+      "id": "reject-path-traversal",
+      "family": "digest",
+      "description": "Path must not contain .. segments",
+      "input": {
+        "entries": [
+          { "path": "./../escape.txt", "bytesHex": "00" }
+        ]
+      },
+      "expect": { "kind": "reject", "code": "employee_package_digest_input_invalid" }
+    },
+    {
+      "id": "reject-duplicate-paths",
+      "family": "digest",
+      "description": "Duplicate paths are rejected",
+      "input": {
+        "entries": [
+          { "path": "./file.txt", "bytesHex": "61" },
+          { "path": "./file.txt", "bytesHex": "62" }
+        ]
+      },
+      "expect": { "kind": "reject", "code": "employee_package_digest_input_invalid" }
+    }
+  ]
+}

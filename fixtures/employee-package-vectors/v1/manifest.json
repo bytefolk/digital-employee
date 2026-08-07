@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "employee-package-vectors.v1",
+  "packageSchemaVersion": "employee-package.v1alpha1",
+  "families": [
+    "schema_validation",
+    "field_constraints",
+    "cross_field",
+    "unknown_fields",
+    "compatibility",
+    "digest"
+  ],
+  "files": [
+    {
+      "file": "schema_validation.json",
+      "sha256": "5c8e41f613905c35c004f08c81236cac1d1f273c97f425e3ca8d6339a8242a2c",
+      "vectorCount": 6
+    },
+    {
+      "file": "field_constraints.json",
+      "sha256": "ba968e6db5672c92defd9b021ed2f0eca686c66c4d747bde2eb8b0e72852a039",
+      "vectorCount": 7
+    },
+    {
+      "file": "cross_field.json",
+      "sha256": "f226f39087a8214e4e04653d8afa83c3007d093597142c80a923adc9e1b8959c",
+      "vectorCount": 4
+    },
+    {
+      "file": "unknown_fields.json",
+      "sha256": "28b259356cbb869b3238b7871d035fb11873106e89fc3970463bf0e45455f8b9",
+      "vectorCount": 4
+    },
+    {
+      "file": "compatibility.json",
+      "sha256": "b78329648c06fd841fe0bcc7576f89d47aded7fdd514e0e0a3639a417f571c8e",
+      "vectorCount": 6
+    },
+    {
+      "file": "digest.json",
+      "sha256": "df66452640b0dfbca3b33fd20e512de4dad897a36358127a76b770baceaed8dd",
+      "vectorCount": 7
+    }
+  ]
+}

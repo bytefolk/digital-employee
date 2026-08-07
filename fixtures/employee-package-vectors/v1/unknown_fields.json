@@ -1,0 +1,79 @@
+{
+  "schemaVersion": "employee-package-vectors.v1",
+  "family": "unknown_fields",
+  "vectors": [
+    {
+      "id": "reject-unknown-top-level-field",
+      "family": "unknown_fields",
+      "description": "Unknown top-level field is rejected (fail-closed)",
+      "input": {
+        "schemaVersion": "employee-package.v1alpha1",
+        "name": "unknown-top",
+        "version": "1.0.0",
+        "description": "Has unknown top-level field",
+        "license": "MIT",
+        "authors": ["Test"],
+        "host": { "protocol": "agent-host.v1", "requiredCapabilities": [] },
+        "entrypoints": { "skill": "./SKILL.md", "inputSchema": "./in.json", "outputSchema": "./out.json" },
+        "policy": { "mode": "read_only", "network": "deny", "filesystem": { "read": [], "write": [] }, "mcpTools": [] },
+        "assets": [],
+        "futureField": "should be rejected"
+      },
+      "expect": { "kind": "reject", "code": "employee_package_unknown_field" }
+    },
+    {
+      "id": "reject-unknown-host-field",
+      "family": "unknown_fields",
+      "description": "Unknown field in host object is rejected",
+      "input": {
+        "schemaVersion": "employee-package.v1alpha1",
+        "name": "unknown-host",
+        "version": "1.0.0",
+        "description": "Unknown host field",
+        "license": "MIT",
+        "authors": ["Test"],
+        "host": { "protocol": "agent-host.v1", "requiredCapabilities": [], "vendor": "custom" },
+        "entrypoints": { "skill": "./SKILL.md", "inputSchema": "./in.json", "outputSchema": "./out.json" },
+        "policy": { "mode": "read_only", "network": "deny", "filesystem": { "read": [], "write": [] }, "mcpTools": [] },
+        "assets": []
+      },
+      "expect": { "kind": "reject", "code": "employee_package_unknown_field" }
+    },
+    {
+      "id": "reject-unknown-policy-field",
+      "family": "unknown_fields",
+      "description": "Unknown field in policy object is rejected",
+      "input": {
+        "schemaVersion": "employee-package.v1alpha1",
+        "name": "unknown-policy",
+        "version": "1.0.0",
+        "description": "Unknown policy field",
+        "license": "MIT",
+        "authors": ["Test"],
+        "host": { "protocol": "agent-host.v1", "requiredCapabilities": [] },
+        "entrypoints": { "skill": "./SKILL.md", "inputSchema": "./in.json", "outputSchema": "./out.json" },
+        "policy": { "mode": "read_only", "network": "deny", "filesystem": { "read": [], "write": [] }, "mcpTools": [], "sandbox": true },
+        "assets": []
+      },
+      "expect": { "kind": "reject", "code": "employee_package_unknown_field" }
+    },
+    {
+      "id": "reject-unknown-entrypoints-field",
+      "family": "unknown_fields",
+      "description": "Unknown field in entrypoints object is rejected",
+      "input": {
+        "schemaVersion": "employee-package.v1alpha1",
+        "name": "unknown-entry",
+        "version": "1.0.0",
+        "description": "Unknown entrypoints field",
+        "license": "MIT",
+        "authors": ["Test"],
+        "host": { "protocol": "agent-host.v1", "requiredCapabilities": [] },
+        "entrypoints": { "skill": "./SKILL.md", "inputSchema": "./in.json", "outputSchema": "./out.json", "hooks": "./hooks.json" },
+        "policy": { "mode": "read_only", "network": "deny", "filesystem": { "read": [], "write": [] }, "mcpTools": [] },
+        "assets": []
+      },
+      "expect": { "kind": "reject", "code": "employee_package_unknown_field" }
+    }
+  ]
+}

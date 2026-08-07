@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "employee-package-vectors.v1",
+  "family": "compatibility",
+  "vectors": [
+    {
+      "id": "accept-current-version",
+      "family": "compatibility",
+      "description": "Current schema version is accepted",
+      "input": { "schemaVersion": "employee-package.v1alpha1" },
+      "expect": { "kind": "accept" }
+    },
+    {
+      "id": "reject-future-version",
+      "family": "compatibility",
+      "description": "Future version in same family is rejected (no downgrade)",
+      "input": { "schemaVersion": "employee-package.v2" },
+      "expect": { "kind": "reject", "code": "unknown_version_no_downgrade" }
+    },
+    {
+      "id": "reject-unrecognised-family",
+      "family": "compatibility",
+      "description": "Completely unrecognised schema family is rejected",
+      "input": { "schemaVersion": "something-else.v1" },
+      "expect": { "kind": "reject", "code": "unknown_version_unrecognised" }
+    },
+    {
+      "id": "reject-missing-version",
+      "family": "compatibility",
+      "description": "Missing schema version is rejected",
+      "input": {},
+      "expect": { "kind": "reject", "code": "schema_version_missing" }
+    },
+    {
+      "id": "reject-null-version",
+      "family": "compatibility",
+      "description": "Null schema version is rejected",
+      "input": { "schemaVersion": null },
+      "expect": { "kind": "reject", "code": "schema_version_missing" }
+    },
+    {
+      "id": "reject-numeric-version",
+      "family": "compatibility",
+      "description": "Numeric schema version is rejected",
+      "input": { "schemaVersion": 1 },
+      "expect": { "kind": "reject", "code": "schema_version_missing" }
+    }
+  ]
+}

@@ -52,11 +52,21 @@ function plainRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value)
 }
 
+/**
+ * Rejects both unknown AND missing keys. Every declared key must be present
+ * and no undeclared key is tolerated. This makes schema violations explicit
+ * at the structural check layer instead of relying on downstream per-field
+ * validation to catch omissions.
+ */
 function exactKeys(
   value: Record<string, unknown>,
   allowed: readonly string[],
 ): boolean {
-  return Object.keys(value).every((key) => allowed.includes(key))
+  const keys = Object.keys(value)
+  return (
+    keys.length === allowed.length &&
+    keys.every((key) => allowed.includes(key))
+  )
 }
 
 /**

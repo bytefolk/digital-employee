@@ -87,6 +87,29 @@ test("a missing component or contract mismatch is an unsupported matrix", () => 
   )
 })
 
+test("missing required entry fields fail closed", () => {
+  for (const fieldToRemove of [
+    "name",
+    "repository",
+    "commit",
+    "contract",
+    "startCommand",
+    "healthEndpoint",
+    "ports",
+  ]) {
+    const matrix = validMatrix()
+    const entry = (matrix.components as Array<Record<string, unknown>>)[0]
+    delete entry[fieldToRemove]
+    expectUnsupported(matrix)
+  }
+})
+
+test("missing top-level schema field fails closed", () => {
+  const matrix = validMatrix()
+  delete (matrix as Record<string, unknown>).schema
+  expectUnsupported(matrix)
+})
+
 test("duplicate components fail closed", () => {
   const matrix = validMatrix()
   ;(matrix.components as Array<unknown>).push(

@@ -16,6 +16,7 @@ export interface DeployConfig {
   engine?: string
   openaiKey?: string
   dingtalkAppId?: string
+  larkAppId?: string
   port?: number
   deployedAt?: string
 }

@@ -588,6 +588,7 @@ function makeResult(
     published = false,
     verified = false,
     bootstrapRequired = false,
+    markerCleanupRequired = false,
     distTag = artifact.distTag || "",
     publishAttempts = 0,
     reason = outcome,
@@ -600,6 +601,7 @@ function makeResult(
     published,
     verified,
     bootstrapRequired,
+    markerCleanupRequired,
     distTag,
     packageName: artifact.name,
     packageVersion: artifact.version,
@@ -717,12 +719,6 @@ export async function publishWithFallback(
   const initialState = await readRegistry();
   const bootstrapMarkerExists = missingPackage === "bootstrap-soft" &&
     await markerExists(bootstrapMarkerPath);
-  if (initialState.packageExists && bootstrapMarkerExists) {
-    return makeResult(artifact, "stale_bootstrap_marker", {
-      distTag,
-      reason: "remove_bootstrap_marker_after_trusted_publisher_setup"
-    });
-  }
   const initialComparison = compareObservedVersion(initialState, artifact);
   if (initialComparison === "match") {
     const latestState = inspectLatestState(initialState, artifact, distTag);
@@ -732,19 +728,34 @@ export async function publishWithFallback(
         reason: latestState.reason
       });
     }
-    return makeResult(artifact, "already_published", {
-      complete: true,
-      published: true,
-      verified: true,
-      distTag,
-      reason: "registry_integrity_matches",
-      exitCode: 0
-    });
+    return makeResult(
+      artifact,
+      bootstrapMarkerExists
+        ? "bootstrap_verified_marker_cleanup_required"
+        : "already_published",
+      {
+        complete: true,
+        published: true,
+        verified: true,
+        markerCleanupRequired: bootstrapMarkerExists,
+        distTag,
+        reason: bootstrapMarkerExists
+          ? "registry_integrity_matches_remove_bootstrap_marker"
+          : "registry_integrity_matches",
+        exitCode: 0
+      }
+    );
   }
   if (initialComparison === "mismatch") {
     return makeResult(artifact, "version_conflict", {
       distTag,
       reason: "registry_integrity_mismatch"
+    });
+  }
+  if (initialState.packageExists && bootstrapMarkerExists) {
+    return makeResult(artifact, "stale_bootstrap_marker", {
+      distTag,
+      reason: "remove_bootstrap_marker_after_trusted_publisher_setup"
     });
   }
   if (!initialState.packageExists) {
@@ -764,14 +775,23 @@ export async function publishWithFallback(
     });
   }
 
-  if (
-    distTag === "latest" &&
-    compareStableVersions(artifact.version, initialState.latestVersion) === -1
-  ) {
-    return makeResult(artifact, "backfill_latest_blocked", {
-      distTag,
-      reason: "target_version_is_older_than_registry_latest"
-    });
+  if (distTag === "latest" && initialState.latestVersion !== null) {
+    const latestOrder = compareStableVersions(
+      artifact.version,
+      initialState.latestVersion
+    );
+    if (!initialState.latestVersionExists || latestOrder === null) {
+      return makeResult(artifact, "dist_tag_preflight_failed", {
+        distTag,
+        reason: "registry_latest_is_invalid_or_non_stable"
+      });
+    }
+    if (latestOrder === -1) {
+      return makeResult(artifact, "backfill_latest_blocked", {
+        distTag,
+        reason: "target_version_is_older_than_registry_latest"
+      });
+    }
   }
 
   const publishAttempts = 1;
@@ -894,6 +914,13 @@ export function renderGitHubSummary(result) {
       `> Verified tarball: \`${markdownCell(path.basename(result.tarballPath))}\``,
       "> Until bootstrap completes, use `@fullstack-ai-infra/digital-employee/core` or install the matching root/core `.tgz` asset from the GitHub Release."
     );
+  } else if (result.markerCleanupRequired) {
+    lines.push(
+      "",
+      "> [!WARNING]",
+      "> The exact package version is present and verified, so this rerun has converged.",
+      "> Confirm Trusted Publishing is configured, then remove the bootstrap marker before the next release."
+    );
   } else if (result.exitCode !== 0) {
     lines.push(
       "",
@@ -918,6 +945,7 @@ export async function writeGitHubReport(
     published: result.published,
     verified: result.verified,
     bootstrap_required: result.bootstrapRequired,
+    marker_cleanup_required: result.markerCleanupRequired,
     dist_tag: result.distTag,
     package_name: result.packageName,
     package_version: result.packageVersion,
@@ -938,6 +966,10 @@ export async function writeGitHubReport(
   if (annotate && result.bootstrapRequired) {
     process.stdout.write(
       `::warning title=${annotationValue("npm bootstrap required", true)}::${annotationValue(`${result.packageName}@${result.packageVersion} requires one-time npm owner publication`)}\n`
+    );
+  } else if (annotate && result.markerCleanupRequired) {
+    process.stdout.write(
+      `::warning title=${annotationValue("npm bootstrap marker cleanup required", true)}::${annotationValue(`${result.packageName}@${result.packageVersion} is verified; confirm Trusted Publishing and remove the marker before the next release`)}\n`
     );
   } else if (annotate && result.exitCode !== 0) {
     process.stdout.write(

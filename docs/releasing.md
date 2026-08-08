@@ -20,6 +20,13 @@ verified archives; they do not rebuild them.
 Registry authentication uses npm Trusted Publishing (GitHub OIDC). Do not add
 an `NPM_TOKEN` or `NODE_AUTH_TOKEN` repository secret.
 
+Trusted Publishing authenticates `npm publish`, but it does not authenticate
+`npm dist-tag`. If an exact version already exists while `latest` is missing,
+invalid, or points to an older version, the workflow fails closed instead of
+guessing or introducing a long-lived token. An npm owner must first verify the
+target version and then repair the tag interactively with `npm dist-tag add`;
+the CI repair can be rerun afterward. A newer valid `latest` is always retained.
+
 Repository administrators must protect `refs/tags/v*` from update and deletion
 with a tag ruleset. Every registry-writing job revalidates the remote tag
 immediately before its write, but only server-side tag protection closes the
@@ -87,3 +94,10 @@ verified GitHub Release core archive, then configure this repository and
 `release.yml` as the package's Trusted Publisher. Only after the public package
 exists and the trust binding is verified should the marker be removed. All
 subsequent versions publish from CI without a long-lived npm credential.
+
+If the owner publication succeeds before the marker-removal change is merged,
+a rerun accepts only an exact registry-integrity match and reports
+`bootstrap_verified_marker_cleanup_required`. It never republishes that version.
+If the package exists but the target version is absent, the stale marker still
+blocks CI publication until the trust binding is confirmed and the marker is
+removed.

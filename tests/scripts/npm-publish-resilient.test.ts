@@ -545,7 +545,35 @@ test("returns bootstrap-required without publishing when marker-backed package i
   assert.equal(publishCalls, 0);
 });
 
-test("fails closed when a bootstrap marker remains after the package exists", async () => {
+test("converges when bootstrap published the exact verified version but marker cleanup remains", async () => {
+  let publishCalls = 0;
+  const result = await publishWithFallback(
+    artifact(),
+    {
+      missingPackage: "bootstrap-soft",
+      bootstrapMarkerPath: "/tmp/bootstrap-marker",
+      distTag: "latest"
+    },
+    {
+      readRegistry: async () => registryVersion(),
+      runPublish: async () => {
+        publishCalls += 1;
+        return publishSuccess();
+      },
+      markerExists: async () => true,
+      sleep: immediate,
+      verifyDelays: [0]
+    }
+  );
+  assert.equal(result.outcome, "bootstrap_verified_marker_cleanup_required");
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.complete, true);
+  assert.equal(result.verified, true);
+  assert.equal(result.markerCleanupRequired, true);
+  assert.equal(publishCalls, 0);
+});
+
+test("fails closed before a future version while a bootstrap marker remains", async () => {
   let publishCalls = 0;
   const result = await publishWithFallback(
     artifact(),
@@ -715,6 +743,56 @@ test("blocks a historical version from moving the latest dist-tag backwards", as
   assert.equal(publishCalls, 0);
 });
 
+test("blocks a non-stable latest tag before publishing a stable version", async () => {
+  let publishCalls = 0;
+  const result = await publishWithFallback(
+    artifact(),
+    { missingPackage: "fail", distTag: "latest" },
+    {
+      readRegistry: async () => ({
+        ...absentVersion,
+        latestVersion: "1.0.0-beta.1",
+        latestVersionExists: true
+      }),
+      runPublish: async () => {
+        publishCalls += 1;
+        return publishSuccess();
+      },
+      sleep: immediate,
+      verifyDelays: [0]
+    }
+  );
+  assert.equal(result.outcome, "dist_tag_preflight_failed");
+  assert.equal(result.reason, "registry_latest_is_invalid_or_non_stable");
+  assert.equal(result.exitCode, 1);
+  assert.equal(publishCalls, 0);
+});
+
+test("blocks a dangling latest tag before publishing a stable version", async () => {
+  let publishCalls = 0;
+  const result = await publishWithFallback(
+    artifact(),
+    { missingPackage: "fail", distTag: "latest" },
+    {
+      readRegistry: async () => ({
+        ...absentVersion,
+        latestVersion: "0.2.0",
+        latestVersionExists: false
+      }),
+      runPublish: async () => {
+        publishCalls += 1;
+        return publishSuccess();
+      },
+      sleep: immediate,
+      verifyDelays: [0]
+    }
+  );
+  assert.equal(result.outcome, "dist_tag_preflight_failed");
+  assert.equal(result.reason, "registry_latest_is_invalid_or_non_stable");
+  assert.equal(result.exitCode, 1);
+  assert.equal(publishCalls, 0);
+});
+
 test("parses an explicit repair tag and bootstrap marker", () => {
   const parsed = parseArguments([
     "--manifest", "packages/core/package.json",
@@ -787,6 +865,7 @@ test("writes machine outputs and a conspicuous bootstrap summary", async () => {
       published: false,
       verified: false,
       bootstrapRequired: true,
+      markerCleanupRequired: false,
       distTag: "latest",
       packageName,
       packageVersion: version,
@@ -808,6 +887,7 @@ test("writes machine outputs and a conspicuous bootstrap summary", async () => {
     assert.match(outputs, /^outcome=bootstrap_required$/m);
     assert.match(outputs, /^complete=false$/m);
     assert.match(outputs, /^bootstrap_required=true$/m);
+    assert.match(outputs, /^marker_cleanup_required=false$/m);
     assert.match(outputs, /^dist_tag=latest$/m);
     assert.match(outputs, /^tarball_path=/m);
     assert.match(summary, /\[!WARNING\]/);

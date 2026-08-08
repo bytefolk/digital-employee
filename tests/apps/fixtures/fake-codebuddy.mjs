@@ -33,6 +33,9 @@ if (args.includes("--version")) {
 }
 
 const mode = option("--fixture-mode") || "success"
+// A pending promise alone does not keep Node alive. Give the deadline fixture
+// a real event-loop handle so it cannot race a natural exit with the adapter.
+if (mode === "hang") setInterval(() => {}, 1_000)
 const capture = option("--capture")
 const launchLog = option("--launch-log")
 if (launchLog) {

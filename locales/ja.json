@@ -47,5 +47,6 @@
   "deploy.error_dws_not_found": "dws CLIが見つかりません。インストール: https://github.com/nicepkg/dws",
   "deploy.error_lark_auth_failed": "Lark認証に失敗しました。",
   "deploy.error_auth_failed": "DingTalk認証に失敗しました。",
-  "deploy.error_deploy_failed": "デプロイに失敗しました: {reason}"
+  "deploy.error_deploy_failed": "デプロイに失敗しました: {reason}",
+  "deploy.help": "digital-employee deploy\n\n  インタラクティブデプロイ — 1コマンドでデジタル従業員を起動。\n\n  チャンネル： DingTalk · Lark · WeCom · コンソール · HTTP\n  AIエンジン： Qoder CLI · Claude Code · Qwen Code · CodeBuddy · OpenAI key\n  言語：       English · 简体中文 · 日本語\n\nオプション：\n  --channel <id>     チャンネル選択をスキップ (dingtalk|lark|wecom|console|http)\n  --engine <id>      エンジン選択をスキップ (qoder|claude-code|qwen-code|codebuddy|openai-key)\n  --name <name>      ボット名の入力をスキップ\n  --locale <code>    言語を指定 (en|zh-CN|ja)\n  --yes              デフォルトを受け入れ、確認をスキップ\n  --help             このヘルプを表示\n\n例：\n  digital-employee deploy                          # 完全インタラクティブ\n  digital-employee deploy --channel dingtalk       # チャンネル選択をスキップ\n  digital-employee deploy --yes --channel http     # 非インタラクティブHTTPデプロイ"
 }

@@ -45,6 +45,8 @@ interface CommandValues {
   recipe?: string;
   host: string;
   port: string;
+  locale?: string;
+  yes: boolean;
   help: boolean;
 }
 
@@ -97,6 +99,8 @@ function parseCommand(argv: string[]) {
       recipe: { type: "string" },
       host: { type: "string", default: "127.0.0.1" },
       port: { type: "string", default: "3000" },
+      locale: { type: "string" },
+      yes: { type: "boolean", short: "y", default: false },
       help: { type: "boolean", short: "h", default: false }
     }
   });
@@ -519,7 +523,7 @@ async function runLegacyCommand(
 
 async function main() {
   const { command, values, positionals } = parseCommand(process.argv.slice(2));
-  if (values.help || command === "help") {
+  if (command === "help" || (values.help && command !== "deploy")) {
     process.stdout.write(usage());
     return;
   }
@@ -536,7 +540,14 @@ async function main() {
     name: values.name,
     recipe: values.recipe,
   });
-  if (command === "deploy") return deploy();
+  if (command === "deploy") return deploy({
+    channel: values.channel,
+    engine: values.engine,
+    name: values.name,
+    locale: values.locale,
+    yes: values.yes,
+    help: values.help,
+  });
   if (command === "doctor") return doctor(values);
   if (command === "init") return init(values, positionals);
   if (command === "validate") return validate(values, positionals);

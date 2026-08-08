@@ -49,5 +49,6 @@
   "deploy.error_wecom_auth_failed": "WeCom authentication failed.",
   "deploy.error_lark_auth_failed": "Lark authentication failed.",
   "deploy.error_auth_failed": "DingTalk authentication failed.",
-  "deploy.error_deploy_failed": "Deployment failed: {reason}"
+  "deploy.error_deploy_failed": "Deployment failed: {reason}",
+  "deploy.help": "digital-employee deploy\n\n  Interactive deployment — one command to get your digital employee running.\n\n  Channels:    DingTalk · Lark · WeCom · Console · HTTP\n  AI Engines:  Qoder CLI · Claude Code · Qwen Code · CodeBuddy · OpenAI key\n  Languages:   English · 简体中文 · 日本語\n\nOptions:\n  --channel <id>     Skip channel prompt (dingtalk|lark|wecom|console|http)\n  --engine <id>      Skip engine prompt (qoder|claude-code|qwen-code|codebuddy|openai-key)\n  --name <name>      Skip bot name prompt\n  --locale <code>    Force locale (en|zh-CN|ja)\n  --yes              Accept defaults, skip confirmation prompts\n  --help             Show this help\n\nExamples:\n  digital-employee deploy                          # fully interactive\n  digital-employee deploy --channel dingtalk       # skip channel selection\n  digital-employee deploy --yes --channel http     # non-interactive HTTP deploy"
 }

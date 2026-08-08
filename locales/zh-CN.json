@@ -49,5 +49,6 @@
   "deploy.error_wecom_auth_failed": "企业微信认证失败。",
   "deploy.error_lark_auth_failed": "飞书认证失败。",
   "deploy.error_auth_failed": "钉钉认证失败。",
-  "deploy.error_deploy_failed": "部署失败：{reason}"
+  "deploy.error_deploy_failed": "部署失败：{reason}",
+  "deploy.help": "digital-employee deploy\n\n  交互式部署 —— 一条命令让你的数字员工跑起来。\n\n  渠道：       钉钉 · 飞书 · 企业微信 · 终端 · HTTP\n  AI 引擎：    Qoder CLI · Claude Code · Qwen Code · CodeBuddy · OpenAI key\n  语言：       English · 简体中文 · 日本語\n\n选项：\n  --channel <id>     跳过渠道选择 (dingtalk|lark|wecom|console|http)\n  --engine <id>      跳过引擎选择 (qoder|claude-code|qwen-code|codebuddy|openai-key)\n  --name <name>      跳过机器人命名\n  --locale <code>    指定语言 (en|zh-CN|ja)\n  --yes              接受默认值，跳过确认\n  --help             显示此帮助\n\n示例：\n  digital-employee deploy                          # 完整交互\n  digital-employee deploy --channel dingtalk       # 跳过渠道选择\n  digital-employee deploy --yes --channel http     # 非交互式 HTTP 部署"
 }

@@ -68,9 +68,9 @@ import type { UsageEvidenceRecord } from "../../packages/core/src/runner-usage-e
 // ---------------------------------------------------------------------------
 
 interface PlatformSimulator {
-  platformKeyPair: ReturnType<typeof generateKeyPairSync>
+  platformKeyPair: ReturnType<typeof generateEd25519KeyPair>
   platformKeyId: string
-  runnerKeyPair: ReturnType<typeof generateKeyPairSync>
+  runnerKeyPair: ReturnType<typeof generateEd25519KeyPair>
   runnerKeyId: string
   signTask(task: RunnerTaskPayload): SignedEnvelope
   verifyReceipt(envelope: unknown): RunnerReceiptPayload
@@ -88,9 +88,13 @@ interface PlatformSimulator {
   recordUsage(receipt: RunnerReceiptPayload): UsageEvidenceRecord
 }
 
+function generateEd25519KeyPair() {
+  return generateKeyPairSync("ed25519")
+}
+
 function createPlatformSimulator(): PlatformSimulator {
-  const platformKeyPair = generateKeyPairSync("ed25519")
-  const runnerKeyPair = generateKeyPairSync("ed25519")
+  const platformKeyPair = generateEd25519KeyPair()
+  const runnerKeyPair = generateEd25519KeyPair()
   const platformKeyId = "platform-sim-key-1"
   const runnerKeyId = "runner-sim-key-1"
 

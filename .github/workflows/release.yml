@@ -4,21 +4,125 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Channel to reconcile from the selected release tag
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - npm-root
+          - npm-core
+          - github-release
+          - ghcr
+      release_tag:
+        description: Existing tag to backfill (default-branch github-release repairs only)
+        required: false
+        type: string
 
 permissions:
   contents: read
 
+# npm and GHCR both mutate moving tags. Serialize releases across versions so
+# an older job cannot finish last and roll latest back.
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-publish
+  queue: max
   cancel-in-progress: false
 
 jobs:
-  verify:
+  prepare:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
+      artifact: ${{ steps.release.outputs.artifact }}
+      mode: ${{ steps.release.outputs.mode }}
+      sha: ${{ steps.release.outputs.sha }}
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: release
+        name: Resolve and authorize release tag
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
+          REQUESTED_TARGET: ${{ inputs.target }}
+        shell: bash
+        run: |
+          mode="push"
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            if [[ "$GITHUB_REF_PROTECTED" != "true" ]]; then
+              echo "::error::Stable release tags must be covered by an active tag ruleset"
+              exit 1
+            fi
+            if [[ -n "$RELEASE_TAG_INPUT" ]]; then
+              echo "::error::release_tag must be empty when dispatching from a tag ref"
+              exit 1
+            fi
+            release_tag="$GITHUB_REF_NAME"
+            if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+              mode="repair"
+            fi
+          elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && \
+                  "$GITHUB_REF_TYPE" == "branch" && \
+                  "$GITHUB_REF_NAME" == "$DEFAULT_BRANCH" && \
+                  "$REQUESTED_TARGET" == "github-release" && \
+                  -n "$RELEASE_TAG_INPUT" ]]; then
+            # Old tags do not contain this workflow_dispatch definition. Permit
+            # the current default-branch workflow to rebuild only their immutable
+            # GitHub Release assets; no npm or GHCR job is selected in this mode.
+            release_tag="$RELEASE_TAG_INPUT"
+            mode="asset-backfill"
+          else
+            echo "::error::Start releases/repairs from a tag, or request a github-release backfill from the default branch"
+            exit 1
+          fi
+          if [[ ! "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tag must match vMAJOR.MINOR.PATCH"
+            exit 1
+          fi
+          if [[ "$mode" == "asset-backfill" ]]; then
+            git fetch origin "refs/tags/$release_tag:refs/tags/$release_tag" --force
+          fi
+          release_sha="$(git rev-parse --verify "${release_tag}^{commit}")"
+          if [[ "$mode" != "asset-backfill" && "$release_sha" != "$GITHUB_SHA" ]]; then
+            echo "::error::$release_tag no longer resolves to the event commit"
+            exit 1
+          fi
+          git fetch origin main:refs/remotes/origin/main --no-tags
+          if ! git merge-base --is-ancestor "$release_sha" origin/main; then
+            echo "::error::$release_tag is not reachable from origin/main"
+            exit 1
+          fi
+          {
+            echo "artifact=npm-release-packages-$release_tag"
+            echo "mode=$mode"
+            echo "sha=$release_sha"
+            echo "tag=$release_tag"
+          } >> "$GITHUB_OUTPUT"
+
+  verify:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: source
+    outputs:
+      artifact: ${{ needs.prepare.outputs.artifact }}
+      mode: ${{ needs.prepare.outputs.mode }}
+      sha: ${{ needs.prepare.outputs.sha }}
+      tag: ${{ needs.prepare.outputs.tag }}
       version: ${{ steps.package.outputs.version }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          path: source
+          ref: ${{ needs.prepare.outputs.sha }}
       - uses: actions/setup-node@v6
         with:
           # Node 24's experimental test coverage reporter can end with a JSON
@@ -30,61 +134,168 @@ jobs:
       - run: npm run check
       - run: npm run test:coverage
       - run: npm audit --omit=dev --audit-level=high
-      - run: npm run release:check -- --tag "$GITHUB_REF_NAME"
-      - name: Verify npm package archives
+      - name: Verify release metadata
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: npm run release:check -- --tag "$RELEASE_TAG"
+      - name: Build and verify immutable npm package archives
         run: |
           pack_destination="$RUNNER_TEMP/release-pack"
           mkdir -p "$pack_destination"
-          npm pack --json --pack-destination "$pack_destination" > "$RUNNER_TEMP/root-pack.json"
-          npm pack ./packages/core --json --pack-destination "$pack_destination" > "$RUNNER_TEMP/core-pack.json"
+          npm pack --json --pack-destination "$pack_destination" > "$pack_destination/root-pack.json"
+          npm pack ./packages/core --json --pack-destination "$pack_destination" > "$pack_destination/core-pack.json"
           node ./scripts/release-pack-check.js \
             "$pack_destination" \
-            "$RUNNER_TEMP/root-pack.json" \
-            "$RUNNER_TEMP/core-pack.json"
+            "$pack_destination/root-pack.json" \
+            "$pack_destination/core-pack.json"
+          root_package="$(node --input-type=module -e "import fs from 'node:fs'; const [entry] = JSON.parse(fs.readFileSync('$pack_destination/root-pack.json', 'utf8')); process.stdout.write(entry.filename)")"
+          core_package="$(node --input-type=module -e "import fs from 'node:fs'; const [entry] = JSON.parse(fs.readFileSync('$pack_destination/core-pack.json', 'utf8')); process.stdout.write(entry.filename)")"
+          root_consumer="$RUNNER_TEMP/root-package-consumer"
+          core_consumer="$RUNNER_TEMP/core-package-consumer"
+          mkdir -p "$root_consumer" "$core_consumer"
+          npm install --prefix "$root_consumer" \
+            --ignore-scripts \
+            "$pack_destination/$root_package"
+          (
+            cd "$root_consumer"
+            node --input-type=module -e "await import('@fullstack-ai-infra/digital-employee/core')"
+          )
+          npm install --prefix "$core_consumer" \
+            --ignore-scripts \
+            "$pack_destination/$core_package"
+          (
+            cd "$core_consumer"
+            node --input-type=module -e "await import('@fullstack-ai-infra/digital-employee-core')"
+          )
+          shopt -s nullglob
+          packages=( "$pack_destination"/*.tgz )
+          if [[ "${#packages[@]}" -ne 2 ]]; then
+            echo "::error::Expected exactly two npm package archives"
+            exit 1
+          fi
+          for package_file in "${packages[@]}"; do
+            (
+              cd "$pack_destination"
+              sha256sum "$(basename "$package_file")" > "$(basename "$package_file").sha256"
+            )
+          done
+      - name: Retain verified npm packages for every release channel
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.prepare.outputs.artifact }}
+          path: ${{ runner.temp }}/release-pack
+          if-no-files-found: error
+          retention-days: 30
       - id: package
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
   github-release:
+    if: ${{ github.event_name == 'push' || inputs.target == 'all' || inputs.target == 'github-release' }}
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - name: Download verified npm packages
+        uses: actions/download-artifact@v4
         with:
-          node-version: 24
-          package-manager-cache: false
-      - run: npm ci
-      - id: package
-        shell: bash
-        run: |
-          npm pack --json > package-output.json
-          package_file="$(node --input-type=module -e "import fs from 'node:fs'; const [entry] = JSON.parse(fs.readFileSync('package-output.json', 'utf8')); process.stdout.write(entry.filename)")"
-          sha256sum "$package_file" > "$package_file.sha256"
-          echo "file=$package_file" >> "$GITHUB_OUTPUT"
-      - name: Create or update GitHub Release
+          name: ${{ needs.verify.outputs.artifact }}
+          path: ${{ runner.temp }}/release-pack
+      - name: Create or reconcile immutable GitHub Release assets
         env:
           GH_TOKEN: ${{ github.token }}
-          PACKAGE_FILE: ${{ steps.package.outputs.file }}
+          GH_REPO: ${{ github.repository }}
+          PACK_DIR: ${{ runner.temp }}/release-pack
+          RELEASE_MODE: ${{ needs.verify.outputs.mode }}
+          RELEASE_SHA: ${{ needs.verify.outputs.sha }}
+          RELEASE_TAG: ${{ needs.verify.outputs.tag }}
+        shell: bash
         run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$PACKAGE_FILE" "$PACKAGE_FILE.sha256" --clobber
-          else
-            gh release create "$GITHUB_REF_NAME" "$PACKAGE_FILE" "$PACKAGE_FILE.sha256" \
+          read -r remote_object_type remote_object_sha < <(
+            gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" \
+              --jq '.object | [.type, .sha] | @tsv'
+          )
+          peel_count=0
+          while [[ "$remote_object_type" == "tag" ]]; do
+            ((peel_count += 1))
+            if [[ "$peel_count" -gt 5 ]]; then
+              echo "::error::$RELEASE_TAG has an unexpectedly deep annotated-tag chain"
+              exit 1
+            fi
+            read -r remote_object_type remote_object_sha < <(
+              gh api "repos/$GH_REPO/git/tags/$remote_object_sha" \
+                --jq '.object | [.type, .sha] | @tsv'
+            )
+          done
+          if [[ "$remote_object_type" != "commit" || \
+                "$remote_object_sha" != "$RELEASE_SHA" ]]; then
+            echo "::error::$RELEASE_TAG moved after release preparation"
+            exit 1
+          fi
+          cd "$PACK_DIR"
+          shopt -s nullglob
+          packages=( *.tgz )
+          if [[ "${#packages[@]}" -ne 2 ]]; then
+            echo "::error::Expected exactly two verified npm package archives"
+            exit 1
+          fi
+          for package_file in "${packages[@]}"; do
+            sha256sum -c "$package_file.sha256"
+          done
+          assets=( *.tgz *.tgz.sha256 )
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            if [[ "$RELEASE_MODE" == "asset-backfill" ]]; then
+              echo "::error::Historical asset backfill requires an existing GitHub Release"
+              exit 1
+            fi
+            gh release create "$RELEASE_TAG" "${assets[@]}" \
               --verify-tag \
               --generate-notes \
-              --title "Digital Employee $GITHUB_REF_NAME"
+              --title "Digital Employee $RELEASE_TAG"
+            exit 0
+          fi
+
+          existing_names="$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')"
+          mkdir -p "$RUNNER_TEMP/existing-release-assets"
+          missing_assets=()
+          for asset in "${assets[@]}"; do
+            asset_name="$(basename "$asset")"
+            if grep -Fxq "$asset_name" <<< "$existing_names"; then
+              gh release download "$RELEASE_TAG" \
+                --pattern "$asset_name" \
+                --dir "$RUNNER_TEMP/existing-release-assets"
+              if ! cmp -s "$asset" "$RUNNER_TEMP/existing-release-assets/$asset_name"; then
+                echo "::error::Existing release asset $asset_name has different bytes"
+                exit 1
+              fi
+            else
+              missing_assets+=( "$asset" )
+            fi
+          done
+          if [[ "${#missing_assets[@]}" -gt 0 ]]; then
+            gh release upload "$RELEASE_TAG" "${missing_assets[@]}"
           fi
 
   npm-root:
+    if: ${{ github.event_name == 'push' || inputs.target == 'all' || inputs.target == 'npm-root' }}
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: source
+    outputs:
+      complete: ${{ steps.publish.outputs.complete }}
+      outcome: ${{ steps.publish.outputs.outcome }}
     permissions:
       contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          path: source
+          ref: ${{ needs.verify.outputs.sha }}
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -92,25 +303,79 @@ jobs:
           registry-url: https://registry.npmjs.org
       - name: Install npm with trusted publishing support
         run: npm install --global npm@11.18.0
-      - run: npm ci
-      - name: Publish root npm package
+      - name: Isolate tokenless npm publishing configuration
+        shell: bash
         run: |
-          package_name="$(node -p "require('./package.json').name")"
-          package_version="$(node -p "require('./package.json').version")"
-          if npm view "$package_name@$package_version" version >/dev/null 2>&1; then
-            echo "$package_name@$package_version is already published"
-            exit 0
+          oidc_npmrc="$RUNNER_TEMP/oidc-npmrc"
+          printf 'registry=https://registry.npmjs.org/\nprovenance=true\n' > "$oidc_npmrc"
+          echo "NPM_CONFIG_USERCONFIG=$oidc_npmrc" >> "$GITHUB_ENV"
+      - name: Download verified npm packages
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.verify.outputs.artifact }}
+          path: ${{ runner.temp }}/release-pack
+      - name: Revalidate immutable release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_SHA: ${{ needs.verify.outputs.sha }}
+          RELEASE_TAG: ${{ needs.verify.outputs.tag }}
+        shell: bash
+        run: |
+          read -r remote_object_type remote_object_sha < <(
+            gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" \
+              --jq '.object | [.type, .sha] | @tsv'
+          )
+          peel_count=0
+          while [[ "$remote_object_type" == "tag" ]]; do
+            ((peel_count += 1))
+            if [[ "$peel_count" -gt 5 ]]; then
+              echo "::error::$RELEASE_TAG has an unexpectedly deep annotated-tag chain"
+              exit 1
+            fi
+            read -r remote_object_type remote_object_sha < <(
+              gh api "repos/$GH_REPO/git/tags/$remote_object_sha" \
+                --jq '.object | [.type, .sha] | @tsv'
+            )
+          done
+          if [[ "$remote_object_type" != "commit" || \
+                "$remote_object_sha" != "$RELEASE_SHA" ]]; then
+            echo "::error::$RELEASE_TAG moved after release preparation"
+            exit 1
           fi
-          npm publish --access public
+      - id: publish
+        name: Reconcile root npm package
+        env:
+          NPM_DIST_TAG: ${{ github.event_name == 'push' && 'latest' || 'repair' }}
+          RELEASE_TAG: ${{ needs.verify.outputs.tag }}
+        run: |
+          node ./scripts/npm-publish-resilient.js \
+            --manifest ./package.json \
+            --pack-json "$RUNNER_TEMP/release-pack/root-pack.json" \
+            --expected-name @fullstack-ai-infra/digital-employee \
+            --release-tag "$RELEASE_TAG" \
+            --missing-package fail \
+            --dist-tag "$NPM_DIST_TAG"
 
   npm-core:
+    if: ${{ github.event_name == 'push' || inputs.target == 'all' || inputs.target == 'npm-core' }}
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: source
+    outputs:
+      complete: ${{ steps.publish.outputs.complete }}
+      outcome: ${{ steps.publish.outputs.outcome }}
     permissions:
       contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          path: source
+          ref: ${{ needs.verify.outputs.sha }}
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -118,42 +383,367 @@ jobs:
           registry-url: https://registry.npmjs.org
       - name: Install npm with trusted publishing support
         run: npm install --global npm@11.18.0
-      - run: npm ci
-      - name: Publish core npm package
+      - name: Isolate tokenless npm publishing configuration
+        shell: bash
         run: |
-          package_name="$(node -p "require('./packages/core/package.json').name")"
-          package_version="$(node -p "require('./packages/core/package.json').version")"
-          if npm view "$package_name@$package_version" version >/dev/null 2>&1; then
-            echo "$package_name@$package_version is already published"
-            exit 0
+          oidc_npmrc="$RUNNER_TEMP/oidc-npmrc"
+          printf 'registry=https://registry.npmjs.org/\nprovenance=true\n' > "$oidc_npmrc"
+          echo "NPM_CONFIG_USERCONFIG=$oidc_npmrc" >> "$GITHUB_ENV"
+      - name: Download verified npm packages
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.verify.outputs.artifact }}
+          path: ${{ runner.temp }}/release-pack
+      - name: Revalidate immutable release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_SHA: ${{ needs.verify.outputs.sha }}
+          RELEASE_TAG: ${{ needs.verify.outputs.tag }}
+        shell: bash
+        run: |
+          read -r remote_object_type remote_object_sha < <(
+            gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" \
+              --jq '.object | [.type, .sha] | @tsv'
+          )
+          peel_count=0
+          while [[ "$remote_object_type" == "tag" ]]; do
+            ((peel_count += 1))
+            if [[ "$peel_count" -gt 5 ]]; then
+              echo "::error::$RELEASE_TAG has an unexpectedly deep annotated-tag chain"
+              exit 1
+            fi
+            read -r remote_object_type remote_object_sha < <(
+              gh api "repos/$GH_REPO/git/tags/$remote_object_sha" \
+                --jq '.object | [.type, .sha] | @tsv'
+            )
+          done
+          if [[ "$remote_object_type" != "commit" || \
+                "$remote_object_sha" != "$RELEASE_SHA" ]]; then
+            echo "::error::$RELEASE_TAG moved after release preparation"
+            exit 1
           fi
-          npm publish ./packages/core --access public
+      - id: publish
+        name: Reconcile standalone core npm package
+        env:
+          NPM_DIST_TAG: ${{ github.event_name == 'push' && 'latest' || 'repair' }}
+          RELEASE_TAG: ${{ needs.verify.outputs.tag }}
+        run: |
+          node ./scripts/npm-publish-resilient.js \
+            --manifest ./packages/core/package.json \
+            --pack-json "$RUNNER_TEMP/release-pack/core-pack.json" \
+            --expected-name @fullstack-ai-infra/digital-employee-core \
+            --release-tag "$RELEASE_TAG" \
+            --missing-package bootstrap-soft \
+            --bootstrap-marker ./packages/core/.npm-bootstrap-pending \
+            --dist-tag "$NPM_DIST_TAG"
 
   ghcr:
+    if: ${{ github.event_name == 'push' || inputs.target == 'all' || inputs.target == 'ghcr' }}
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: source
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          path: source
+          ref: ${{ needs.verify.outputs.sha }}
+      - name: Revalidate immutable release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_SHA: ${{ needs.verify.outputs.sha }}
+          RELEASE_TAG: ${{ needs.verify.outputs.tag }}
+        shell: bash
+        run: |
+          read -r remote_object_type remote_object_sha < <(
+            gh api "repos/$GH_REPO/git/ref/tags/$RELEASE_TAG" \
+              --jq '.object | [.type, .sha] | @tsv'
+          )
+          peel_count=0
+          while [[ "$remote_object_type" == "tag" ]]; do
+            ((peel_count += 1))
+            if [[ "$peel_count" -gt 5 ]]; then
+              echo "::error::$RELEASE_TAG has an unexpectedly deep annotated-tag chain"
+              exit 1
+            fi
+            read -r remote_object_type remote_object_sha < <(
+              gh api "repos/$GH_REPO/git/tags/$remote_object_sha" \
+                --jq '.object | [.type, .sha] | @tsv'
+            )
+          done
+          if [[ "$remote_object_type" != "commit" || \
+                "$remote_object_sha" != "$RELEASE_SHA" ]]; then
+            echo "::error::$RELEASE_TAG moved after release preparation"
+            exit 1
+          fi
       - name: Log in to GHCR
         env:
           GHCR_TOKEN: ${{ github.token }}
         run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-      - name: Build and publish image
+      - name: Reconcile immutable image tags and monotonic latest
         env:
+          RELEASE_MODE: ${{ needs.verify.outputs.mode }}
+          RELEASE_SHA: ${{ needs.verify.outputs.sha }}
+          RELEASE_TAG: ${{ needs.verify.outputs.tag }}
           VERSION: ${{ needs.verify.outputs.version }}
+        shell: bash
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
-          docker build \
-            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
-            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
-            --label "org.opencontainers.image.version=$VERSION" \
-            --tag "$image:$GITHUB_REF_NAME" \
-            --tag "$image:$VERSION" \
-            --tag "$image:latest" \
-            .
-          docker push "$image:$GITHUB_REF_NAME"
-          docker push "$image:$VERSION"
-          docker push "$image:latest"
+          release_ref="$image:$RELEASE_TAG"
+          version_ref="$image:$VERSION"
+          latest_ref="$image:latest"
+          expected_source="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+
+          if [[ "$RELEASE_TAG" != "v$VERSION" ]]; then
+            echo "::error::Image version does not match the release tag"
+            exit 1
+          fi
+
+          pull_if_present() {
+            local reference="$1"
+            local pull_output
+            if pull_output="$(docker pull "$reference" 2>&1)"; then
+              return 0
+            fi
+            if grep -Eqi 'manifest unknown|manifest[^:]*not found' <<< "$pull_output"; then
+              return 1
+            fi
+            printf '%s\n' "$pull_output" >&2
+            return 2
+          }
+
+          image_label() {
+            docker image inspect "$1" --format "{{ index .Config.Labels \"$2\" }}"
+          }
+
+          validate_release_image() {
+            local reference="$1"
+            local actual_revision actual_source actual_version
+            actual_revision="$(image_label "$reference" org.opencontainers.image.revision)"
+            actual_source="$(image_label "$reference" org.opencontainers.image.source)"
+            actual_version="$(image_label "$reference" org.opencontainers.image.version)"
+            if [[ "$actual_revision" != "$RELEASE_SHA" || \
+                  "$actual_source" != "$expected_source" || \
+                  "$actual_version" != "$VERSION" ]]; then
+              echo "::error::Existing immutable image $reference has conflicting identity labels"
+              return 1
+            fi
+          }
+
+          same_image() {
+            [[ "$(docker image inspect "$1" --format '{{.Id}}')" == \
+               "$(docker image inspect "$2" --format '{{.Id}}')" ]]
+          }
+
+          compare_semver() {
+            local left_major left_minor left_patch
+            local right_major right_minor right_patch
+            IFS=. read -r left_major left_minor left_patch <<< "$1"
+            IFS=. read -r right_major right_minor right_patch <<< "$2"
+            if (( 10#$left_major != 10#$right_major )); then
+              (( 10#$left_major < 10#$right_major )) && printf '%s' -1 || printf '%s' 1
+            elif (( 10#$left_minor != 10#$right_minor )); then
+              (( 10#$left_minor < 10#$right_minor )) && printf '%s' -1 || printf '%s' 1
+            elif (( 10#$left_patch != 10#$right_patch )); then
+              (( 10#$left_patch < 10#$right_patch )) && printf '%s' -1 || printf '%s' 1
+            else
+              printf '%s' 0
+            fi
+          }
+
+          release_exists=false
+          if pull_if_present "$release_ref"; then
+            release_exists=true
+          else
+            pull_status=$?
+            if [[ "$pull_status" -ne 1 ]]; then
+              exit "$pull_status"
+            fi
+          fi
+
+          version_exists=false
+          if pull_if_present "$version_ref"; then
+            version_exists=true
+          else
+            pull_status=$?
+            if [[ "$pull_status" -ne 1 ]]; then
+              exit "$pull_status"
+            fi
+          fi
+
+          if [[ "$release_exists" == "true" ]]; then
+            validate_release_image "$release_ref"
+          fi
+          if [[ "$version_exists" == "true" ]]; then
+            validate_release_image "$version_ref"
+          fi
+
+          if [[ "$release_exists" == "true" && "$version_exists" == "true" ]]; then
+            if ! same_image "$release_ref" "$version_ref"; then
+              echo "::error::Existing immutable GHCR tags resolve to different images"
+              exit 1
+            fi
+            canonical_ref="$release_ref"
+          elif [[ "$release_exists" == "true" ]]; then
+            canonical_ref="$release_ref"
+            docker tag "$canonical_ref" "$version_ref"
+            docker push "$version_ref"
+          elif [[ "$version_exists" == "true" ]]; then
+            canonical_ref="$version_ref"
+            docker tag "$canonical_ref" "$release_ref"
+            docker push "$release_ref"
+          else
+            canonical_ref="$release_ref"
+            docker build \
+              --label "org.opencontainers.image.revision=$RELEASE_SHA" \
+              --label "org.opencontainers.image.source=$expected_source" \
+              --label "org.opencontainers.image.version=$VERSION" \
+              --tag "$release_ref" \
+              .
+            docker tag "$release_ref" "$version_ref"
+            docker push "$release_ref"
+            docker push "$version_ref"
+          fi
+
+          docker pull "$release_ref" >/dev/null
+          docker pull "$version_ref" >/dev/null
+          validate_release_image "$release_ref"
+          validate_release_image "$version_ref"
+          if ! same_image "$release_ref" "$version_ref"; then
+            echo "::error::Immutable GHCR tag reconciliation did not converge"
+            exit 1
+          fi
+          canonical_ref="$release_ref"
+
+          if [[ "$RELEASE_MODE" != "push" ]]; then
+            echo "Repair mode leaves the moving latest tag unchanged"
+            exit 0
+          fi
+
+          latest_exists=false
+          if pull_if_present "$latest_ref"; then
+            latest_exists=true
+          else
+            pull_status=$?
+            if [[ "$pull_status" -ne 1 ]]; then
+              exit "$pull_status"
+            fi
+          fi
+
+          update_latest=false
+          if [[ "$latest_exists" != "true" ]]; then
+            update_latest=true
+          else
+            latest_source="$(image_label "$latest_ref" org.opencontainers.image.source)"
+            latest_version="$(image_label "$latest_ref" org.opencontainers.image.version)"
+            if [[ "$latest_source" != "$expected_source" || \
+                  ! "$latest_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Existing latest image has unverifiable release identity"
+              exit 1
+            fi
+            version_order="$(compare_semver "$VERSION" "$latest_version")"
+            if [[ "$version_order" == "1" ]]; then
+              update_latest=true
+            elif [[ "$version_order" == "-1" ]]; then
+              echo "::warning::Keeping newer GHCR latest $latest_version; current release is $VERSION"
+            elif ! same_image "$canonical_ref" "$latest_ref"; then
+              echo "::error::GHCR latest for $VERSION conflicts with its immutable image"
+              exit 1
+            fi
+          fi
+
+          if [[ "$update_latest" == "true" ]]; then
+            docker tag "$canonical_ref" "$latest_ref"
+            docker push "$latest_ref"
+            docker pull "$latest_ref" >/dev/null
+            if ! same_image "$canonical_ref" "$latest_ref"; then
+              echo "::error::GHCR latest readback does not match the release image"
+              exit 1
+            fi
+          fi
+
+  release-status:
+    if: ${{ always() }}
+    needs:
+      - prepare
+      - verify
+      - github-release
+      - npm-root
+      - npm-core
+      - ghcr
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Summarize requested release channels
+        env:
+          GHCR_RESULT: ${{ needs.ghcr.result }}
+          GITHUB_RELEASE_RESULT: ${{ needs.github-release.result }}
+          NPM_CORE_COMPLETE: ${{ needs.npm-core.outputs.complete }}
+          NPM_CORE_OUTCOME: ${{ needs.npm-core.outputs.outcome }}
+          NPM_CORE_RESULT: ${{ needs.npm-core.result }}
+          NPM_ROOT_COMPLETE: ${{ needs.npm-root.outputs.complete }}
+          NPM_ROOT_OUTCOME: ${{ needs.npm-root.outputs.outcome }}
+          NPM_ROOT_RESULT: ${{ needs.npm-root.result }}
+          PREPARE_RESULT: ${{ needs.prepare.result }}
+          REQUESTED_TARGET: ${{ github.event_name == 'push' && 'all' || inputs.target }}
+          VERIFY_RESULT: ${{ needs.verify.result }}
+        shell: bash
+        run: |
+          selected() {
+            [[ "$REQUESTED_TARGET" == "all" || "$REQUESTED_TARGET" == "$1" ]]
+          }
+          channel_status() {
+            if selected "$1"; then
+              printf '%s' "$2"
+            else
+              printf 'not-requested'
+            fi
+          }
+          {
+            echo "## Release reconciliation"
+            echo
+            echo "| Channel | Result | Outcome |"
+            echo "| --- | --- | --- |"
+            echo "| prepare | $PREPARE_RESULT | tag authorization |"
+            echo "| verify | $VERIFY_RESULT | immutable artifacts |"
+            echo "| GitHub Release | $(channel_status github-release "$GITHUB_RELEASE_RESULT") | immutable assets |"
+            echo "| npm root | $(channel_status npm-root "$NPM_ROOT_RESULT") | ${NPM_ROOT_OUTCOME:-n/a} |"
+            echo "| npm core | $(channel_status npm-core "$NPM_CORE_RESULT") | ${NPM_CORE_OUTCOME:-n/a} |"
+            echo "| GHCR | $(channel_status ghcr "$GHCR_RESULT") | versioned image |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          failed=0
+          if [[ "$PREPARE_RESULT" != "success" || "$VERIFY_RESULT" != "success" ]]; then
+            failed=1
+          fi
+          if selected github-release && [[ "$GITHUB_RELEASE_RESULT" != "success" ]]; then
+            failed=1
+          fi
+          if selected npm-root && \
+            [[ "$NPM_ROOT_RESULT" != "success" || "$NPM_ROOT_COMPLETE" != "true" ]]; then
+            failed=1
+          fi
+          if selected npm-core; then
+            if [[ "$NPM_CORE_RESULT" != "success" ]]; then
+              failed=1
+            elif [[ "$NPM_CORE_COMPLETE" != "true" && "$NPM_CORE_OUTCOME" != "bootstrap_required" ]]; then
+              failed=1
+            fi
+          fi
+          if selected ghcr && [[ "$GHCR_RESULT" != "success" ]]; then
+            failed=1
+          fi
+          if [[ "$failed" -ne 0 ]]; then
+            echo "::error::One or more requested release channels failed reconciliation"
+            exit 1
+          fi
+          if selected npm-core && [[ "$NPM_CORE_COMPLETE" != "true" ]]; then
+            echo "::warning::Standalone core requires one-time npm bootstrap; root /core and GitHub Release tgz remain available"
+          fi

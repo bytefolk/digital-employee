@@ -3,26 +3,31 @@ import test from "node:test"
 
 import { detectSystemLocale, setLocale, t, getLocale, getAvailableLocales, getLocaleDisplayName } from "../../apps/cli/deploy/i18n.js"
 
-test("detectSystemLocale returns zh-CN for zh locale", () => {
-  const original = process.env.LANG
-  process.env.LANG = "zh_CN.UTF-8"
+function withLang<T>(lang: string, callback: () => T): T {
+  const originalLang = process.env.LANG
+  const originalLcAll = process.env.LC_ALL
+  delete process.env.LC_ALL
+  process.env.LANG = lang
   try {
-    assert.equal(detectSystemLocale(), "zh-CN")
+    return callback()
   } finally {
-    if (original !== undefined) process.env.LANG = original
+    if (originalLang !== undefined) process.env.LANG = originalLang
     else delete process.env.LANG
+    if (originalLcAll !== undefined) process.env.LC_ALL = originalLcAll
+    else delete process.env.LC_ALL
   }
+}
+
+test("detectSystemLocale returns zh-CN for zh locale", () => {
+  withLang("zh_CN.UTF-8", () => {
+    assert.equal(detectSystemLocale(), "zh-CN")
+  })
 })
 
 test("detectSystemLocale returns en for non-zh locale", () => {
-  const original = process.env.LANG
-  process.env.LANG = "en_US.UTF-8"
-  try {
+  withLang("en_US.UTF-8", () => {
     assert.equal(detectSystemLocale(), "en")
-  } finally {
-    if (original !== undefined) process.env.LANG = original
-    else delete process.env.LANG
-  }
+  })
 })
 
 test("setLocale loads English messages", () => {
@@ -86,12 +91,7 @@ test("missing key in non-English locale falls back to English", () => {
 })
 
 test("detectSystemLocale returns ja for Japanese locale", () => {
-  const original = process.env.LANG
-  process.env.LANG = "ja_JP.UTF-8"
-  try {
+  withLang("ja_JP.UTF-8", () => {
     assert.equal(detectSystemLocale(), "ja")
-  } finally {
-    if (original !== undefined) process.env.LANG = original
-    else delete process.env.LANG
-  }
+  })
 })

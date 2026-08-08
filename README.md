@@ -144,11 +144,20 @@ be terminated and verified before a terminal event is published.
 
 ## Release status
 
-The current source is a local `0.3.0` release candidate for the Agent-native
-commands and Runner kernel above. It has **not** been published to npm, GHCR,
-or GitHub Releases; use this source checkout until all release channels
-complete. Do not claim that `0.3.0` is publicly installable, and do not retag or
-overwrite `0.1.0`.
+The tagged `0.3.0` release is public through the root npm package, GHCR, and
+GitHub Releases:
+
+| Channel | Command or download |
+| --- | --- |
+| npm | `npm install --global @fullstack-ai-infra/digital-employee@0.3.0` |
+| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.3.0` |
+| GitHub Release | Download the root package and checksum from [`v0.3.0`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.3.0) |
+
+The standalone `@fullstack-ai-infra/digital-employee-core` npm package still
+requires its one-time registry bootstrap. Until then, install the root package
+and import `@fullstack-ai-infra/digital-employee/core`. The current `main`
+branch contains changes made after the tag and is not itself a published
+release. Do not retag or overwrite `0.3.0` or `0.1.0`.
 
 The frozen `0.1.0` compatibility release is distributed through three public
 channels:

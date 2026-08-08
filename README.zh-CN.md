@@ -73,7 +73,15 @@ V0.3 源码已经提供可嵌入的 one-shot Runner 执行内核和签名续租�
 
 ## 版本状态
 
-当前源码是包含上述 Agent-native 命令和 Runner 执行内核的本地 `0.3.0` 发布候选；它**尚未**发布到 npm、GHCR 或 GitHub Releases。在所有发布渠道完成前，请从当前源码运行和集成，不要宣称 `0.3.0` 已可公开安装，也不要覆盖或重新标记 `0.1.0`。
+标签版本 `0.3.0` 已通过 root npm 包、GHCR 和 GitHub Releases 公开发布：
+
+| 渠道 | 安装或下载方式 |
+| --- | --- |
+| npm | `npm install --global @fullstack-ai-infra/digital-employee@0.3.0` |
+| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.3.0` |
+| GitHub Release | 从 [`v0.3.0`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.3.0) 下载 root 包和校验文件 |
+
+独立的 `@fullstack-ai-infra/digital-employee-core` npm 包仍需完成一次性 registry bootstrap；在此之前，请安装 root 包并导入 `@fullstack-ai-infra/digital-employee/core`。当前 `main` 已包含标签之后的改动，本身不代表一个已发布版本。不要覆盖或重新标记 `0.3.0` 或 `0.1.0`。
 
 冻结的 `0.1.0` 兼容版本通过三个公开渠道分发：
 

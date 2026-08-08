@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
-import { readFile, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { lstat, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const PACKAGE_SPECS = [
+export const PACKAGE_SPECS = [
   {
     label: "root",
     manifestPath: "package.json",
@@ -12,9 +13,21 @@ const PACKAGE_SPECS = [
       "package.json",
       "dist/apps/cli/bin.js",
       "dist/packages/core/index.js",
-      "dist/packages/core/index.d.ts"
+      "dist/packages/core/index.d.ts",
+      "locales/README.md",
+      "locales/en.json",
+      "locales/ja.json",
+      "locales/zh-CN.json"
     ],
-    allowedFiles: ["package.json", "LICENSE", "NOTICE"],
+    allowedFiles: [
+      "package.json",
+      "LICENSE",
+      "NOTICE",
+      "locales/README.md",
+      "locales/en.json",
+      "locales/ja.json",
+      "locales/zh-CN.json"
+    ],
     allowedPrefixes: ["dist/"],
     allowedPatterns: [/^README[^/]*\.md$/]
   },
@@ -84,16 +97,49 @@ export function validatePackOutput({
   return errors;
 }
 
-async function validateArchive({ label, manifest, packDestination }) {
+function digest(buffer, algorithm, encoding) {
+  return createHash(algorithm).update(buffer).digest(encoding);
+}
+
+export async function validateArchive({
+  label,
+  manifest,
+  pack,
+  packDestination
+}) {
+  const errors = [];
+  let archive;
   try {
-    const archive = await stat(
-      path.join(packDestination, expectedFilename(manifest))
-    );
-    if (archive.isFile() && archive.size > 0) return [];
+    const archivePath = path.join(packDestination, expectedFilename(manifest));
+    const [archiveStat, archiveBytes] = await Promise.all([
+      lstat(archivePath),
+      readFile(archivePath)
+    ]);
+    if (
+      archiveStat.isSymbolicLink() ||
+      !archiveStat.isFile() ||
+      archiveBytes.length === 0
+    ) {
+      return [`${label} npm pack archive must be a non-empty regular file`];
+    }
+    archive = archiveBytes;
   } catch (error) {
     if (error?.code !== "ENOENT") throw error;
+    return [`${label} npm pack archive is missing or empty`];
   }
-  return [`${label} npm pack archive is missing or empty`];
+
+  if (!Number.isSafeInteger(pack?.size) || pack.size !== archive.length) {
+    errors.push(`${label} npm pack archive size does not match pack JSON`);
+  }
+  const integrity = `sha512-${digest(archive, "sha512", "base64")}`;
+  if (pack?.integrity !== integrity) {
+    errors.push(`${label} npm pack archive integrity does not match pack JSON`);
+  }
+  const shasum = digest(archive, "sha1", "hex");
+  if (pack?.shasum !== shasum) {
+    errors.push(`${label} npm pack archive shasum does not match pack JSON`);
+  }
+  return errors;
 }
 
 async function main() {
@@ -128,6 +174,7 @@ async function main() {
     errors.push(...await validateArchive({
       label: spec.label,
       manifest,
+      pack: output[0],
       packDestination
     }));
   }

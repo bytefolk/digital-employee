@@ -42,6 +42,14 @@ export function validateRelease({
   if (manifest.exports?.["."]?.import !== "./dist/packages/core/index.js") {
     errors.push("root package export must use compiled runtime output");
   }
+  if (
+    manifest.exports?.["./core"]?.types !==
+      "./dist/packages/core/index.d.ts" ||
+    manifest.exports?.["./core"]?.import !==
+      "./dist/packages/core/index.js"
+  ) {
+    errors.push("root /core fallback must use compiled output");
+  }
   if (!Array.isArray(manifest.files) || !manifest.files.includes("dist")) {
     errors.push("published files must include compiled distribution artifacts");
   }

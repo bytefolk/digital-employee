@@ -733,8 +733,14 @@ jobs:
           if selected npm-core; then
             if [[ "$NPM_CORE_RESULT" != "success" ]]; then
               failed=1
-            elif [[ "$NPM_CORE_COMPLETE" != "true" && "$NPM_CORE_OUTCOME" != "bootstrap_required" ]]; then
-              failed=1
+            elif [[ "$NPM_CORE_COMPLETE" != "true" ]]; then
+              if [[ "$NPM_CORE_OUTCOME" != "bootstrap_required" || \
+                    "$REQUESTED_TARGET" == "npm-core" ]]; then
+                if [[ "$NPM_CORE_OUTCOME" == "bootstrap_required" ]]; then
+                  echo "::error::Explicit npm-core reconciliation is incomplete until one-time npm owner bootstrap finishes"
+                fi
+                failed=1
+              fi
             fi
           fi
           if selected ghcr && [[ "$GHCR_RESULT" != "success" ]]; then

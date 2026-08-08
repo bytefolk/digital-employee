@@ -533,4 +533,13 @@ test("release workflow reconciles immutable artifacts independently", async () =
   assert.match(workflowText, /Standalone core requires one-time npm bootstrap/);
   assert.match(workflowText, /NPM_ROOT_COMPLETE.*true/);
   assert.match(workflowText, /NPM_CORE_OUTCOME.*bootstrap_required/);
+  const releaseStatus = workflow.jobs["release-status"].steps.at(-1).run;
+  assert.match(
+    releaseStatus,
+    /NPM_CORE_OUTCOME.*bootstrap_required[\s\S]*REQUESTED_TARGET.*npm-core/
+  );
+  assert.match(
+    releaseStatus,
+    /Explicit npm-core reconciliation is incomplete/
+  );
 });

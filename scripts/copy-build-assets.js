@@ -16,7 +16,7 @@ async function copyDirectory(name) {
 }
 
 await mkdir(outputRoot, { recursive: true });
-for (const directory of ["configs", "examples", "locales"]) {
+for (const directory of ["configs", "locales", "tests/fixtures/knowledge"]) {
   await rm(path.join(outputRoot, directory), { recursive: true, force: true });
   await copyDirectory(directory);
 }

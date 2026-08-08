@@ -24,7 +24,7 @@
     {
       "id": "approved-local-docs",
       "type": "filesystem",
-      "root": "../examples/knowledge",
+      "root": "../tests/fixtures/knowledge",
       "include": [
         ".md"
       ]

@@ -19,7 +19,7 @@
     {
       "id": "fixture-handbook",
       "type": "filesystem",
-      "root": "../../../examples/knowledge",
+      "root": "../knowledge",
       "include": [
         ".md"
       ]

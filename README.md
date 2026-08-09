@@ -144,18 +144,19 @@ be terminated and verified before a terminal event is published.
 
 ## Release status
 
-The tagged `0.3.0` release is public through the root npm package, GHCR, and
-GitHub Releases:
+The tagged `0.3.0` release is public through the root and core npm packages,
+GHCR, and GitHub Releases:
 
 | Channel | Command or download |
 | --- | --- |
-| npm | `npm install --global @fullstack-ai-infra/digital-employee@0.3.0` |
+| npm (CLI) | `npm install --global @fullstack-ai-infra/digital-employee@0.3.0` |
+| npm (core) | `npm install @fullstack-ai-infra/digital-employee-core@0.3.0` |
 | GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.3.0` |
-| GitHub Release | Download the root package and checksum from [`v0.3.0`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.3.0) |
+| GitHub Release | Download the root/core packages and checksums from [`v0.3.0`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.3.0) |
 
-The standalone `@fullstack-ai-infra/digital-employee-core` npm package still
-requires its one-time registry bootstrap. Until then, install the root package
-and import `@fullstack-ai-infra/digital-employee/core`. The current `main`
+The standalone `@fullstack-ai-infra/digital-employee-core@0.3.0` package is
+public. Its one-time registry bootstrap is complete, and subsequent versions
+publish from `release.yml` through npm Trusted Publishing. The current `main`
 branch contains changes made after the tag and is not itself a published
 release. Do not retag or overwrite `0.3.0` or `0.1.0`.
 

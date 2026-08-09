@@ -14,8 +14,7 @@ verified archives; they do not rebuild them.
    GHCR. Release runs share the maximum GitHub Actions concurrency queue (up
    to 100 pending runs) instead of replacing the previous pending release.
 4. Read the `release-status` job summary. A green run means every requested
-   channel is complete, except the explicitly reported `bootstrap_required`
-   state described below.
+   channel is complete.
 
 Registry authentication uses npm Trusted Publishing (GitHub OIDC). Do not add
 an `NPM_TOKEN` or `NODE_AUTH_TOKEN` repository secret.
@@ -71,33 +70,33 @@ This exceptional path only operates on an existing stable tag and existing
 GitHub Release. It verifies that the tag is reachable from `main`, rebuilds at
 the tag commit, refuses changed existing assets, and uploads only missing
 assets. npm and GHCR jobs are not selected. After resolving the external npm
-bootstrap, rerun the original failed `npm-core` job for `v0.3.0`.
+bootstrap, the original failed `npm-core` job for `v0.3.0` was rerun and
+completed successfully.
 
-## Standalone core bootstrap
+## Completed standalone core bootstrap
 
-npm Trusted Publishing cannot create a package's first public version. While
-`packages/core/.npm-bootstrap-pending` exists, repeated package-level 404s for
-`@fullstack-ai-infra/digital-employee-core` produce the visible, incomplete
-`bootstrap_required` outcome without failing unrelated release channels.
-Consumers can meanwhile use:
+npm Trusted Publishing cannot create a package's first public version. The
+one-time bootstrap for
+`@fullstack-ai-infra/digital-employee-core@0.3.0` is complete, and this
+repository's `release.yml` is registered as the package's Trusted Publisher.
+`packages/core/.npm-bootstrap-pending` has therefore been removed. All
+subsequent versions publish from CI without a long-lived npm credential.
+
+The removed marker was a temporary bootstrap state. While it existed,
+package-level 404s produced the visible, incomplete `bootstrap_required`
+outcome without failing unrelated release channels. It must not be recreated
+for routine release failures. A missing package now fails hard; an absent
+target version follows the normal CI publish path, while authentication or
+publication errors fail hard.
+
+Consumers can install the standalone package or import the root-package
+subpath:
 
 ```text
+@fullstack-ai-infra/digital-employee-core
 @fullstack-ai-infra/digital-employee/core
 ```
 
 The hardened workflow retains both verified `.tgz` files and their SHA-256
-checksums. The historical `v0.3.0` core asset appears after the backfill command
-above completes.
-
-An npm scope owner must perform the one-time authenticated publication from the
-verified GitHub Release core archive, then configure this repository and
-`release.yml` as the package's Trusted Publisher. Only after the public package
-exists and the trust binding is verified should the marker be removed. All
-subsequent versions publish from CI without a long-lived npm credential.
-
-If the owner publication succeeds before the marker-removal change is merged,
-a rerun accepts only an exact registry-integrity match and reports
-`bootstrap_verified_marker_cleanup_required`. It never republishes that version.
-If the package exists but the target version is absent, the stale marker still
-blocks CI publication until the trust binding is confirmed and the marker is
-removed.
+checksums. The historical `v0.3.0` GitHub Release contains the root and core
+archives plus both checksums.

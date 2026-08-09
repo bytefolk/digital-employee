@@ -1,9 +1,0 @@
-The standalone core package has not completed its first authenticated npm publish.
-
-While this marker exists, a registry-level package 404 is reported as
-bootstrap_required instead of failing the entire multi-channel release. The
-verified core tgz is still attached to the GitHub Release, and consumers can use
-@fullstack-ai-infra/digital-employee/core from the root package.
-
-Remove this marker only after the package exists on npm and its Trusted
-Publisher is bound to fullstack-ai-infra/digital-employee and release.yml.

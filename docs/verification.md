@@ -1,16 +1,21 @@
 # Verification ledger
 
-Last updated: 2026-08-14
+Last reviewed: 2026-08-13
 
 This file distinguishes shipped code from the environments in which it has
 actually been exercised. A passing fixture test is not presented as a live
 provider integration.
 
+Dated counts below are historical snapshots tied to their stated date. The
+current package-bound deploy changes are newer than public `0.3.0`; their final
+exact-PR-head test counts and package sizes remain pending and are deliberately
+not inferred from an earlier run.
+
 | Path | Evidence | Result |
 | --- | --- | --- |
 | Local answer and escalation | Public example files, extractive model, real CLI process | Verified |
-| Automated suite | `npm run check` | 858/858 tests plus strict TypeScript, build and the repository security scan passed on 2026-08-14; provider fixtures do not make live model requests |
-| Coverage gate | `npm run test:coverage` on Node.js 22.23.2 | 343/343 tests; 91.97% line, 73.48% branch and 90.44% function coverage |
+| Automated suite (historical source snapshot) | `npm run check` on Node.js 24.13.0 | 1,176/1,176 tests plus strict TypeScript, build and the repository security scan passed on 2026-08-10; this is not a final-current-head claim for the newer deploy changes, and provider fixtures do not make live model requests |
+| Coverage gate (historical pre-deploy baseline) | `npm run test:coverage` on Node.js 22.23.2 | 343/343 tests on 2026-08-04; 91.97% line, 73.48% branch and 90.44% function coverage; not presented as coverage for the newer deploy surface |
 | Strict TypeScript | `npm run typecheck` | 0 errors across shipped runtime sources |
 | Agent-host install probes | Real local version/init probes plus bounded fixture processes | Qoder CLI 1.1.17, Codex CLI 0.146.0, Qwen Code 0.17.1 and CodeBuddy Code 2.106.4 found locally; Claude Code 2.1.209 is below the verified range and its probe failed; live authentication/model access not tested |
 | Qoder run adapter | Adapter-specific deterministic child-process fixtures plus checked-in `structured-action.v1` package negotiation; not a reusable third-party certification harness | Qoder CLI 1.1.x SDK process-mode initialize/user/EOF transport, private auth payload, argument isolation, minimum read-only projection, filtered environment, exact read/search tool plus empty MCP/plugin/Skill attestation, package-aware preflight, atomic event publication, cross-delta exact-credential scrubbing, pre-truncation tool-value scrubbing, credential-bearing tool identifier/key rejection, and cancellation/cleanup invariants verified. `structured_output` additionally covers strict matching, prose/fence/truncated/malformed JSON, mismatch/extra fields, `false` Schema, absent Schema, credential mutation, buffered cancellation, independent deadline handling, and invalid/oversized/async Schema rejection before any Qoder process. A real model-free Qoder 1.1.17 probe made the public `senior-architect-pass-coach@0.3.0` employee compatible through ordinary package validation; unverified versions fail closed. This is Adapter-specific fixture evidence (`capabilitySource: conformance_test`), no Qoder qualification record was generated, `liveQualified` remains false, and no live model request was made. |
@@ -19,12 +24,12 @@ provider integration.
 | CodeBuddy Code run adapter | Exact-version child-process fixtures plus real local init against an unreachable loopback endpoint | CodeBuddy Code `2.106.4`, explicit `CODEBUDDY_API_KEY` and `CODEBUDDY_MODEL`, sealed UTF-8 stdin assets, disposable empty workspace/config/session/temp state, exhaustive built-in deny list and final empty tool/MCP attestation, strict status/snapshot/unknown-event checks, secret-safe structured output, cancellation, process-group cleanup and terminal invariants verified on POSIX; no model request reached a provider |
 | Probe-only compatibility | CLI integration fixture and source audit | Codex CLI 0.146.0 remains probe-only because `apply_patch` and other model-visible built-ins cannot all be reliably removed; its bounded `--version` subprocess probe does not authenticate, invoke a model or execute tools; missing service keys and unverified runnable-host versions fail closed |
 | Employee package | `init`, static `validate`, schema parity and hostile path fixtures | Atomic scaffold verified; malformed Skill/YAML/JSON Schema, direct/nested traversal, symlinks, glob artifacts and policy mismatches rejected |
-| Package-bound deploy | Built-CLI and direct fault fixtures in `tests/apps/deploy-cli.test.ts` | Exact package/cwd binding, localized automation and help, private atomic state, retained descriptor locking, parent-coupled HTTP activation, Bearer auth, Ready/readback, signal/crash cleanup, PID/lock/path races, replay fences, lost/delayed/forged release acknowledgements, Ready-reopen mismatch, and pre-/post-release parent crashes passed in the 1,176-test gate. DingTalk pagination/conflict fixtures are E3 only: installed DWS v1.0.55-beta.4 (`72cb8f1`) omits required `hasMore`/`nextCursor`, conflict codes lack authoritative/live provenance, and real provider E4 remains external HOLD. |
+| Package-bound deploy (current source, unreleased) | Built-CLI and direct fault fixtures in `tests/apps/deploy-cli.test.ts`; clean installed-tarball consumer gate in `release.yml` | The source test surface covers exact package/cwd binding, localized automation and help, private atomic state, HTTP health/ask readback, activation and cleanup faults, locks, races and replay fences. A release must additionally install the exact root tgz in a clean prefix, scaffold a recipe, report the installed version, start a fake-Qoder HTTP deployment, read health/ask, and prove PID cleanup. Final current-PR-head results are pending; `0.3.0` does not contain deploy. DingTalk fixtures remain E3 only and real provider E4 remains external HOLD. |
 | Publisher-owned Runner kernel | Protocol, lease, replay, package snapshot and executor fixtures | Trusted-key Ed25519 task/receipt envelope verification, canonical event hash chains, signed monotonic renewals, fencing identity, nonce replay rejection, exact local package digest, read-only one-run snapshot, lease abort and stable signed failure receipts verified |
 | Cross-repository Runner path | Manual compiled framework and private-platform acceptance harness; not yet a committed CI job | Platform claim → local package/Agent Host → 4 uploaded events → Runner-signed receipt → independent usage verification → settled Credit completed on 2026-08-04; the platform never received a local path, package bytes or Host credential |
 | Real-local mem/doc read path (#42 Phase A) | Manual `scripts/real-local-harness.mjs` run against actual pinned services (mem `3335ebe`, doc `b22ff1d`), plus offline loopback-fake host/matrix tests in CI | 9/9 scenarios passed on 2026-08-06 (two-session granted resume with stable locators, cross-principal/workspace denial, wrong-revision/unauthorized/revoked-or-unlisted document reads, unreachable service, unsupported matrix); evidence class `real-local-e2e`, secret scan empty |
 | MCP declaration | TypeScript and public Schema fixtures | stdio and HTTPS declarations accept environment names only; inline HTTP auth fields, insecure HTTP and duplicate servers rejected |
-| Compiled package | `npm run build`; root and core `npm pack --dry-run --json` | `@fullstack-ai-infra/digital-employee@0.3.0` candidate built as 214 files/273,559 bytes; core built as 73 files/75,149 bytes, including the public protocol, lease, replay and package-digest exports |
+| Compiled package | Public `v0.3.0` artifacts; current-source `npm pack --json` and release consumer gate | `0.3.0` is the historical public root/core release. Current-source release policy requires immutable archive digest checks plus clean-tarball import/init/setup/deploy/health/ask/PID-cleanup verification; final current-PR-head file counts and byte sizes are pending. |
 | Second profile | Explicitly allowlisted `minimal-reader` fixture through source and compiled runtimes | Answered with one approved citation; no core/CLI switch change |
 | Dependency audit | `npm audit --audit-level=high` | 0 known vulnerabilities |
 | Container | Built the current source `Dockerfile`; ran it with no arguments, then with explicit `legacy serve` | Default Agent-native help verified; explicit compatibility `/health` and `/v1/ask` verified |
@@ -50,8 +55,10 @@ npm run test:coverage
 npm audit --audit-level=high
 ```
 
-Node.js 24.13.0 completed all 858 tests through `npm run check`, and Node 24 is
-part of the regular CI matrix. Its experimental full-suite coverage reporter
+The historical 2026-08-10 snapshot completed all 1,176 tests through
+`npm run check` on Node.js 24.13.0, and Node 24 is part of the regular CI
+matrix. This is not a final-current-head deploy result. Its experimental
+full-suite coverage reporter
 can end with `Unexpected end of JSON input` while aggregating child-process
 coverage, including three consecutive reproductions after every test passed on
 the pre-fix `main` snapshot. The authoritative coverage job and release gate

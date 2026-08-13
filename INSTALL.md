@@ -4,6 +4,15 @@ This document is the single entry point for Agent Hosts. Drop the link to this
 file into any capable Agent Host (Qoder CLI, Claude Code, CodeBuddy Code, etc.)
 and ask it to set up the framework.
 
+## Published-versus-source boundary
+
+The current public npm release is `0.3.0`. It contains the Agent-native
+`setup`, `init`, `doctor`, `validate`, `eval`, and `run` paths, but it does not
+contain the newer package-bound `deploy` command. The deploy documentation and
+implementation on the current source branch are a pre-release preview. Do not
+present `npx digital-employee deploy` as an installed-package capability until
+a later public release explicitly includes it.
+
 ## Prerequisites
 
 - Node.js >= 20
@@ -50,13 +59,18 @@ After setup completes:
 
 | Host | Credential required | When |
 | --- | --- | --- |
-| Qoder CLI | Qoder API key (`QODER_API_KEY`) | At run time only |
-| Claude Code | Anthropic API key or OAuth | At run time only |
-| Qwen Code | DashScope API key | At run time only |
-| CodeBuddy | CodeBuddy session | At run time only |
+| Qoder CLI | `QODER_PERSONAL_ACCESS_TOKEN` | At run time only |
+| Claude Code | `ANTHROPIC_API_KEY` | At run time only |
+| Qwen Code | `OPENAI_API_KEY` and `OPENAI_MODEL` | At run time only |
+| CodeBuddy Code | `CODEBUDDY_API_KEY` and `CODEBUDDY_MODEL` | At run time only |
 
 Credentials are never needed during `setup` or `validate`. They are requested
 only when executing a live `run`.
+
+To evaluate package-bound deploy before it is released, use a reviewed source
+checkout, run `npm ci && npm run build`, and invoke
+`node ./dist/apps/cli/bin.js deploy ...`. That proves only the exact source
+commit you built; it is not evidence that npm `0.3.0` contains deploy.
 
 ## Failure semantics
 

@@ -9,6 +9,12 @@ npm install @fullstack-ai-infra/digital-employee
 npx digital-employee setup --json
 ```
 
+The current public npm version is `0.3.0`; it does not contain the newer
+package-bound `deploy` command. Treat deploy as a source-only pre-release
+preview until a later public release explicitly includes it. For source
+evaluation, run `npm ci && npm run build` and invoke
+`node ./dist/apps/cli/bin.js deploy ...` from that exact checkout.
+
 See [INSTALL.md](./INSTALL.md) for the full Agent-readable install path.
 
 ## Development guidelines

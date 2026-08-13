@@ -153,13 +153,19 @@ jobs:
           root_consumer="$RUNNER_TEMP/root-package-consumer"
           core_consumer="$RUNNER_TEMP/core-package-consumer"
           mkdir -p "$root_consumer" "$core_consumer"
-          npm install --prefix "$root_consumer" \
-            --ignore-scripts \
-            "$pack_destination/$root_package"
-          (
-            cd "$root_consumer"
-            node --input-type=module -e "await import('@fullstack-ai-infra/digital-employee/core')"
-          )
+          if [[ "${{ needs.prepare.outputs.mode }}" == "push" ]]; then
+            node ./scripts/release-consumer-check.js \
+              "$pack_destination/$root_package" \
+              ./tests/apps/fixtures/fake-qoder.mjs
+          else
+            npm install --prefix "$root_consumer" \
+              --ignore-scripts \
+              "$pack_destination/$root_package"
+            (
+              cd "$root_consumer"
+              node --input-type=module -e "await import('@fullstack-ai-infra/digital-employee/core')"
+            )
+          fi
           npm install --prefix "$core_consumer" \
             --ignore-scripts \
             "$pack_destination/$core_package"

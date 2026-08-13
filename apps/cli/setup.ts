@@ -64,14 +64,25 @@ interface EmployeeCheck {
 
 function getPackageVersion(): string {
   try {
-    const packageRoot = path.resolve(
-      path.dirname(fileURLToPath(import.meta.url)),
-      "../..",
-    );
-    const pkgPath = path.join(packageRoot, "package.json");
-    if (existsSync(pkgPath)) {
-      const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
-      return pkg.version || "unknown";
+    let directory = path.dirname(fileURLToPath(import.meta.url));
+    for (let depth = 0; depth < 5; depth += 1) {
+      const pkgPath = path.join(directory, "package.json");
+      if (existsSync(pkgPath)) {
+        const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as {
+          name?: unknown;
+          version?: unknown;
+        };
+        if (
+          pkg.name === "@fullstack-ai-infra/digital-employee" &&
+          typeof pkg.version === "string" &&
+          pkg.version.length > 0
+        ) {
+          return pkg.version;
+        }
+      }
+      const parent = path.dirname(directory);
+      if (parent === directory) break;
+      directory = parent;
     }
   } catch {
     // Ignore
@@ -203,8 +214,7 @@ export async function setup(options: SetupOptions = {}): Promise<void> {
   // Step 1: Environment check
   const environment = checkEnvironment();
 
-  // Resolve package version (async due to fs read)
-  environment.packageVersion = await getPackageVersion();
+  environment.packageVersion = getPackageVersion();
 
   const errors: string[] = [];
   if (!environment.supported) {

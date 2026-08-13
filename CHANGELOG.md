@@ -33,6 +33,13 @@ All notable changes to this project will be documented in this file.
   verified loopback HTTP runtime, Console pending guidance, and a fail-closed
   DingTalk reconciliation path. Current DWS JSON list output omits the required
   pagination metadata, so real DingTalk integration remains on external HOLD.
+- Hardened deploy so DingTalk resources cannot be orphaned by implicit
+  rebinding, provider create errors retain their durable reconciliation fence,
+  HTTP runtimes receive only the selected engine credentials, and requests run
+  from a private digest-bound package snapshot.
+- Added bounded interactive input and clean installed-tarball deploy gates,
+  including recipe assets, setup version identity, health/ask readback, and
+  runtime PID cleanup.
 - Real-local Phase A path (#42): a `component-matrix.v1` contract that pins
   the exact `mem` and `doc` service commits as the sole version authority, a
   deterministic `real-local-stdio-host` Agent Host fixture that resumes
@@ -85,8 +92,9 @@ All notable changes to this project will be documented in this file.
 
 ## [0.3.0] - 2026-08-04
 
-This source candidate adds the publisher-owned Runner execution boundary. It
-has not been published to npm, GHCR or GitHub Releases.
+This public release added the publisher-owned Runner execution boundary and is
+available through the root and core npm packages, GHCR, and GitHub Releases.
+It predates the package-bound `deploy` work in `[Unreleased]`.
 
 ### Added
 

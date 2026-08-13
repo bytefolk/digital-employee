@@ -39,9 +39,12 @@ test("setup with existing employee package does not re-scaffold", async () => {
 test("setup reports node version information", async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "setup-env-"))
   const result = await captureSetupOutput(dir)
+  const manifest = JSON.parse(
+    await readFile(path.join(process.cwd(), "package.json"), "utf8"),
+  )
 
   assert.equal(result.environment.nodeVersion, process.version)
-  assert.equal(typeof result.environment.packageVersion, "string")
+  assert.equal(result.environment.packageVersion, manifest.version)
 })
 
 test("setup reports hosts array", async () => {

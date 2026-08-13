@@ -52,7 +52,6 @@ export interface DingTalkProviderOptions {
   onCreateAttempt?: (
     operation: DeployProviderOperation,
   ) => void | Promise<void>
-  onCreateRejected?: () => void | Promise<void>
   onProviderIdentified?: (
     provider: DeployProviderState,
   ) => void | Promise<void>
@@ -616,7 +615,6 @@ export async function reconcileDingTalkApplication(
     commandTimeoutMs,
     existingOperation,
     onCreateAttempt,
-    onCreateRejected,
     onProviderIdentified,
   }: DingTalkProviderOptions = {},
 ): Promise<DingTalkProviderResult> {
@@ -727,21 +725,16 @@ export async function reconcileDingTalkApplication(
   } else {
     const normalized = created.explicitProviderCode?.toLowerCase()
     if (!normalized || !ALREADY_EXISTS_CODES.has(normalized)) {
-      if (created.indeterminate) {
-        return {
-          status: "indeterminate",
-          code: "dingtalk_provider_create_indeterminate",
-        }
+      // Crossing +create is an irreversible provider boundary. A non-zero
+      // result cannot prove that the remote side performed no write, even
+      // when it contains a well-formed machine code. Keep the durable
+      // operation fence and make every replay reconcile-only.
+      return {
+        status: "indeterminate",
+        code: created.explicitProviderCode
+          ? created.code
+          : "dingtalk_provider_create_indeterminate",
       }
-      try {
-        await onCreateRejected?.()
-      } catch {
-        return {
-          status: "indeterminate",
-          code: "dingtalk_provider_fence_clear_failed",
-        }
-      }
-      return { status: "failed", code: created.code }
     }
     found = await findExactApp(name, signal, beforeBoundary, commandTimeoutMs)
     if (found.status === "failed") {

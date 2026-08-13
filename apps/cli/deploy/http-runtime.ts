@@ -3,7 +3,7 @@
 import path from "node:path"
 import { closeSync, fstatSync, lstatSync, readSync } from "node:fs"
 
-import { computeEmployeePackageDirectoryDigest } from "../employee-package.js"
+import { createSealedEmployeePackageSnapshot } from "../employee-package.js"
 import { runEmployeePackage } from "../agent-run.js"
 import { createHttpServer } from "../../server/server.js"
 import { loadConfigSnapshotFromPath } from "./config.js"
@@ -393,10 +393,12 @@ export async function runHttpDeploymentRuntime(
   let parentLost = false
   const onParentLost = () => {
     parentLost = true
-    process.exit(1)
   }
   process.once("disconnect", onParentLost)
-  const activationDeadline = setTimeout(() => process.exit(1), 30_000)
+  const activationDeadline = setTimeout(() => {
+    parentLost = true
+    if (process.connected) process.disconnect?.()
+  }, 30_000)
   activationDeadline.unref()
   const activated = await waitForActivation(runtimeArguments)
   const { config, stateDigest } = activated
@@ -407,30 +409,62 @@ export async function runHttpDeploymentRuntime(
   }
   await activatedConfig(runtimeArguments, stateDigest, "authorized")
   assertActivationLease(runtimeArguments)
-  const digest = await computeEmployeePackageDirectoryDigest(
+  const packageSnapshot = await createSealedEmployeePackageSnapshot(
     config.package!.localReference,
   )
-  if (digest !== config.package!.digest) {
+  if (
+    packageSnapshot.digest !== config.package!.digest ||
+    packageSnapshot.manifest.name !== config.package!.name ||
+    packageSnapshot.manifest.version !== config.package!.version
+  ) {
+    await packageSnapshot.cleanup()
     throw new TypeError("deploy_http_runtime_package_digest_mismatch")
   }
-  assertActivationLease(runtimeArguments)
-  if (parentLost || !process.connected) {
-    throw new TypeError("deploy_http_runtime_activation_parent_lost")
+  let acceptsRequests = false
+  let server: ReturnType<typeof createHttpServer> | undefined
+  let stopping = false
+  const stop = () => {
+    if (stopping) return
+    stopping = true
+    acceptsRequests = false
+    const finish = () => {
+      packageSnapshot.cleanup().then(
+        () => process.exit(0),
+        () => process.exit(1),
+      )
+    }
+    if (!server) {
+      finish()
+      return
+    }
+    server.closeAllConnections()
+    server.close(finish)
   }
-  await sendProtocolMessage({
-    type: "deploy-http-runtime-activation-ack",
-    phase: "ready-to-listen",
-    stateDigest,
-    ...activationTuple(runtimeArguments),
-  })
-  const listen = await waitForProtocolMessage("listen", runtimeArguments)
-  if (listen.stateDigest !== stateDigest) {
-    throw new TypeError("deploy_http_runtime_activation_state_invalid")
-  }
-  await activatedConfig(runtimeArguments, stateDigest, "authorized")
-  assertActivationLease(runtimeArguments)
-  if (parentLost || !process.connected) {
-    throw new TypeError("deploy_http_runtime_activation_parent_lost")
+  process.once("SIGINT", stop)
+  process.once("SIGTERM", stop)
+  try {
+    assertActivationLease(runtimeArguments)
+    if (parentLost || !process.connected) {
+      throw new TypeError("deploy_http_runtime_activation_parent_lost")
+    }
+    await sendProtocolMessage({
+      type: "deploy-http-runtime-activation-ack",
+      phase: "ready-to-listen",
+      stateDigest,
+      ...activationTuple(runtimeArguments),
+    })
+    const listen = await waitForProtocolMessage("listen", runtimeArguments)
+    if (listen.stateDigest !== stateDigest) {
+      throw new TypeError("deploy_http_runtime_activation_state_invalid")
+    }
+    await activatedConfig(runtimeArguments, stateDigest, "authorized")
+    assertActivationLease(runtimeArguments)
+    if (parentLost || !process.connected) {
+      throw new TypeError("deploy_http_runtime_activation_parent_lost")
+    }
+  } catch (error) {
+    await packageSnapshot.cleanup()
+    throw error
   }
 
   const binding = {
@@ -440,9 +474,9 @@ export async function runHttpDeploymentRuntime(
     runtime: config.runtime!,
     engine: config.engine!,
   }
-  let acceptsRequests = false
   let activationLeaseClosed = false
-  const server = createHttpServer({
+  try {
+    server = createHttpServer({
     token: config.secretReferences?.httpTokenEnv
       ? process.env[config.secretReferences.httpTokenEnv]
       : undefined,
@@ -457,22 +491,32 @@ export async function runHttpDeploymentRuntime(
             },
           }
         }
-        const result = await runEmployeePackage({
-          directory: config.package!.localReference,
-          engine: config.engine!,
-          input: { message: input.message },
-          expectedPackageDigest: config.package!.digest,
-        })
-        if (result.status === "failed") {
+        try {
+          const result = await runEmployeePackage({
+            directory: packageSnapshot.directory,
+            engine: config.engine!,
+            input: { message: input.message },
+            expectedPackageDigest: config.package!.digest,
+          })
+          if (result.status === "failed") {
+            return {
+              status: "rejected",
+              error: {
+                code: result.error.code,
+                retryable: result.error.retryable,
+              },
+            }
+          }
+          return safeCompletedOutput(result.output)
+        } catch {
           return {
             status: "rejected",
             error: {
-              code: result.error.code,
-              retryable: result.error.retryable,
+              code: "employee_package_snapshot_failed",
+              retryable: false,
             },
           }
         }
-        return safeCompletedOutput(result.output)
       },
     },
     health: () => ({
@@ -489,7 +533,11 @@ export async function runHttpDeploymentRuntime(
       },
       package: binding,
     }),
-  })
+    })
+  } catch (error) {
+    await packageSnapshot.cleanup()
+    throw error
+  }
 
   const becomeAutonomous = () => {
     process.removeListener("disconnect", onParentLost)
@@ -582,14 +630,10 @@ export async function runHttpDeploymentRuntime(
         timer.unref()
       }),
     ])
+    await packageSnapshot.cleanup()
     throw error
   }
 
-  const stop = () => {
-    server.close(() => process.exit(0))
-  }
-  process.once("SIGINT", stop)
-  process.once("SIGTERM", stop)
 }
 
 const runtimeArguments = requiredRuntimeArguments(process.argv.slice(2))

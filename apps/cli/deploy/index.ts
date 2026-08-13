@@ -449,7 +449,6 @@ async function dispatchChannel(
   onProviderOperation: (
     operation: NonNullable<DeployConfig["providerOperation"]>,
   ) => Promise<void>,
-  onProviderOperationRejected: () => Promise<void>,
   allowProviderWrite: boolean,
   assertLockOwned: () => Promise<void>,
   assertProviderBoundary: () => Promise<void>,
@@ -468,7 +467,6 @@ async function dispatchChannel(
       ),
       onProviderVerified,
       onProviderOperation,
-      onProviderOperationRejected,
       assertLockOwned: assertProviderBoundary,
     })
   }
@@ -668,6 +666,22 @@ async function deployImpl(options: DeployOptions = {}): Promise<void> {
     }
     const existing = snapshot.config
     let stateGeneration: DeployConfigFingerprint = snapshot.fingerprint
+    if (
+      existing.provider &&
+      !(
+        existing.channel === "dingtalk" &&
+        channel === "dingtalk" &&
+        existing.botName === candidate.botName
+      )
+    ) {
+      renderOutcome(existing, {
+        outcome: "unsupported",
+        steps: [],
+        code: "dingtalk_provider_rebinding_unsupported",
+      })
+      setOutcomeExitCode("unsupported")
+      return
+    }
     if (
       existing.providerOperation &&
       !(
@@ -912,15 +926,6 @@ async function deployImpl(options: DeployOptions = {}): Promise<void> {
             updatedAt: new Date().toISOString(),
           }, { expected: stateGeneration, lock })
           candidate.providerOperation = operation
-        },
-        async () => {
-          await assertEffectBoundary()
-          stateGeneration = await saveConfig({
-            ...candidate,
-            providerOperation: undefined,
-            updatedAt: new Date().toISOString(),
-          }, { expected: stateGeneration, lock })
-          candidate.providerOperation = undefined
         },
         options.yes === true,
         () => lock.assertOwned(),
@@ -1179,8 +1184,8 @@ export async function deploy(options: DeployOptions = {}): Promise<void> {
       failCode("deploy.error_interrupted", "deploy_interrupted")
       return
     }
-    if (error instanceof Error && error.message === "deploy_prompt_input_closed") {
-      failCode("deploy.error_prompt_input_closed", "deploy_prompt_input_closed")
+    if (error instanceof Error && error.message.startsWith("deploy_prompt_input_")) {
+      failCode("deploy.error_prompt_input_closed", error.message)
       return
     }
     throw error

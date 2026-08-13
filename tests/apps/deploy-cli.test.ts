@@ -33,6 +33,7 @@ import {
   createEmployeePackage,
 } from "../../apps/cli/employee-package.js"
 import { reconcileDingTalkApplication } from "../../apps/cli/deploy/dingtalk-provider.js"
+import { buildHttpRuntimeEnvironment } from "../../apps/cli/deploy/channels.js"
 import {
   loadConfigSnapshotFromPath,
   saveConfig,
@@ -52,6 +53,63 @@ const qoderFixture = path.join(
   "fixtures",
   "fake-qoder.mjs",
 )
+
+test("HTTP runtime environment contains only the selected engine credentials", () => {
+  const source = {
+    PATH: "/fixture/bin",
+    ANTHROPIC_API_KEY: "anthropic-sentinel",
+    QODER_PERSONAL_ACCESS_TOKEN: "qoder-sentinel",
+    OPENAI_API_KEY: "openai-sentinel",
+    OPENAI_MODEL: "openai-model",
+    OPENAI_BASE_URL: "https://openai.example.test",
+    CODEBUDDY_API_KEY: "codebuddy-sentinel",
+    CODEBUDDY_MODEL: "codebuddy-model",
+    CODEBUDDY_BASE_URL: "https://codebuddy.example.test",
+    CODEBUDDY_INTERNET_ENVIRONMENT: "internal",
+    DIGITAL_EMPLOYEE_HTTP_TOKEN: "http-token-sentinel",
+    AWS_SECRET_ACCESS_KEY: "unrelated-sentinel",
+  }
+  const expected: Record<string, string[]> = {
+    "claude-code": ["ANTHROPIC_API_KEY"],
+    qoder: ["QODER_PERSONAL_ACCESS_TOKEN"],
+    "qwen-code": ["OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL"],
+    codebuddy: [
+      "CODEBUDDY_API_KEY",
+      "CODEBUDDY_MODEL",
+      "CODEBUDDY_BASE_URL",
+      "CODEBUDDY_INTERNET_ENVIRONMENT",
+    ],
+  }
+  for (const [engine, engineKeys] of Object.entries(expected)) {
+    const environment = buildHttpRuntimeEnvironment({
+      schemaVersion: "deploy-state.v1",
+      locale: "en",
+      channel: "http",
+      botName: "Environment Test",
+      engine,
+      runtime: "agent-native",
+      outcome: "pending_external_action",
+      secretReferences: { httpTokenEnv: "DIGITAL_EMPLOYEE_HTTP_TOKEN" },
+      updatedAt: "2026-08-13T00:00:00.000Z",
+    }, source)
+    assert.deepEqual(
+      Object.keys(environment).sort(),
+      ["PATH", "DIGITAL_EMPLOYEE_HTTP_TOKEN", ...engineKeys].sort(),
+    )
+  }
+  const withoutTokenReference = buildHttpRuntimeEnvironment({
+    schemaVersion: "deploy-state.v1",
+    locale: "en",
+    channel: "http",
+    botName: "Environment Test",
+    engine: "qoder",
+    runtime: "agent-native",
+    outcome: "pending_external_action",
+    updatedAt: "2026-08-13T00:00:00.000Z",
+  }, source)
+  assert.equal(withoutTokenReference.DIGITAL_EMPLOYEE_HTTP_TOKEN, undefined)
+  assert.equal(withoutTokenReference.AWS_SECRET_ACCESS_KEY, undefined)
+})
 
 interface CliEnvironment {
   home: string
@@ -164,6 +222,22 @@ async function waitFor(
     await delay(20)
   }
   throw new Error("condition_not_reached_before_timeout")
+}
+
+async function ownedProcessEnvironment(pid: number): Promise<string | undefined> {
+  if (process.platform === "linux") {
+    return (await readFile(`/proc/${pid}/environ`)).toString("utf8")
+  }
+  if (process.platform === "darwin") {
+    const result = spawnSync(
+      "/bin/ps",
+      ["eww", "-p", String(pid), "-o", "command="],
+      { encoding: "utf8" },
+    )
+    assert.equal(result.status, 0, result.stderr)
+    return result.stdout
+  }
+  return undefined
 }
 
 function deploymentPids(configPath: string): number[] {
@@ -1543,7 +1617,14 @@ test("built complete --yes deploy binds --package and starts a verified /v1/ask 
       environment: cliEnvironment({
         home,
         bin,
-        extra: { QODER_PERSONAL_ACCESS_TOKEN: secret },
+        extra: {
+          QODER_PERSONAL_ACCESS_TOKEN: secret,
+          ANTHROPIC_API_KEY: "unused-anthropic-sentinel",
+          OPENAI_API_KEY: "unused-openai-sentinel",
+          OPENAI_MODEL: "unused-openai-model",
+          CODEBUDDY_API_KEY: "unused-codebuddy-sentinel",
+          CODEBUDDY_MODEL: "unused-codebuddy-model",
+        },
       }),
     },
   )
@@ -1608,6 +1689,14 @@ test("built complete --yes deploy binds --package and starts a verified /v1/ask 
   assert.match(command.stdout, new RegExp(`--launch-id=${config.process.launchId}`))
   assert.match(command.stdout, new RegExp(`--package-digest=${digest}`))
   assert.match(command.stdout, new RegExp(`--port=${port}`))
+  const runtimeEnvironment = await ownedProcessEnvironment(config.process.pid)
+  if (runtimeEnvironment !== undefined) {
+    assert.match(runtimeEnvironment, new RegExp(secret))
+    assert.doesNotMatch(
+      runtimeEnvironment,
+      /unused-anthropic-sentinel|unused-openai-sentinel|unused-openai-model|unused-codebuddy-sentinel|unused-codebuddy-model/,
+    )
+  }
 
   const oldPath = await httpJson({ port, path: "/answer" })
   assert.equal(oldPath.status, 404)
@@ -1620,6 +1709,32 @@ test("built complete --yes deploy binds --package and starts a verified /v1/ask 
   })
   assert.equal(answer.status, 200)
   assert.equal(answer.body.answer, "fixture answer")
+
+  const knowledgePath = path.join(packageDirectory, "knowledge", "README.md")
+  const boundKnowledge = await readFile(knowledgePath)
+  await writeFile(
+    knowledgePath,
+    Buffer.concat([boundKnowledge, Buffer.from("\nunbound mutation\n")]),
+  )
+  const changedSource = await httpJson({
+    port,
+    path: "/v1/ask",
+    method: "POST",
+    body: JSON.stringify({ message: "must not execute changed bytes" }),
+    timeoutMs: 10_000,
+  })
+  assert.equal(changedSource.status, 200)
+  assert.equal(changedSource.body.answer, "fixture answer")
+  await writeFile(knowledgePath, boundKnowledge)
+  const restoredSource = await httpJson({
+    port,
+    path: "/v1/ask",
+    method: "POST",
+    body: JSON.stringify({ message: "fixture question" }),
+    timeoutMs: 10_000,
+  })
+  assert.equal(restoredSource.status, 200)
+  assert.equal(restoredSource.body.answer, "fixture answer")
 
   const argv = spawnSync("ps", ["-p", String(config.process.pid), "-o", "command="], {
     encoding: "utf8",
@@ -6847,6 +6962,17 @@ test("interactive answers survive separated stdin chunks and premature EOF fails
   assert.equal(endedResult.status, 1, endedResult.stderr)
   assert.match(endedResult.stderr, /input ended before a required answer/i)
   assert.equal(await noConfig(emptyHome), true)
+
+  const oversizedHome = path.join(temporary, "oversized-home")
+  await mkdir(oversizedHome)
+  const oversized = runBuiltCli(["deploy"], {
+    cwd: packageDirectory,
+    environment: cliEnvironment({ home: oversizedHome, bin }),
+    input: `${"x".repeat(4_097)}\n`,
+  })
+  assert.equal(oversized.status, 1, oversized.stderr)
+  assert.match(oversized.stderr, /deploy_prompt_input_limit_exceeded/)
+  assert.equal(await noConfig(oversizedHome), true)
 })
 
 test("paused deploy fencing prevents a different-port concurrent deploy from spawning", async (t) => {
@@ -7585,7 +7711,7 @@ test("DingTalk provider reconciliation uses exact JSON codes and remains pending
     })),
     {
       mode: "arbitrary" as const,
-      status: 1,
+      status: 2,
       commands: ["+list", "+create"],
       providerExpected: false,
     },
@@ -7703,7 +7829,8 @@ test("DingTalk provider reconciliation uses exact JSON codes and remains pending
         fixture.mode === "create-stderr-conflict" ||
         fixture.mode === "create-stderr-malformed-code" ||
         fixture.mode === "create-stderr-malformed" ||
-        fixture.mode === "create-stderr-oversized"
+        fixture.mode === "create-stderr-oversized" ||
+        fixture.mode === "arbitrary"
       ) {
         assert.equal(config.provider, undefined)
         assert.equal(config.providerOperation?.kind, "dingtalk-app-create")
@@ -7922,13 +8049,34 @@ test("DingTalk provider reconciliation uses exact JSON codes and remains pending
       }
 
       if (fixture.mode === "arbitrary") {
-        assert.equal(config.providerOperation, undefined)
+        const operationId = config.providerOperation?.operationId
+        assert.match(operationId ?? "", /^[a-f0-9]{32}$/)
         assert.equal(
           (config as { code?: string }).code,
           "dingtalk_provider_error_permission_denied",
         )
         assert.match(result.stderr, /dingtalk_provider_error_permission_denied/)
-        await installFakeDws(bin, "success", logPath, providerState)
+        const uncertainReplay = runBuiltCli(args, { environment })
+        assert.equal(uncertainReplay.status, 2, uncertainReplay.stderr)
+        const uncertainCalls = (await readFile(logPath, "utf8"))
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line) as string[])
+        assert.deepEqual(
+          uncertainCalls.slice(calls.length).map((call) => call[1]),
+          ["+list"],
+        )
+        assert.equal(
+          uncertainCalls.filter((call) => call[1] === "+create").length,
+          1,
+        )
+        const uncertainConfig = JSON.parse(
+          await readFile(configPath, "utf8"),
+        ) as { providerOperation?: { operationId: string } }
+        assert.equal(uncertainConfig.providerOperation?.operationId, operationId)
+
+        await writeFile(providerState, JSON.stringify({ name: "Ding Bot" }))
+        await installFakeDws(bin, "conflict", logPath, providerState)
         const retry = runBuiltCli(args, { environment })
         assert.equal(retry.status, 2, retry.stderr)
         const retryCalls = (await readFile(logPath, "utf8"))
@@ -7936,12 +8084,12 @@ test("DingTalk provider reconciliation uses exact JSON codes and remains pending
           .split("\n")
           .map((line) => JSON.parse(line) as string[])
         assert.deepEqual(
-          retryCalls.slice(calls.length).map((call) => call[1]),
-          ["+list", "+create", "+get"],
+          retryCalls.slice(uncertainCalls.length).map((call) => call[1]),
+          ["+list", "+get"],
         )
         assert.equal(
           retryCalls.filter((call) => call[1] === "+create").length,
-          2,
+          1,
         )
         const retryConfig = JSON.parse(
           await readFile(configPath, "utf8"),
@@ -8889,7 +9037,7 @@ test("a durable DingTalk operation globally fences changed bindings until exact 
   })
   const args = (
     packageDirectory: string,
-    channel: "dingtalk" | "console" = "dingtalk",
+    channel: "dingtalk" | "console" | "http" | "lark" | "wecom" = "dingtalk",
     name = "Ding Bot",
   ) => [
     "deploy",
@@ -8963,24 +9111,28 @@ test("a durable DingTalk operation globally fences changed bindings until exact 
   )
 
   await installFakeDws(bin, "success", logPath, providerState)
-  const next = runBuiltCli(args(packageB, "dingtalk", "Other Bot"), {
-    environment,
-  })
-  assert.equal(next.status, 2, next.stderr)
-  const finalCalls = (await readFile(logPath, "utf8"))
-    .trim()
-    .split("\n")
-    .map((line) => JSON.parse(line) as string[])
-  assert.deepEqual(
-    finalCalls.slice(reconciledCalls.length).map((call) => call[1]),
-    ["+list", "+create", "+get"],
-  )
-  const finalConfig = JSON.parse(await readFile(configPath, "utf8")) as {
-    botName: string
-    providerOperation?: unknown
+  const verifiedBytes = await readFile(configPath)
+  const verifiedIdentity = await lstat(configPath)
+  for (const blocked of [
+    { label: "name", args: args(packageB, "dingtalk", "Other Bot") },
+    { label: "channel", args: args(packageA, "console") },
+    { label: "http", args: args(packageA, "http") },
+    { label: "lark", args: args(packageA, "lark") },
+    { label: "wecom", args: args(packageA, "wecom") },
+  ]) {
+    const next = runBuiltCli(blocked.args, { environment })
+    assert.equal(next.status, 1, `${blocked.label}: ${next.stderr}`)
+    assert.match(next.stderr, /unsupported/i)
+    const finalCalls = (await readFile(logPath, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as string[])
+    assert.deepEqual(finalCalls, reconciledCalls)
+    const after = await lstat(configPath)
+    assert.equal(after.dev, verifiedIdentity.dev)
+    assert.equal(after.ino, verifiedIdentity.ino)
+    assert.deepEqual(await readFile(configPath), verifiedBytes)
   }
-  assert.equal(finalConfig.botName, "Other Bot")
-  assert.equal(finalConfig.providerOperation, undefined)
   assert.notEqual(operationId, "")
 })
 

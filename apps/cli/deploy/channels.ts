@@ -63,7 +63,6 @@ export interface ChannelDeployContext {
   onProviderOperation?: (
     operation: DeployProviderOperation,
   ) => void | Promise<void>
-  onProviderOperationRejected?: () => void | Promise<void>
   assertLockOwned?: () => void | Promise<void>
   activationLease?: HttpActivationLease
 }
@@ -96,7 +95,6 @@ export async function deployDingTalk(
       beforeBoundary: context.assertLockOwned,
       existingOperation: config.providerOperation,
       onCreateAttempt: context.onProviderOperation,
-      onCreateRejected: context.onProviderOperationRejected,
       onProviderIdentified: context.onProviderVerified,
     },
   )
@@ -350,19 +348,26 @@ function httpRuntimeInvocation(
   }
 }
 
-function safeHttpRuntimeEnvironment(): NodeJS.ProcessEnv {
+/** @internal Builds the exact detached-runtime environment for tests/audits. */
+export function buildHttpRuntimeEnvironment(
+  config: DeployConfig,
+  source: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = {}
-  for (const key of [
+  const common = [
     "PATH",
-    "HOME",
-    "USER",
-    "LOGNAME",
+    "PATHEXT",
+    "SYSTEMROOT",
+    "WINDIR",
     "TMPDIR",
+    "TEMP",
+    "TMP",
     "LANG",
     "LC_ALL",
     "LC_CTYPE",
     "NO_COLOR",
     "TERM",
+    "TZ",
     "HTTP_PROXY",
     "HTTPS_PROXY",
     "NO_PROXY",
@@ -371,18 +376,26 @@ function safeHttpRuntimeEnvironment(): NodeJS.ProcessEnv {
     "no_proxy",
     "SSL_CERT_FILE",
     "SSL_CERT_DIR",
-    "ANTHROPIC_API_KEY",
-    "QODER_PERSONAL_ACCESS_TOKEN",
-    "OPENAI_API_KEY",
-    "OPENAI_MODEL",
-    "OPENAI_BASE_URL",
-    "CODEBUDDY_API_KEY",
-    "CODEBUDDY_MODEL",
-    "CODEBUDDY_BASE_URL",
-    "CODEBUDDY_INTERNET_ENVIRONMENT",
-    "DIGITAL_EMPLOYEE_HTTP_TOKEN",
-  ]) {
-    if (process.env[key] !== undefined) environment[key] = process.env[key]
+  ] as const
+  const engineVariables: Record<string, readonly string[]> = {
+    "claude-code": ["ANTHROPIC_API_KEY"],
+    qoder: ["QODER_PERSONAL_ACCESS_TOKEN"],
+    "qwen-code": ["OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL"],
+    codebuddy: [
+      "CODEBUDDY_API_KEY",
+      "CODEBUDDY_MODEL",
+      "CODEBUDDY_BASE_URL",
+      "CODEBUDDY_INTERNET_ENVIRONMENT",
+    ],
+  }
+  const selected = config.engine ? engineVariables[config.engine] : undefined
+  if (!selected) throw new TypeError("http_runtime_engine_invalid")
+  const tokenVariable = config.secretReferences?.httpTokenEnv ===
+      "DIGITAL_EMPLOYEE_HTTP_TOKEN"
+    ? ["DIGITAL_EMPLOYEE_HTTP_TOKEN"]
+    : []
+  for (const key of [...common, ...selected, ...tokenVariable]) {
+    if (source[key] !== undefined) environment[key] = source[key]
   }
   return environment
 }
@@ -670,7 +683,7 @@ export async function deployHttp(
   try {
     child = spawn(invocation.command, invocation.args, {
       detached: true,
-      env: safeHttpRuntimeEnvironment(),
+      env: buildHttpRuntimeEnvironment(config),
       stdio: [
         "ignore",
         "ignore",

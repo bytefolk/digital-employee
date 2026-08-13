@@ -84,6 +84,12 @@ and `deployedAt`, and `deployedAt` exists if and only if the outcome is Ready.
 Only DingTalk may contain `provider` or `providerOperation`, and the two cannot
 coexist.
 
+An exact DingTalk `resourceId` is an ownership binding. Until an explicit
+detach/delete migration exists, deploy refuses a channel change or bot-name
+change that would orphan that verified resource. The original state bytes and
+remote identity remain untouched. Package or engine rebinding under the same
+DingTalk name reconciles the existing id rather than creating a replacement.
+
 When a non-empty `DIGITAL_EMPLOYEE_HTTP_TOKEN` is present at deployment time,
 `POST /v1/ask` requires the exact `Authorization: Bearer <token>` header;
 missing or incorrect credentials receive 401. `/health` remains an
@@ -202,6 +208,28 @@ allowlist (`DWS_CLIENT_ID`, `DWS_CLIENT_SECRET`, `DWS_CONFIG_DIR`,
 `DWS_DISABLE_KEYCHAIN`, and `DWS_KEYCHAIN_DIR`); credentials are not persisted
 or printed. `--yes` authorizes the write without a prompt; otherwise the
 operator must confirm it.
+
+Once `+create` is invoked, every non-success result—including a well-formed
+provider machine error—remains indeterminate. It cannot prove that no remote
+write occurred, so the durable operation fence is retained and subsequent
+runs are read-only reconciliation until a unique list/get readback is safely
+persisted.
+
+The detached HTTP runtime receives only the selected Agent Host's credential
+variables, the explicitly referenced HTTP token, and a small operational
+allowlist. At activation it creates a private read-only package snapshot,
+binds that snapshot to the configured digest, and serves all requests from the
+snapshot instead of the publisher's mutable source directory.
+
+## Legacy local-state recovery
+
+Older prototypes may have written a permissive config file or a raw
+`openaiKey`. The current CLI deliberately refuses such state. Do not print or
+copy the old value into a new config. Move the entire
+`~/.digital-employee` directory to an owner-only quarantine, rotate the exposed
+credential at its provider, then rerun deploy with credentials supplied only
+through the documented environment-variable names. The CLI recreates its
+directory and state with `0700`/`0600` permissions.
 
 The public test suite uses deterministic DWS fixtures. The fixture conflict
 codes are not established as canonical `create_dev_app` codes by current DWS

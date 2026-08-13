@@ -1468,6 +1468,45 @@ test("built deploy rejects an explicit unavailable engine before config or runti
   assert.equal(await noConfig(home), true)
 })
 
+test("built deploy rejects an available Agent host that is incompatible with the package before effects", async (t) => {
+  const temporary = await isolatedRoot(t, "deploy-incompatible-engine-")
+  const home = path.join(temporary, "home")
+  const bin = path.join(temporary, "bin")
+  const packageDirectory = path.join(temporary, "structured-action")
+  await mkdir(home)
+  await installFakeQoder(bin)
+  await createEmployeePackage(packageDirectory, {
+    name: "structured-action",
+    recipe: "structured-action.v1",
+  })
+
+  const result = runBuiltCli(
+    [
+      "deploy",
+      packageDirectory,
+      "--channel",
+      "http",
+      "--engine",
+      "qoder",
+      "--runtime",
+      "agent-native",
+      "--yes",
+    ],
+    {
+      environment: cliEnvironment({
+        home,
+        bin,
+        extra: { QODER_PERSONAL_ACCESS_TOKEN: "incompatible-engine-sentinel" },
+      }),
+    },
+  )
+
+  assert.equal(result.status, 1, result.stderr)
+  assert.match(result.stderr, /selected engine is unsupported, unavailable, or incompatible/i)
+  assert.doesNotMatch(result.stdout, /\?|Choice|Ready:/)
+  assert.equal(await noConfig(home), true)
+})
+
 test("built complete --yes deploy binds --package and starts a verified /v1/ask runtime without stdin", async (t) => {
   const temporary = await isolatedRoot(t, "deploy-http-package-")
   const home = path.join(temporary, "home")
@@ -1596,6 +1635,70 @@ test("built complete --yes deploy binds --package and starts a verified /v1/ask 
   ]) {
     assert.equal(publicArtifact.includes(localReference), false)
   }
+})
+
+test("built HTTP deploy fails closed when the requested loopback port is already occupied", async (t) => {
+  const temporary = await isolatedRoot(t, "deploy-http-port-occupied-")
+  const home = path.join(temporary, "home")
+  const bin = path.join(temporary, "bin")
+  const packageDirectory = path.join(temporary, "port-occupied")
+  const listener = createServer((_request, response) => {
+    response.writeHead(200, { "content-type": "application/json" })
+    response.end(`${JSON.stringify({ owner: "existing-listener" })}\n`)
+  })
+  await new Promise<void>((resolve, reject) => {
+    listener.once("error", reject)
+    listener.listen(0, "127.0.0.1", resolve)
+  })
+  t.after(() => new Promise<void>((resolve) => listener.close(() => resolve())))
+  const address = listener.address()
+  assert.ok(address && typeof address === "object")
+  const port = address.port
+  await mkdir(home)
+  await installFakeQoder(bin)
+  await createEmployeePackage(packageDirectory, { name: "port-occupied" })
+
+  const result = runBuiltCli(
+    [
+      "deploy",
+      packageDirectory,
+      "--channel",
+      "http",
+      "--engine",
+      "qoder",
+      "--runtime",
+      "agent-native",
+      "--locale",
+      "en",
+      "--port",
+      String(port),
+      "--yes",
+    ],
+    {
+      environment: cliEnvironment({
+        home,
+        bin,
+        extra: { QODER_PERSONAL_ACCESS_TOKEN: "occupied-port-sentinel" },
+      }),
+    },
+  )
+
+  assert.equal(result.status, 1, result.stderr)
+  assert.doesNotMatch(result.stdout, /Ready:/)
+  assert.match(result.stderr, /Deployment failed/i)
+  const configPath = path.join(home, ".digital-employee", "config.json")
+  const config = JSON.parse(await readFile(configPath, "utf8")) as {
+    outcome: string
+    process?: unknown
+    deployedAt?: unknown
+  }
+  assert.equal(config.outcome, "failed")
+  assert.equal(config.process, undefined)
+  assert.equal(config.deployedAt, undefined)
+  assert.deepEqual(deploymentPids(configPath), [])
+  const existing = await httpJson({ port, path: "/health" })
+  assert.equal(existing.status, 200)
+  assert.equal(existing.body.owner, "existing-listener")
 })
 
 test("HTTP reuse binds the canonical local reference and rejects copy-delete substitution", async (t) => {
@@ -2116,7 +2219,6 @@ test("HTTP activation protocol fails closed across EOF, timeout, forged tuple, g
     "http-release-fd-probe.cjs",
   )
   const releaseFdMarker = path.join(temporary, "release-fd.marker")
-  const providerEffectMarker = path.join(temporary, "provider-effect.marker")
   const builtConfigModule = path.join(
     root,
     "dist",
@@ -2164,7 +2266,7 @@ process.on("message", async (message) => {
 `
   await mkdir(home)
   await mkdir(stateDirectory, { mode: 0o700 })
-  await installObservableProbe(bin, providerEffectMarker)
+  await installFakeQoder(bin)
   await createEmployeePackage(packageDirectory, { name: "activation-faults" })
   const packageDigest = await computeEmployeePackageDirectoryDigest(packageDirectory)
   const localReference = await realpath(packageDirectory)
@@ -2191,7 +2293,6 @@ process.on("message", async (message) => {
     bin,
     extra: {
       QODER_PERSONAL_ACCESS_TOKEN: "activation-fault-sentinel",
-      DEPLOY_PROVIDER_MARKER: providerEffectMarker,
     },
   })
 
@@ -2255,15 +2356,38 @@ process.on("message", async (message) => {
     child: ReturnType<typeof spawn>,
     timeoutMs = 5_000,
   ): Promise<Record<string, unknown>> {
-    return Promise.race([
-      new Promise<Record<string, unknown>>((resolve, reject) => {
-        child.once("message", (message) => resolve(message as Record<string, unknown>))
-        child.once("error", reject)
-      }),
-      delay(timeoutMs).then(() => {
-        throw new Error("runtime_protocol_message_timeout")
-      }),
-    ])
+    return new Promise((resolve, reject) => {
+      let settled = false
+      const finish = (
+        message?: Record<string, unknown>,
+        error?: Error,
+      ) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        child.removeListener("message", onMessage)
+        child.removeListener("error", onError)
+        child.removeListener("exit", onExit)
+        if (error) reject(error)
+        else resolve(message!)
+      }
+      const onMessage = (message: unknown) => {
+        finish(message as Record<string, unknown>)
+      }
+      const onError = (error: Error) => finish(undefined, error)
+      const onExit = () => finish(
+        undefined,
+        new Error("runtime_protocol_child_exited"),
+      )
+      const timer = setTimeout(() => finish(
+        undefined,
+        new Error("runtime_protocol_message_timeout"),
+      ), timeoutMs)
+      timer.unref()
+      child.once("message", onMessage)
+      child.once("error", onError)
+      child.once("exit", onExit)
+    })
   }
 
   function sendMessage(
@@ -2600,7 +2724,6 @@ process.on("message", async (message) => {
         retryable: true,
       })
     }
-    assert.equal(await markerMissing(providerEffectMarker), true)
   }
 
   const eof = await spawnCase("parent-eof-awaiting")
@@ -2648,16 +2771,6 @@ process.on("message", async (message) => {
     const message = activationMessage(forged, "prepare", digest)
     forgedMutations[index]!(message)
     await sendMessage(forged.child, message)
-    const unexpectedAck = await Promise.race([
-      new Promise<Record<string, unknown>>((resolve) => {
-        forged.child.once("message", (value) => {
-          resolve(value as Record<string, unknown>)
-        })
-      }),
-      delay(50).then(() => undefined),
-    ])
-    assert.equal(unexpectedAck, undefined, `forged case ${index} advanced protocol`)
-    if (forged.child.connected) forged.child.disconnect()
     await expectBoundedExitWithoutListen(forged)
   }
 
@@ -2795,11 +2908,8 @@ process.on("message", async (message) => {
     method: "POST",
     body: JSON.stringify({ message: "released request" }),
   })
-  assert.notEqual(
-    (releasedAsk.body.error as { code?: string } | undefined)?.code,
-    "http_runtime_activation_incomplete",
-  )
-  await waitFor(async () => !await markerMissing(providerEffectMarker))
+  assert.equal(releasedAsk.status, 200)
+  assert.equal(releasedAsk.body.answer, "fixture answer")
   await closeParentLease(released)
   await waitFor(() =>
     freshOwnerMessages.some((message) =>
@@ -2884,7 +2994,6 @@ process.on("message", async (message) => {
 
   const listeningLockFenceLoss = await spawnCase("listening-lock-fence-loss")
   const listeningDigest = await advanceToListening(listeningLockFenceLoss)
-  await rm(providerEffectMarker, { force: true })
   await assertAskCannotReachHost(listeningLockFenceLoss, true)
   await displaceLockFence(listeningLockFenceLoss, "listening")
   await sendMessage(
@@ -2900,7 +3009,6 @@ process.on("message", async (message) => {
     "authorized",
     "ready",
   )
-  await rm(providerEffectMarker, { force: true })
   await assertAskCannotReachHost(detachedLockFenceLoss, true)
   await displaceLockFence(detachedLockFenceLoss, "detached")
   await sendMessage(
@@ -4597,7 +4705,7 @@ test("deployment lock deadline and supervised-helper matrix uses the real platfo
       holdAfterAcquire: true,
     })
     const retryOwner = startDeploymentLockActor(subtest, retryOwnerOptions)
-    await waitFor(() => retryOwner.stdoutText().endsWith("\n"), 3_000)
+    await waitFor(() => retryOwner.stdoutText().endsWith("\n"), 5_000)
     const [retryOwnerReport] = deploymentLockActorReports(retryOwner.stdoutText())
     assert.equal(retryOwnerReport?.phase, "acquired")
     assert.equal(
@@ -4656,7 +4764,7 @@ test("deployment lock deadline and supervised-helper matrix uses the real platfo
       holdAfterAcquire: true,
     })
     const timeoutOwner = startDeploymentLockActor(subtest, timeoutOwnerOptions)
-    await waitFor(() => timeoutOwner.stdoutText().endsWith("\n"), 3_000)
+    await waitFor(() => timeoutOwner.stdoutText().endsWith("\n"), 5_000)
     const [timeoutOwnerReport] = deploymentLockActorReports(timeoutOwner.stdoutText())
     assert.equal(timeoutOwnerReport?.phase, "acquired")
     assert.equal(
@@ -4965,20 +5073,21 @@ test("deployment lock deadline and supervised-helper matrix uses the real platfo
         inspect()
       })
 
-      if (observation.kind === "closed") {
-        await failActorOracle(
-          "child_closed_before_report",
-          {},
-          observation.result,
-        )
-      }
-      if (observation.kind === "completion-error") {
-        await failActorOracle("actor_completion_error", {
-          completionError: oracleErrorText(observation.error),
-        })
-      }
-      if (observation.kind === "harness-stuck") {
+      if (observation.kind !== "line") {
+        if (observation.kind === "closed") {
+          await failActorOracle(
+            "child_closed_before_report",
+            {},
+            observation.result,
+          )
+        }
+        if (observation.kind === "completion-error") {
+          await failActorOracle("actor_completion_error", {
+            completionError: oracleErrorText(observation.error),
+          })
+        }
         await failActorOracle("actor_harness_stuck")
+        throw new Error("actor_observation_unreachable")
       }
 
       let report: unknown

@@ -279,6 +279,11 @@ function waitForProtocolMessage(
         tupleMatches(message as Record<string, unknown>, expected)
       ) {
         finish(message as Record<string, unknown>)
+      } else {
+        finish(
+          undefined,
+          new TypeError("deploy_http_runtime_activation_protocol_invalid"),
+        )
       }
     }
     const onDisconnect = () => finish(

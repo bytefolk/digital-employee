@@ -83,6 +83,29 @@ tool contract.
 | `qwen-code` | Qwen Code `0.17.1` | `OPENAI_API_KEY`, `OPENAI_MODEL` |
 | `codebuddy` | CodeBuddy Code `2.106.4` | `CODEBUDDY_API_KEY`, `CODEBUDDY_MODEL` |
 
+## Package-bound local deploy
+
+The source CLI can bind a validated employee package to a truthful local
+deployment outcome. A complete no-prompt HTTP invocation is:
+
+```bash
+node ./dist/apps/cli/bin.js deploy ../team-answer \
+  --channel http \
+  --engine qoder \
+  --runtime agent-native \
+  --locale en \
+  --port 3000 \
+  --yes
+```
+
+`ready` exits 0 only after exact persisted-state and live endpoint readback;
+pending provider/foreground action exits 2, while unsupported and failed paths
+exit 1. State and locking are local-machine only, and DingTalk creation uses a
+persist-before-effect, reconcile-only retry fence. The currently installed DWS
+list projection omits required pagination metadata, so real DingTalk
+reconciliation is on a documented fail-closed external integration HOLD. See the
+[deploy contract, lifecycle, filesystem scope, and recovery rules](docs/deploy.md).
+
 ## Runner on a publisher-owned machine
 
 Every application/service employee runs on the publisher or operator's own
@@ -372,6 +395,7 @@ container, live DWS, and not-yet-live-tested evidence.
 | `init`, static `validate`, local `doctor` | Shipped in source |
 | Qoder CLI 1.1.x read-only, stateless `run --engine qoder` adapter | Shipped in source; live model entitlement not tested |
 | Claude Code `>=2.1.214 <2.2.0`, Qwen Code `0.17.1`, CodeBuddy Code `2.106.4` context-only adapters | Shipped in source; live model entitlement not tested |
+| Package-bound `deploy` with truthful local HTTP readiness and Console pending state | Shipped in source; DingTalk reconciliation is fail-closed on the current DWS pagination contract and has no live-provider E4 evidence |
 | Signed tasks, package digest/snapshot, lease fencing, event chain and Runner-signed receipt | Shipped as a V0.3 source preview |
 | Seller-owned long-running Runner process, local durable replay/outbox and reconnect | Not shipped; open framework roadmap |
 | Server-side device registration, task dispatch, usage verification, Quote/Credit and settlement | Private platform; intentionally outside this framework repository |
@@ -379,8 +403,8 @@ container, live DWS, and not-yet-live-tested evidence.
 | Agent-native `service start` with channels, queue and audit | Not shipped; next phase |
 | `standalone-v1` profile and channel/source/model/tool registry | Shipped; compatibility path |
 | Read-only `answer-agent` profile | Shipped |
-| Console and HTTP entry points | Shipped |
-| DingTalk Stream channel | Shipped; live credentials required for integration verification |
+| `standalone-v1` Console and HTTP entry points | Shipped |
+| `standalone-v1` DingTalk Stream channel | Shipped; live credentials required for integration verification |
 | Filesystem, Git, and DWS sources | Shipped |
 | Human escalation and authorized verified FAQ feedback | Shipped |
 | Project-assistant and operations profiles | Planned |

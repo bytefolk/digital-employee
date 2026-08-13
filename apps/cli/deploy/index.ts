@@ -8,15 +8,25 @@ import {
   createSealedEmployeePackageSnapshot,
 } from "../employee-package.js"
 import { inspectEmployeeHostCompatibility } from "../agent-run.js"
-import { selectPrompt, textPrompt, confirmPrompt } from "./prompts.js"
 import {
+  closePromptInput,
+  selectPrompt,
+  textPrompt,
+  confirmPrompt,
+} from "./prompts.js"
+import {
+  acquireDeploymentLock,
   loadConfig,
+  loadConfigSnapshot,
   saveConfig,
 } from "./config.js"
 import type {
   DeployConfig,
+  DeployConfigFingerprint,
+  DeployConfigSnapshot,
   DeployPackageBinding,
   DeployRuntime,
+  DeploymentLock,
 } from "./config.js"
 import {
   deployDingTalk,
@@ -25,9 +35,14 @@ import {
   deployConsole,
   deployHttp,
   endpointUrl,
+  inspectHttpDeployment,
   readbackHttpDeployment,
 } from "./channels.js"
-import type { ChannelDeployResult, ChannelId } from "./channels.js"
+import type {
+  ChannelDeployResult,
+  ChannelId,
+  HttpActivationLease,
+} from "./channels.js"
 import {
   detectSystemLocale,
   getAvailableLocales,
@@ -62,7 +77,6 @@ const AGENT_NATIVE_ENGINES = [
 ] as const
 const STANDALONE_ENGINES = ["extractive", "openai-compatible"] as const
 const VALID_ENGINES = [...AGENT_NATIVE_ENGINES, ...STANDALONE_ENGINES] as const
-const FROZEN_DEPLOY_LOCALES = ["en", "zh-CN", "ja"] as const
 const DEPLOY_OPTIONS = new Set([
   "channel",
   "engine",
@@ -74,6 +88,10 @@ const DEPLOY_OPTIONS = new Set([
   "yes",
   "help",
 ])
+
+function availableDeployLocales(): string[] {
+  return getAvailableLocales()
+}
 
 function supported(values: readonly string[]): string {
   return values.join("|")
@@ -123,19 +141,38 @@ function validateExplicitInputs(options: DeployOptions): boolean {
     failCode("deploy.error_incompatible_options", "package_path_must_be_unique")
     return false
   }
-  if (options.locale && !isOneOf(options.locale, FROZEN_DEPLOY_LOCALES)) {
-    failInput("locale", FROZEN_DEPLOY_LOCALES)
+  if (
+    options.providedOptions?.has("package") &&
+    (options.packagePath === undefined || options.packagePath.trim().length === 0)
+  ) {
+    failCode("deploy.error_invalid_package", "package_path_empty")
     return false
   }
-  if (options.channel && !isOneOf(options.channel, VALID_CHANNELS)) {
+  if (
+    options.providedOptions?.has("locale") &&
+    (options.locale === undefined || !isOneOf(options.locale, availableDeployLocales()))
+  ) {
+    failInput("locale", availableDeployLocales())
+    return false
+  }
+  if (
+    options.providedOptions?.has("channel") &&
+    (options.channel === undefined || !isOneOf(options.channel, VALID_CHANNELS))
+  ) {
     failInput("channel", VALID_CHANNELS)
     return false
   }
-  if (options.runtime && !isOneOf(options.runtime, VALID_RUNTIMES)) {
+  if (
+    options.providedOptions?.has("runtime") &&
+    (options.runtime === undefined || !isOneOf(options.runtime, VALID_RUNTIMES))
+  ) {
     failInput("runtime", VALID_RUNTIMES)
     return false
   }
-  if (options.engine && !isOneOf(options.engine, VALID_ENGINES)) {
+  if (
+    options.providedOptions?.has("engine") &&
+    (options.engine === undefined || !isOneOf(options.engine, VALID_ENGINES))
+  ) {
     failInput("engine", VALID_ENGINES)
     return false
   }
@@ -214,14 +251,32 @@ async function resolvePackageBinding(
   }
 }
 
+async function assertExactPackageBinding(
+  expected: DeployPackageBinding,
+): Promise<void> {
+  const current = await resolvePackageBinding(expected.localReference)
+  if (
+    current.localReference !== expected.localReference ||
+    current.name !== expected.name ||
+    current.version !== expected.version ||
+    current.digest !== expected.digest
+  ) {
+    throw new TypeError("employee_package_changed")
+  }
+}
+
 function sameDeployment(left: DeployConfig, right: DeployConfig): boolean {
   return Boolean(
     left.channel === right.channel &&
+      left.botName === right.botName &&
       left.engine === right.engine &&
       left.runtime === right.runtime &&
+      left.secretReferences?.httpTokenEnv ===
+        right.secretReferences?.httpTokenEnv &&
       left.package?.name === right.package?.name &&
       left.package?.version === right.package?.version &&
       left.package?.digest === right.package?.digest &&
+      left.package?.localReference === right.package?.localReference &&
       left.endpoint?.port === right.endpoint?.port,
   )
 }
@@ -236,12 +291,80 @@ function writeBinding(binding: DeployPackageBinding, runtime: DeployRuntime): vo
   )
 }
 
+async function hasExactHttpReadback(
+  config: DeployConfig,
+  binding: DeployPackageBinding,
+): Promise<boolean> {
+  try {
+    return (
+      config.package?.localReference === binding.localReference &&
+      config.package.digest === binding.digest &&
+      await readbackHttpDeployment(config) &&
+      await computeEmployeePackageDirectoryDigest(config.package.localReference) ===
+        config.package.digest
+    )
+  } catch {
+    return false
+  }
+}
+
+function sameConfigFingerprint(
+  left: DeployConfigFingerprint,
+  right: DeployConfigFingerprint,
+): boolean {
+  if (left.kind !== right.kind) return false
+  if (left.kind === "missing" || right.kind === "missing") return true
+  return left.device === right.device &&
+    left.inode === right.inode &&
+    left.size === right.size &&
+    left.modifiedAtMs === right.modifiedAtMs &&
+    left.changedAtMs === right.changedAtMs &&
+    left.digest === right.digest
+}
+
+async function loadExactConfigGeneration(
+  expected: DeployConfigFingerprint,
+  lock: Pick<DeploymentLock, "assertOwned">,
+): Promise<DeployConfigSnapshot> {
+  await lock.assertOwned()
+  const snapshot = await loadConfigSnapshot()
+  if (!sameConfigFingerprint(snapshot.fingerprint, expected)) {
+    throw new TypeError("deploy_config_generation_changed")
+  }
+  await lock.assertOwned()
+  return snapshot
+}
+
 async function resolveRuntime(options: DeployOptions): Promise<DeployRuntime> {
   if (options.runtime) return options.runtime as DeployRuntime
-  return selectPrompt(t("deploy.runtime_prompt"), [
-    { label: t("deploy.runtime_agent_native"), value: "agent-native" },
-    { label: t("deploy.runtime_standalone"), value: "standalone-v1" },
-  ]) as Promise<DeployRuntime>
+  return "agent-native"
+}
+
+function explicitLocaleFromArgv(argv: readonly string[]): string | undefined {
+  for (let index = 0; index < argv.length; index += 1) {
+    const value = argv[index]!
+    if (value.startsWith("--locale=")) return value.slice("--locale=".length)
+    if (value === "--locale") return argv[index + 1]
+  }
+  return undefined
+}
+
+export function renderDeployParseFailure(
+  argv: readonly string[],
+  error: unknown,
+): void {
+  const locales = availableDeployLocales()
+  const requestedLocale = explicitLocaleFromArgv(argv)
+  setLocale(
+    requestedLocale !== undefined
+      ? locales.includes(requestedLocale)
+        ? requestedLocale
+        : "en"
+      : detectSystemLocale(),
+  )
+  const message = error instanceof Error ? error.message : "invalid_arguments"
+  const field = message.match(/'(--[A-Za-z0-9-]+)'/)?.[1] ?? "arguments"
+  failInput(field, [...DEPLOY_OPTIONS].map((entry) => `--${entry}`))
 }
 
 async function resolveChannel(options: DeployOptions): Promise<ChannelId> {
@@ -319,12 +442,45 @@ async function dispatchChannel(
   channel: ChannelId,
   config: DeployConfig,
   signal: AbortSignal,
+  onProcessStarted: (state: NonNullable<DeployConfig["process"]>) => Promise<string>,
+  onProviderVerified: (
+    provider: NonNullable<DeployConfig["provider"]>,
+  ) => Promise<void>,
+  onProviderOperation: (
+    operation: NonNullable<DeployConfig["providerOperation"]>,
+  ) => Promise<void>,
+  onProviderOperationRejected: () => Promise<void>,
+  allowProviderWrite: boolean,
+  assertLockOwned: () => Promise<void>,
+  assertProviderBoundary: () => Promise<void>,
+  activationLease: HttpActivationLease,
 ): Promise<ChannelDeployResult> {
-  if (channel === "dingtalk") return deployDingTalk(config)
+  if (channel === "dingtalk") {
+    return deployDingTalk(config, {
+      signal,
+      allowProviderWrite,
+      confirmProviderWrite: () => confirmPrompt(
+        t("deploy.dingtalk_confirm_write"),
+        {
+          yes: t("deploy.existing_yes"),
+          no: t("deploy.existing_no"),
+        },
+      ),
+      onProviderVerified,
+      onProviderOperation,
+      onProviderOperationRejected,
+      assertLockOwned: assertProviderBoundary,
+    })
+  }
   if (channel === "lark") return deployLark(config)
   if (channel === "wecom") return deployWeCom(config)
   if (channel === "console") return deployConsole(config)
-  return deployHttp(config, { signal })
+  return deployHttp(config, {
+    signal,
+    onProcessStarted,
+    assertLockOwned,
+    activationLease,
+  })
 }
 
 function setOutcomeExitCode(outcome: ChannelDeployResult["outcome"]): void {
@@ -352,9 +508,14 @@ function renderOutcome(config: DeployConfig, result: ChannelDeployResult): void 
   void config
 }
 
-export async function deploy(options: DeployOptions = {}): Promise<void> {
-  const initialLocale = options.locale && isOneOf(options.locale, FROZEN_DEPLOY_LOCALES)
-    ? options.locale
+async function deployImpl(options: DeployOptions = {}): Promise<void> {
+  const locales = availableDeployLocales()
+  const initialLocale = options.locale !== undefined
+    ? isOneOf(options.locale, locales)
+      ? options.locale
+      : options.locale.trim() === ""
+        ? detectSystemLocale()
+        : "en"
     : options.yes
       ? "en"
       : detectSystemLocale()
@@ -362,7 +523,9 @@ export async function deploy(options: DeployOptions = {}): Promise<void> {
 
   if (!validateExplicitInputs(options)) return
   if (options.help) {
-    process.stdout.write(`${t("deploy.help")}\n`)
+    process.stdout.write(
+      `${t("deploy.help", { locales: supported(locales) })}\n`,
+    )
     return
   }
   if (!completeAutomationInputs(options)) return
@@ -378,7 +541,45 @@ export async function deploy(options: DeployOptions = {}): Promise<void> {
     return
   }
 
-  const existing = await loadConfig()
+  let initialExisting: DeployConfig
+  try {
+    initialExisting = await loadConfig()
+  } catch (error) {
+    failCode(
+      "deploy.error_state_load",
+      safeFailureCode(error, "deploy_config_invalid"),
+    )
+    return
+  }
+  setLocale(
+    options.locale ||
+      (options.yes ? "en" : initialExisting.locale || detectSystemLocale()),
+  )
+
+  const runtime = await resolveRuntime(options)
+  if (runtime === "standalone-v1") {
+    writeBinding(binding, runtime)
+    const unsupported: ChannelDeployResult = {
+      outcome: "unsupported",
+      steps: [],
+      code: "package_deploy_standalone_unsupported",
+      guidance: t("deploy.guidance_standalone_legacy"),
+    }
+    renderOutcome(initialExisting, unsupported)
+    setOutcomeExitCode(unsupported.outcome)
+    return
+  }
+  const engine = await resolveEngine(options, runtime)
+  if (!isOneOf(engine, AGENT_NATIVE_ENGINES)) {
+    failInput("engine(agent-native)", AGENT_NATIVE_ENGINES)
+    return
+  }
+  const preflightFailure = await preflightEngine(runtime, engine, binding)
+  if (preflightFailure) {
+    failCode("deploy.error_engine_unavailable", preflightFailure)
+    return
+  }
+
   let locale: SupportedLocale
   if (options.locale) {
     locale = options.locale
@@ -386,39 +587,28 @@ export async function deploy(options: DeployOptions = {}): Promise<void> {
     locale = "en"
     setLocale(locale)
   } else {
-    setLocale(existing.locale || detectSystemLocale())
+    setLocale(initialExisting.locale || detectSystemLocale())
     const choices = getAvailableLocales()
-      .filter((code) => isOneOf(code, FROZEN_DEPLOY_LOCALES))
       .map((code) => ({ label: getLocaleDisplayName(code), value: code }))
     locale = await selectPrompt(t("deploy.lang_prompt"), choices)
     setLocale(locale)
   }
 
   const channel = await resolveChannel(options)
+  if (options.providedOptions?.has("port") && channel !== "http") {
+    failCode("deploy.error_incompatible_options", "port_requires_http_channel")
+    return
+  }
   const botName = options.name?.trim() || (
     options.yes
       ? t("deploy.name_default")
       : await textPrompt(t("deploy.name_prompt"), t("deploy.name_default"))
   )
-  const runtime = await resolveRuntime(options)
-  const engine = await resolveEngine(options, runtime)
-
-  if (
-    runtime === "agent-native" &&
-    !isOneOf(engine, AGENT_NATIVE_ENGINES)
-  ) {
-    failInput("engine(agent-native)", AGENT_NATIVE_ENGINES)
-    return
-  }
-  if (
-    runtime === "standalone-v1" &&
-    !isOneOf(engine, STANDALONE_ENGINES)
-  ) {
-    failInput("engine(standalone-v1)", STANDALONE_ENGINES)
-    return
-  }
-
   const port = validPort(options.port ?? "3000")!
+  const secretReferences: NonNullable<DeployConfig["secretReferences"]> = {}
+  if (channel === "http" && process.env.DIGITAL_EMPLOYEE_HTTP_TOKEN?.trim()) {
+    secretReferences.httpTokenEnv = "DIGITAL_EMPLOYEE_HTTP_TOKEN"
+  }
   const candidate: DeployConfig = {
     schemaVersion: "deploy-state.v1",
     locale,
@@ -437,125 +627,564 @@ export async function deploy(options: DeployOptions = {}): Promise<void> {
             askPath: "/v1/ask" as const,
             healthPath: "/health" as const,
           },
-          ...(process.env.DIGITAL_EMPLOYEE_HTTP_TOKEN?.trim()
-            ? {
-                secretReferences: {
-                  httpTokenEnv: "DIGITAL_EMPLOYEE_HTTP_TOKEN" as const,
-                },
-              }
-            : {}),
         }
       : {}),
-    ...(runtime === "standalone-v1" && engine === "openai-compatible"
-      ? {
-          secretReferences: {
-            openaiApiKeyEnv: "OPENAI_API_KEY" as const,
-          },
-        }
-      : {}),
+    ...(Object.keys(secretReferences).length > 0 ? { secretReferences } : {}),
     updatedAt: new Date().toISOString(),
   }
 
-  if (
-    existing.outcome === "ready" &&
-    sameDeployment(existing, candidate) &&
-    channel === "http" &&
-    await readbackHttpDeployment(existing)
-  ) {
-    writeBinding(binding, runtime)
-    renderOutcome(existing, {
-      outcome: "ready",
-      steps: [],
-      endpoint: existing.endpoint,
-      process: existing.process,
-    })
-    return
-  }
-
-  if (existing.outcome || existing.deployedAt) {
-    if (options.yes) {
-      if (existing.process && await readbackHttpDeployment(existing)) {
-        failCode("deploy.error_existing_running", "existing_deployment_running")
-        return
-      }
-    } else {
-      process.stdout.write(`${t("deploy.existing_detected")}\n`)
-      const overwrite = await confirmPrompt(t("deploy.existing_overwrite"), {
-        yes: t("deploy.existing_yes"),
-        no: t("deploy.existing_no"),
-      })
-      if (!overwrite) {
-        failCode("deploy.error_aborted", "deploy_aborted")
-        return
-      }
-      if (existing.process && await readbackHttpDeployment(existing)) {
-        failCode("deploy.error_existing_running", "existing_deployment_running")
-        return
-      }
-    }
-  }
-
-  const preflightFailure = await preflightEngine(runtime, engine, binding)
-  if (preflightFailure) {
-    failCode("deploy.error_engine_unavailable", preflightFailure)
-    return
-  }
-
-  writeBinding(binding, runtime)
-  try {
-    await saveConfig(candidate)
-  } catch {
-    failCode("deploy.error_state_write", "deploy_state_write_failed")
-    return
-  }
-
   const controller = new AbortController()
-  const interrupt = () => controller.abort()
+  const interrupt = () => {
+    controller.abort()
+    closePromptInput("deploy_interrupted")
+  }
   process.once("SIGINT", interrupt)
   process.once("SIGTERM", interrupt)
-  let result: ChannelDeployResult
+  let lock
   try {
-    result = await dispatchChannel(channel, candidate, controller.signal)
-  } catch {
-    result = {
-      outcome: "failed",
-      steps: [],
-      code: "deploy_orchestration_failed",
-      guidance: t("deploy.error_orchestration"),
+    lock = await acquireDeploymentLock({ signal: controller.signal })
+  } catch (error) {
+    process.removeListener("SIGINT", interrupt)
+    process.removeListener("SIGTERM", interrupt)
+    failCode(
+      "deploy.error_state_write",
+      safeFailureCode(error, "deploy_lock_failed"),
+    )
+    return
+  }
+
+  try {
+    let snapshot
+    try {
+      await lock.assertOwned()
+      snapshot = await loadConfigSnapshot()
+      await lock.assertOwned()
+    } catch (error) {
+      failCode(
+        "deploy.error_state_load",
+        safeFailureCode(error, "deploy_config_invalid"),
+      )
+      return
     }
+    const existing = snapshot.config
+    let stateGeneration: DeployConfigFingerprint = snapshot.fingerprint
+    if (
+      existing.providerOperation &&
+      !(
+        channel === "dingtalk" &&
+        existing.channel === "dingtalk" &&
+        sameDeployment(existing, candidate)
+      )
+    ) {
+      renderOutcome(existing, {
+        outcome: "pending_external_action",
+        steps: [],
+        code: "dingtalk_provider_create_indeterminate",
+        guidance: t("deploy.guidance_dingtalk_pending"),
+      })
+      setOutcomeExitCode("pending_external_action")
+      return
+    }
+    if (
+      channel === "dingtalk" &&
+      existing.channel === "dingtalk" &&
+      existing.botName === candidate.botName &&
+      existing.provider
+    ) {
+      candidate.provider = existing.provider
+    }
+    if (
+      channel === "dingtalk" &&
+      existing.channel === "dingtalk" &&
+      sameDeployment(existing, candidate) &&
+      existing.providerOperation
+    ) {
+      candidate.providerOperation = existing.providerOperation
+    }
+    let existingHttpState: Awaited<ReturnType<typeof inspectHttpDeployment>> | undefined
+    if (existing.channel === "http" && existing.process) {
+      try {
+        await lock.assertOwned()
+        existingHttpState = await inspectHttpDeployment(existing)
+        await lock.assertOwned()
+      } catch {
+        failCode("deploy.error_state_write", "deploy_lock_not_owned")
+        return
+      }
+    }
+    if (controller.signal.aborted) {
+      failCode("deploy.error_interrupted", "deploy_interrupted")
+      return
+    }
+    if (
+      (existing.outcome === "ready" ||
+        existing.outcome === "pending_external_action") &&
+      sameDeployment(existing, candidate) &&
+      channel === "http" &&
+      existingHttpState === "ready"
+    ) {
+      writeBinding(binding, runtime)
+      let resumed = existing
+      let promoted = false
+      try {
+        await lock.assertOwned()
+        const prePublicationReadback = await hasExactHttpReadback(existing, binding)
+        await lock.assertOwned()
+        if (controller.signal.aborted) {
+          failCode("deploy.error_interrupted", "deploy_interrupted")
+          return
+        }
+        if (!prePublicationReadback) {
+          failCode("deploy.error_http_state_unsafe", "http_final_readback_failed")
+          return
+        }
+        await loadExactConfigGeneration(stateGeneration, lock)
+        if (existing.outcome !== "ready") {
+          resumed = {
+            ...existing,
+            outcome: "ready",
+            code: undefined,
+            deployedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }
+          stateGeneration = await saveConfig(resumed, {
+            expected: stateGeneration,
+            lock,
+          })
+          promoted = true
+        }
+        const fresh = await loadExactConfigGeneration(stateGeneration, lock)
+        const postPublicationReadback = await hasExactHttpReadback(
+          fresh.config,
+          binding,
+        )
+        await lock.assertOwned()
+        if (controller.signal.aborted || !postPublicationReadback) {
+          if (promoted) {
+            const pending: DeployConfig = {
+              ...existing,
+              outcome: "pending_external_action",
+              code: controller.signal.aborted
+                ? existing.code ?? "http_resume_interrupted"
+                : "http_final_readback_failed",
+              deployedAt: undefined,
+              updatedAt: new Date().toISOString(),
+            }
+            stateGeneration = await saveConfig(pending, {
+              expected: stateGeneration,
+              lock,
+            })
+          }
+          failCode(
+            controller.signal.aborted
+              ? "deploy.error_interrupted"
+              : "deploy.error_http_state_unsafe",
+            controller.signal.aborted
+              ? "deploy_interrupted"
+              : "http_final_readback_failed",
+          )
+          return
+        }
+        renderOutcome(resumed, {
+          outcome: "ready",
+          steps: [],
+          endpoint: resumed.endpoint,
+          process: resumed.process,
+        })
+      } catch {
+        if (promoted) {
+          try {
+            stateGeneration = await saveConfig({
+              ...existing,
+              outcome: "pending_external_action",
+              code: existing.code ?? "http_resume_verification_failed",
+              deployedAt: undefined,
+              updatedAt: new Date().toISOString(),
+            }, {
+            expected: stateGeneration,
+            lock,
+          })
+          } catch {
+            // The primary generation or lock error remains authoritative.
+          }
+        }
+        failCode("deploy.error_state_write", "deploy_state_write_failed")
+      }
+      return
+    }
+
+    if (existing.process && existingHttpState !== "absent") {
+      const code = existingHttpState === "ready"
+        ? "http_live_deployment_preserved"
+        : existingHttpState === "starting"
+          ? "http_runtime_starting_unavailable"
+          : existingHttpState === "stale"
+            ? "http_runtime_stale_unverified"
+            : "http_runtime_identity_unverified"
+      failCode("deploy.error_http_state_unsafe", code)
+      return
+    }
+
+    if (existing.outcome || existing.deployedAt) {
+      if (options.yes) {
+      } else {
+        process.stdout.write(`${t("deploy.existing_detected")}\n`)
+        const overwrite = await confirmPrompt(t("deploy.existing_overwrite"), {
+          yes: t("deploy.existing_yes"),
+          no: t("deploy.existing_no"),
+        })
+        if (!overwrite) {
+          failCode("deploy.error_aborted", "deploy_aborted")
+          return
+        }
+      }
+      if (controller.signal.aborted) {
+        failCode("deploy.error_interrupted", "deploy_interrupted")
+        return
+      }
+    }
+
+    if (controller.signal.aborted) {
+      failCode("deploy.error_interrupted", "deploy_interrupted")
+      return
+    }
+    const assertEffectBoundary = async (): Promise<void> => {
+      await lock.assertOwned()
+      await assertExactPackageBinding(binding)
+      await lock.assertOwned()
+    }
+    try {
+      await assertEffectBoundary()
+    } catch {
+      failCode("deploy.error_invalid_package", "employee_package_changed")
+      return
+    }
+    writeBinding(binding, runtime)
+    const deterministicUnsupported = channel === "lark" || channel === "wecom"
+    if (!deterministicUnsupported) {
+      try {
+        stateGeneration = await saveConfig(candidate, {
+          expected: stateGeneration,
+          lock,
+        })
+      } catch {
+        failCode("deploy.error_state_write", "deploy_state_write_failed")
+        return
+      }
+    }
+
+    let result: ChannelDeployResult
+    try {
+      await assertEffectBoundary()
+      if (controller.signal.aborted) throw new TypeError("deploy_interrupted")
+      result = await dispatchChannel(
+        channel,
+        candidate,
+        controller.signal,
+        async (processState) => {
+          await assertEffectBoundary()
+          stateGeneration = await saveConfig({
+            ...candidate,
+            process: processState,
+            updatedAt: new Date().toISOString(),
+          }, { expected: stateGeneration, lock })
+          if (stateGeneration.kind !== "present") {
+            throw new TypeError("http_process_state_generation_missing")
+          }
+          return stateGeneration.digest
+        },
+        async (provider) => {
+          await assertEffectBoundary()
+          stateGeneration = await saveConfig({
+            ...candidate,
+            provider,
+            providerOperation: undefined,
+            updatedAt: new Date().toISOString(),
+          }, { expected: stateGeneration, lock })
+          candidate.provider = provider
+          candidate.providerOperation = undefined
+        },
+        async (operation) => {
+          await assertEffectBoundary()
+          stateGeneration = await saveConfig({
+            ...candidate,
+            providerOperation: operation,
+            updatedAt: new Date().toISOString(),
+          }, { expected: stateGeneration, lock })
+          candidate.providerOperation = operation
+        },
+        async () => {
+          await assertEffectBoundary()
+          stateGeneration = await saveConfig({
+            ...candidate,
+            providerOperation: undefined,
+            updatedAt: new Date().toISOString(),
+          }, { expected: stateGeneration, lock })
+          candidate.providerOperation = undefined
+        },
+        options.yes === true,
+        () => lock.assertOwned(),
+        assertEffectBoundary,
+        {
+          fileDescriptor: lock.fileDescriptor,
+          nonce: lock.nonce,
+          device: lock.device,
+          inode: lock.inode,
+          ownerPid: process.pid,
+        },
+      )
+    } catch {
+      result = {
+        outcome: "failed",
+        steps: [],
+        code: "deploy_orchestration_failed",
+        guidance: t("deploy.error_orchestration"),
+      }
+    }
+
+    if (controller.signal.aborted) {
+      const providerOutcomeUncertain = channel === "dingtalk" &&
+        Boolean(candidate.providerOperation) &&
+        !candidate.provider &&
+        result.outcome === "pending_external_action"
+      if (!providerOutcomeUncertain) {
+        const cleanupVerified = result.cleanup ? await result.cleanup() : true
+        result = cleanupVerified
+          ? {
+              outcome: "failed",
+              steps: [],
+              code: "deploy_interrupted",
+              guidance: t("deploy.error_interrupted"),
+            }
+          : {
+              outcome: "pending_external_action",
+              steps: [],
+              code: "http_cleanup_unverified",
+              guidance: t("deploy.error_http_readiness"),
+              ...(result.endpoint ? { endpoint: result.endpoint } : {}),
+              ...(result.process ? { process: result.process } : {}),
+              ...(result.cleanup ? { cleanup: result.cleanup } : {}),
+            }
+      }
+    }
+
+    const now = new Date().toISOString()
+    let finalConfig: DeployConfig | undefined
+    try {
+      if (result.outcome === "ready" && channel === "http") {
+        if (
+          !result.endpoint ||
+          !result.process ||
+          !result.cleanup ||
+          !result.finalize ||
+          !result.release
+        ) {
+          throw new TypeError("http_ready_evidence_incomplete")
+        }
+        let verificationState: DeployConfig = {
+          ...candidate,
+          outcome: "pending_external_action",
+          endpoint: result.endpoint,
+          process: result.process,
+          code: "http_final_verification_pending",
+          deployedAt: undefined,
+          updatedAt: new Date().toISOString(),
+        }
+        stateGeneration = await saveConfig(verificationState, {
+          expected: stateGeneration,
+          lock,
+        })
+        let failureCode: string | undefined
+        let releaseSent = false
+        const prePublication = await loadExactConfigGeneration(stateGeneration, lock)
+        const prePublicationReadback = controller.signal.aborted
+          ? false
+          : await hasExactHttpReadback(prePublication.config, binding)
+        await lock.assertOwned()
+        if (controller.signal.aborted) {
+          failureCode = "deploy_interrupted"
+        } else if (!prePublicationReadback) {
+          failureCode = "http_final_readback_failed"
+        }
+
+        if (
+          !failureCode &&
+          (
+            stateGeneration.kind !== "present" ||
+            !await result.finalize(stateGeneration.digest)
+          )
+        ) {
+          failureCode = controller.signal.aborted
+            ? "deploy_interrupted"
+            : "http_activation_finalize_failed"
+        }
+
+        if (!failureCode) {
+          finalConfig = {
+            ...verificationState,
+            outcome: "ready",
+            code: undefined,
+            deployedAt: now,
+            updatedAt: new Date().toISOString(),
+          }
+          stateGeneration = await saveConfig(finalConfig, {
+            expected: stateGeneration,
+            lock,
+          })
+          const published = await loadExactConfigGeneration(stateGeneration, lock)
+          const postPublicationReadback = controller.signal.aborted
+            ? false
+            : await hasExactHttpReadback(published.config, binding)
+          await lock.assertOwned()
+          if (controller.signal.aborted) {
+            failureCode = "deploy_interrupted"
+          } else if (!postPublicationReadback) {
+            failureCode = "http_final_readback_failed"
+          }
+        }
+
+        if (!failureCode) {
+          const releaseResult = stateGeneration.kind === "present"
+            ? await result.release(stateGeneration.digest)
+            : { sent: false, acknowledged: false }
+          releaseSent = releaseResult.sent
+          if (controller.signal.aborted) {
+            failureCode = "deploy_interrupted"
+          } else if (!releaseResult.sent) {
+            failureCode = "http_activation_release_failed"
+          } else if (!releaseResult.acknowledged) {
+            failureCode = "http_activation_release_ack_failed"
+          }
+        }
+
+        if (releaseSent) {
+          const released = await loadExactConfigGeneration(stateGeneration, lock)
+          const postReleaseReadback = controller.signal.aborted
+            ? false
+            : await hasExactHttpReadback(released.config, binding)
+          await lock.assertOwned()
+          if (controller.signal.aborted) {
+            failureCode = "deploy_interrupted"
+          } else if (!postReleaseReadback) {
+            failureCode = "http_final_readback_failed"
+          }
+        }
+
+        if (failureCode && releaseSent) {
+          failCode(
+            failureCode === "deploy_interrupted"
+              ? "deploy.error_interrupted"
+              : "deploy.error_http_state_unsafe",
+            failureCode,
+          )
+          return
+        }
+
+        if (failureCode) {
+          verificationState = {
+            ...verificationState,
+            code: "http_cleanup_in_progress",
+            updatedAt: new Date().toISOString(),
+          }
+          stateGeneration = await saveConfig(verificationState, {
+            expected: stateGeneration,
+            lock,
+          })
+          const cleanupVerified = await result.cleanup()
+          if (cleanupVerified) {
+            result = {
+              outcome: "failed",
+              steps: [],
+              code: failureCode,
+              guidance: failureCode === "deploy_interrupted"
+                ? t("deploy.error_interrupted")
+                : t("deploy.error_http_readiness"),
+            }
+            finalConfig = {
+              ...candidate,
+              outcome: "failed",
+              code: failureCode,
+              process: undefined,
+              deployedAt: undefined,
+              updatedAt: new Date().toISOString(),
+            }
+          } else {
+            result = {
+              outcome: "pending_external_action",
+              steps: [],
+              code: "http_cleanup_unverified",
+              guidance: t("deploy.error_http_readiness"),
+              endpoint: verificationState.endpoint,
+              process: verificationState.process,
+            }
+            finalConfig = {
+              ...verificationState,
+              code: "http_cleanup_unverified",
+              updatedAt: new Date().toISOString(),
+            }
+          }
+          stateGeneration = await saveConfig(finalConfig, {
+            expected: stateGeneration,
+            lock,
+          })
+        }
+      } else {
+        finalConfig = {
+          ...candidate,
+          outcome: result.outcome,
+          ...(result.endpoint ? { endpoint: result.endpoint } : {}),
+          ...(result.process ? { process: result.process } : {}),
+          ...(result.provider ? { provider: result.provider } : {}),
+          ...(result.code ? { code: result.code } : {}),
+          ...(result.outcome === "ready" ? { deployedAt: now } : {}),
+          updatedAt: now,
+        }
+        stateGeneration = await saveConfig(finalConfig, {
+          expected: stateGeneration,
+          lock,
+        })
+      }
+    } catch {
+      await result.cleanup?.()
+      failCode("deploy.error_state_write", "deploy_state_write_failed")
+      return
+    }
+
+    if (!finalConfig) {
+      failCode("deploy.error_state_write", "deploy_state_write_failed")
+      return
+    }
+    try {
+      await lock.assertOwned()
+    } catch {
+      await result.cleanup?.()
+      failCode("deploy.error_state_write", "deploy_lock_not_owned")
+      return
+    }
+    for (const step of result.steps) process.stdout.write(`  ${step}\n`)
+    renderOutcome(finalConfig, result)
+    setOutcomeExitCode(result.outcome)
   } finally {
+    await lock.release()
     process.removeListener("SIGINT", interrupt)
     process.removeListener("SIGTERM", interrupt)
   }
+}
 
-  const now = new Date().toISOString()
-  const finalConfig: DeployConfig = {
-    ...candidate,
-    outcome: result.outcome,
-    ...(result.endpoint ? { endpoint: result.endpoint } : {}),
-    ...(result.process ? { process: result.process } : {}),
-    ...(result.code ? { code: result.code } : {}),
-    ...(result.outcome === "ready" ? { deployedAt: now } : {}),
-    updatedAt: now,
-  }
+export async function deploy(options: DeployOptions = {}): Promise<void> {
   try {
-    await saveConfig(finalConfig)
-  } catch {
-    if (result.process) {
-      try {
-        process.kill(
-          process.platform === "win32" ? result.process.pid : -result.process.pid,
-          "SIGTERM",
-        )
-      } catch {
-        // The child already exited.
-      }
+    await deployImpl(options)
+  } catch (error) {
+    if (error instanceof Error && error.message === "deploy_interrupted") {
+      failCode("deploy.error_interrupted", "deploy_interrupted")
+      return
     }
-    failCode("deploy.error_state_write", "deploy_state_write_failed")
-    return
+    if (error instanceof Error && error.message === "deploy_prompt_input_closed") {
+      failCode("deploy.error_prompt_input_closed", "deploy_prompt_input_closed")
+      return
+    }
+    throw error
+  } finally {
+    closePromptInput()
   }
-
-  for (const step of result.steps) process.stdout.write(`  ${step}\n`)
-  renderOutcome(finalConfig, result)
-  setOutcomeExitCode(result.outcome)
 }

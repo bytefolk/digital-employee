@@ -5,8 +5,61 @@
 
 import { createInterface } from "node:readline"
 
-const rl = () =>
-  createInterface({ input: process.stdin, output: process.stdout })
+const queuedAnswers: string[] = []
+const answerWaiters: Array<{
+  resolve: (answer: string) => void
+  reject: (error: Error) => void
+}> = []
+let inputRemainder = ""
+let inputListening = false
+let inputEnded = false
+
+function drainAnswers(): void {
+  while (queuedAnswers.length > 0 && answerWaiters.length > 0) {
+    answerWaiters.shift()!.resolve(queuedAnswers.shift()!)
+  }
+}
+
+function collectInput(chunk: Buffer | string): void {
+  inputRemainder += Buffer.isBuffer(chunk) ? chunk.toString("utf8") : chunk
+  const lines = inputRemainder.split(/\r?\n/)
+  inputRemainder = lines.pop() ?? ""
+  queuedAnswers.push(...lines)
+  drainAnswers()
+}
+
+function finishInput(): void {
+  if (inputRemainder) queuedAnswers.push(inputRemainder)
+  inputRemainder = ""
+  inputEnded = true
+  drainAnswers()
+  while (answerWaiters.length > 0) {
+    answerWaiters.shift()!.reject(new TypeError("deploy_prompt_input_closed"))
+  }
+  inputListening = false
+}
+
+function listenForAnswers(): void {
+  if (inputListening) return
+  inputListening = true
+  process.stdin.on("data", collectInput)
+  process.stdin.once("end", finishInput)
+}
+
+export function closePromptInput(
+  errorCode = "deploy_prompt_input_closed",
+): void {
+  process.stdin.removeListener("data", collectInput)
+  process.stdin.removeListener("end", finishInput)
+  if (inputListening) process.stdin.pause()
+  inputListening = false
+  inputEnded = process.stdin.readableEnded
+  inputRemainder = ""
+  queuedAnswers.length = 0
+  while (answerWaiters.length > 0) {
+    answerWaiters.shift()!.reject(new TypeError(errorCode))
+  }
+}
 
 /**
  * Ask user to select from a list of options (arrow-key style).
@@ -101,11 +154,15 @@ export async function secretPrompt(message: string): Promise<string> {
 }
 
 function question(prompt: string): Promise<string> {
-  const iface = rl()
-  return new Promise<string>((resolve) => {
-    iface.question(prompt, (answer) => {
-      iface.close()
-      resolve(answer)
-    })
+  process.stdout.write(prompt)
+  if (queuedAnswers.length > 0) {
+    return Promise.resolve(queuedAnswers.shift()!)
+  }
+  if (inputEnded || process.stdin.readableEnded) {
+    return Promise.reject(new TypeError("deploy_prompt_input_closed"))
+  }
+  return new Promise<string>((resolve, reject) => {
+    answerWaiters.push({ resolve, reject })
+    listenForAnswers()
   })
 }

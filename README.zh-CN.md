@@ -63,6 +63,27 @@ Claude Code、Qwen Code 或 CodeBuddy 使用同样的 `validate/run` 命令，�
 | `qwen-code` | Qwen Code `0.17.1` | `OPENAI_API_KEY`、`OPENAI_MODEL` |
 | `codebuddy` | CodeBuddy Code `2.106.4` | `CODEBUDDY_API_KEY`、`CODEBUDDY_MODEL` |
 
+## 绑定员工包的本地部署
+
+源码 CLI 可以把经过校验的员工包绑定到可验证的本地部署结果。完整的无提示
+HTTP 调用示例：
+
+```bash
+node ./dist/apps/cli/bin.js deploy ../team-answer \
+  --channel http \
+  --engine qoder \
+  --runtime agent-native \
+  --locale zh-CN \
+  --port 3000 \
+  --yes
+```
+
+只有持久化状态与在线端点精确回读均通过时，`ready` 才以 0 退出；等待供应商或
+前台操作时以 2 退出，不支持或失败时以 1 退出。状态与锁只适用于本机，钉钉创建
+采用“先持久化操作标识、重试只对账”的防重复机制。当前安装的 DWS 列表投影会
+丢失必需的分页元数据，因此真实钉钉对账处于失败关闭的外部集成 HOLD。详见
+[部署契约、生命周期、文件系统范围与恢复规则](docs/deploy.md)。
+
 ## 发布者自有机器上的 Runner 路径
 
 所有应用/服务机器人都必须在发布者或运营者自己的电脑或服务器上运行。私有平台只保存上架身份、包摘要、Quote、租约、事件和结算记录；它不保存员工包本地路径、包内容或 Agent Host 凭证，也不会反向连接用户机器。
@@ -223,6 +244,7 @@ DWS 的安装、授权和完整能力请查看
 | `init`、静态 `validate`、本机 `doctor` | 已交付（源码分支） |
 | Qoder CLI 1.1.x 无状态只读 `run --engine qoder` Adapter | 已交付（源码分支）；未使用真实模型权益验收 |
 | Claude Code `>=2.1.214 <2.2.0`、Qwen Code `0.17.1`、CodeBuddy Code `2.106.4` 上下文 Adapter | 已交付（源码分支）；未使用真实模型权益验收 |
+| 绑定员工包的 `deploy`：HTTP 可验证就绪、Console 等待前台操作 | 已交付（源码分支）；钉钉对账受当前 DWS 分页契约阻断且无真实供应商 E4 证据 |
 | 签名任务、包摘要、本机快照、租约 fencing、事件链、Runner 签名回执 | 已交付（V0.3 源码技术预览） |
 | 卖家自有长期 Runner 进程、本地持久 replay/outbox 和重连 | 尚未交付；属于开源框架路线 |
 | 服务端设备注册、任务分发、用量核验、Quote/Credit 和结算 | 私有平台；不进入本框架仓库 |
@@ -230,8 +252,8 @@ DWS 的安装、授权和完整能力请查看
 | Codex CLI 运行 Adapter | 仅探测；受阻于无法可靠移除所有模型可见内建工具 |
 | `standalone-v1` 岗位及渠道、知识源、模型、工具 registry | 已交付；兼容路径 |
 | 只读 `answer-agent` 岗位 | 已交付 |
-| Console 与 HTTP 入口 | 已交付 |
-| 钉钉 Stream 入口 | 已交付；真实应用凭证集成验证需要单独环境 |
+| `standalone-v1` Console 与 HTTP 入口 | 已交付 |
+| `standalone-v1` 钉钉 Stream 入口 | 已交付；真实应用凭证集成验证需要单独环境 |
 | 文件、Git、DWS 知识源 | 已交付 |
 | 引用、人工接力、仅确认反馈后学习 FAQ | 已交付 |
 | 项目助理、运营员工等员工包 | 规划中 |

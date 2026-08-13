@@ -259,16 +259,18 @@ Following that evidence, distribution is split into independent artifacts:
 1. the Apache-licensed `digital-employee` CLI/core and Host Adapter contract;
 2. a portable employee source package (`employee.json`, `SKILL.md`, Schemas,
    declared assets/evals), which is the future marketplace unit;
-3. an operator-owned deployment binding (selected host binary, service token,
-   channel credentials, queue limits and sandbox), which is never published as
-   employee content;
+3. an operator-owned deployment binding (selected host, symbolic secret
+   references, local channel/process identity, and future queue/sandbox
+   settings), which is never published as employee content;
 4. future marketplace listing and metering metadata, which references a signed
    employee package/version but stays outside this repository's runtime
    contract.
 
-The current source implements the first two plus four one-shot Host Adapters.
-The third still needs an Agent-native `service start` wrapper; the fourth
-belongs to the separate platform/pricing phase.
+The current source implements the first two plus four one-shot Host Adapters
+and a single fail-closed local subset of the third through `deploy`. A
+multi-deployment registry, queue, audit/reconnect lifecycle, and Agent-native
+`service start` wrapper remain open; the fourth belongs to the separate
+platform/pricing phase.
 
 ## Current and next commands
 
@@ -278,6 +280,7 @@ belongs to the separate platform/pricing phase.
 | `validate` | Implemented; static plus optional host compatibility |
 | `eval` | Implemented; offline fixture conformance only, no Host/provider run |
 | `doctor` | Implemented; local readiness only, never starts a model run |
+| `deploy [package-path]` | Implemented in source for one local package-bound slot; HTTP alone can become Ready after live readback |
 | `run --engine qoder` | Implemented for Qoder CLI 1.1.x; stateless, read-only, no MCP/attachments |
 | `run --engine claude-code|qwen-code|codebuddy` | Implemented for the exact version gates above; stateless, context-only, no MCP/attachments |
 | `run --engine codex` | Probe-only; blocked on reliable removal of all model-visible built-in tools |

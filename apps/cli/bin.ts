@@ -25,7 +25,7 @@ import {
   inspectEmployeePackage,
 } from "./employee-package.js";
 import { evaluateEmployeePackage } from "./employee-eval.js";
-import { deploy } from "./deploy/index.js";
+import { deploy, renderDeployParseFailure } from "./deploy/index.js";
 import { setup } from "./setup.js";
 
 type EmployeeResult = Awaited<ReturnType<DigitalEmployee["answer"]>>;
@@ -532,7 +532,18 @@ async function runLegacyCommand(
 }
 
 async function main() {
-  const { command, values, positionals, providedOptions } = parseCommand(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+  let parsed: ReturnType<typeof parseCommand>;
+  try {
+    parsed = parseCommand(argv);
+  } catch (error) {
+    if (argv[0] === "deploy") {
+      renderDeployParseFailure(argv.slice(1), error);
+      return;
+    }
+    throw error;
+  }
+  const { command, values, positionals, providedOptions } = parsed;
   if (command === "help" || (values.help && command !== "deploy")) {
     process.stdout.write(usage());
     return;
@@ -551,8 +562,10 @@ async function main() {
     recipe: values.recipe,
   });
   if (command === "deploy") return deploy({
-    packagePath: values.package || positionals[0],
-    packagePathConflict: Boolean(values.package && positionals.length > 0),
+    packagePath: providedOptions.has("package")
+      ? values.package
+      : positionals[0],
+    packagePathConflict: providedOptions.has("package") && positionals.length > 0,
     extraPackagePaths: positionals.length > 1,
     channel: values.channel,
     engine: values.engine,

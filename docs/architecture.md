@@ -44,9 +44,14 @@ The outer Digital Employee runtime owns:
 This is the target ownership boundary, not a claim that the Agent-native
 online service is already shipped. The current new path delivers package
 scaffolding, package-aware validation, host diagnosis and version-gated
-one-shot runs through Qoder CLI, Claude Code, Qwen Code and CodeBuddy Code.
-Channels and queues in this repository still belong to `standalone-v1` until
-they are moved behind an Agent-host service command.
+one-shot runs through Qoder CLI, Claude Code, Qwen Code and CodeBuddy Code. It
+also delivers one fail-closed local package-bound deployment slot: HTTP may
+become ready after exact local readback, Console remains pending for an
+attached foreground process, and DingTalk application reconciliation is on a
+fail-closed external HOLD because current DWS list output omits required
+pagination metadata. The multi-deployment registry, queue, audit, reconnect,
+and long-running Agent-host service remain target design. The older general
+channel runtime remains the explicit `standalone-v1` compatibility path.
 
 The outer layer does not call a host as if it were a plain text-completion
 model and then run another tool loop around it. It also does not persist or
@@ -58,6 +63,7 @@ require private chain-of-thought.
 | --- | --- | --- |
 | Employee package, CLI and Host projection | Open framework on the operator machine | Authoring commands are shipped in source |
 | Agent execution and native tool loop | Installed Agent Host | Four locked one-shot paths are preview and fixture-conformant; Codex is probe-only |
+| Single-host package-bound deploy | Open framework on the operator machine | One local slot is shipped in source; HTTP has verified readiness, Console remains pending, DingTalk is blocked by the external DWS pagination contract, Lark/WeCom unsupported |
 | One-shot task verification and receipt | Open Runner kernel on the operator machine | Preview embeddable implementation is delivered |
 | Long-running Runner lifecycle, local deployment registry, durable replay/outbox and reconnect | Open framework on the operator machine | Target design; not delivered |
 | Device registration, scheduling, trusted usage verification, Quote/Credit and settlement | Separate private control plane | Private; not implemented by this repository |
@@ -144,7 +150,10 @@ The new Agent-host foundation ships these non-model commands:
   with stable `employee-eval-result.v1alpha1` output and exit `0|1` semantics;
 - `doctor`: performs a bounded local readiness probe for Claude Code, Qoder
   CLI, Codex, Qwen Code and CodeBuddy Code and reports separately whether an
-  adapter is runnable.
+  adapter is runnable;
+- `deploy [package-path]`: binds an exact package/runtime and records one
+  secret-safe local deployment outcome. It is not the future multi-employee
+  service, registry, queue, or remote Runner lifecycle.
 
 These commands do not start a model run or claim that model entitlement is
 valid. Four real execution paths are covered by Adapter-specific deterministic

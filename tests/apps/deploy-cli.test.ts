@@ -7059,7 +7059,7 @@ test("interactive deploy defaults runtime to agent-native without a runtime prom
       bin,
       extra: { QODER_PERSONAL_ACCESS_TOKEN: "interactive-secret-sentinel" },
     }),
-    input: "2\n1\n4\n\n",
+    input: "2\n1\n2\n\n",
   })
   assert.equal(result.status, 2, `${result.stdout}\n${result.stderr}`)
   assert.match(result.stdout, /Which AI engine/)

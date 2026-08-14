@@ -378,6 +378,7 @@ interface TrackedQualificationRun {
   ownerAdapter: AgentHostAdapter
   runId: string
   cancelAttempted: boolean
+  cancelPromise?: Promise<void>
 }
 
 interface QualificationCaseContext {
@@ -412,53 +413,62 @@ async function runBoundedCase<T>(
   const controller = new AbortController()
   const trackedRuns: TrackedQualificationRun[] = []
   const cleanups: Array<() => Promise<void> | void> = []
-  const findRun = (ownerAdapter: AgentHostAdapter, runId: string) =>
-    trackedRuns.find(
-      (entry) => entry.ownerAdapter === ownerAdapter && entry.runId === runId,
-    )
-  const context: QualificationCaseContext = {
-    signal: controller.signal,
-    deadline: new Date(deadlineAt).toISOString(),
-    scanner,
-    remainingMs: () => Math.max(0, deadlineAt - Date.now()),
-    abort: () => controller.abort(),
-    trackRun: (ownerAdapter, runId) => {
-      if (!findRun(ownerAdapter, runId)) {
-        trackedRuns.push({ ownerAdapter, runId, cancelAttempted: false })
-      }
-    },
-    cancelRun: async (ownerAdapter, runId) => {
-      let tracked = findRun(ownerAdapter, runId)
-      if (!tracked) {
-        tracked = { ownerAdapter, runId, cancelAttempted: false }
-        trackedRuns.push(tracked)
-      }
-      if (tracked.cancelAttempted) return
-      tracked.cancelAttempted = true
-      await ownerAdapter.cancel?.(runId)
-    },
-    registerCleanup: (cleanup) => cleanups.push(cleanup),
-  }
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<BoundedOutcome<T>>((resolve) => {
-    timer = setTimeout(() => resolve({ kind: "timeout" }), caseTimeoutMs)
-  })
-  const execution = Promise.resolve()
-    .then(() => body(context))
-    .then<QualificationExecutionOutcome<T>, QualificationExecutionOutcome<T>>(
-      (value) => ({ kind: "value", value }),
-      (error: unknown) => {
-        scanner.observe(error)
-        return { kind: "error", error }
-      },
-    )
-  const outcome = await Promise.race([execution, timeout])
-  if (timer !== undefined) clearTimeout(timer)
   const cleanupErrors: unknown[] = []
   const cleanupPromises = new Map<
     () => Promise<void> | void,
     Promise<void>
   >()
+  let finalizing = false
+  let resourceGeneration = 0
+  const resourceWaiters = new Set<() => void>()
+  const signalResourceChange = (): void => {
+    resourceGeneration += 1
+    const waiters = [...resourceWaiters]
+    resourceWaiters.clear()
+    for (const resolve of waiters) resolve()
+  }
+  const waitForResourceChange = (
+    observedGeneration: number,
+  ): { promise: Promise<void>; cancel: () => void } => {
+    let resolveWait: (() => void) | undefined
+    const promise = new Promise<void>((resolve) => {
+      if (resourceGeneration !== observedGeneration) {
+        resolve()
+        return
+      }
+      resolveWait = resolve
+      resourceWaiters.add(resolve)
+    })
+    return {
+      promise,
+      cancel: () => {
+        if (resolveWait) resourceWaiters.delete(resolveWait)
+      },
+    }
+  }
+  const findRun = (ownerAdapter: AgentHostAdapter, runId: string) =>
+    trackedRuns.find(
+      (entry) => entry.ownerAdapter === ownerAdapter && entry.runId === runId,
+    )
+  const startCancel = (tracked: TrackedQualificationRun): Promise<void> => {
+    if (!tracked.cancelAttempted) {
+      tracked.cancelAttempted = true
+      tracked.cancelPromise = Promise.resolve().then(async () => {
+        await tracked.ownerAdapter.cancel?.(tracked.runId)
+      })
+    }
+    return tracked.cancelPromise ?? Promise.resolve()
+  }
+  const settleCancel = async (
+    tracked: TrackedQualificationRun,
+  ): Promise<void> => {
+    try {
+      await startCancel(tracked)
+    } catch (error) {
+      cleanupErrors.push(error)
+      scanner.observe(error)
+    }
+  }
   const invokeCleanup = (
     cleanup: () => Promise<void> | void,
   ): Promise<void> => {
@@ -478,8 +488,54 @@ async function runBoundedCase<T>(
     }
     return promise
   }
+  const context: QualificationCaseContext = {
+    signal: controller.signal,
+    deadline: new Date(deadlineAt).toISOString(),
+    scanner,
+    remainingMs: () => Math.max(0, deadlineAt - Date.now()),
+    abort: () => controller.abort(),
+    trackRun: (ownerAdapter, runId) => {
+      if (!findRun(ownerAdapter, runId)) {
+        const tracked = { ownerAdapter, runId, cancelAttempted: false }
+        trackedRuns.push(tracked)
+        signalResourceChange()
+        if (finalizing) void settleCancel(tracked)
+      }
+    },
+    cancelRun: async (ownerAdapter, runId) => {
+      let tracked = findRun(ownerAdapter, runId)
+      if (!tracked) {
+        tracked = { ownerAdapter, runId, cancelAttempted: false }
+        trackedRuns.push(tracked)
+        signalResourceChange()
+        if (finalizing) void settleCancel(tracked)
+      }
+      await startCancel(tracked)
+    },
+    registerCleanup: (cleanup) => {
+      cleanups.push(cleanup)
+      signalResourceChange()
+      if (finalizing) void invokeCleanup(cleanup)
+    },
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<BoundedOutcome<T>>((resolve) => {
+    timer = setTimeout(() => resolve({ kind: "timeout" }), caseTimeoutMs)
+  })
+  const execution = Promise.resolve()
+    .then(() => body(context))
+    .then<QualificationExecutionOutcome<T>, QualificationExecutionOutcome<T>>(
+      (value) => ({ kind: "value", value }),
+      (error: unknown) => {
+        scanner.observe(error)
+        return { kind: "error", error }
+      },
+    )
+  const outcome = await Promise.race([execution, timeout])
+  if (timer !== undefined) clearTimeout(timer)
   let settledExecution = outcome.kind === "timeout" ? undefined : outcome
   const finalizer = async (): Promise<void> => {
+    finalizing = true
     controller.abort()
     const processedRuns = new Set<TrackedQualificationRun>()
     const processedCleanups = new Set<() => Promise<void> | void>()
@@ -489,14 +545,7 @@ async function runBoundedCase<T>(
       )
       for (const tracked of pendingRuns) {
         processedRuns.add(tracked)
-        if (tracked.cancelAttempted || !tracked.ownerAdapter.cancel) continue
-        tracked.cancelAttempted = true
-        try {
-          await tracked.ownerAdapter.cancel(tracked.runId)
-        } catch (error) {
-          cleanupErrors.push(error)
-          scanner.observe(error)
-        }
+        await settleCancel(tracked)
       }
 
       const pendingCleanups = cleanups
@@ -508,7 +557,14 @@ async function runBoundedCase<T>(
       }
 
       if (settledExecution === undefined) {
-        settledExecution = await execution
+        const observedGeneration = resourceGeneration
+        const resourceChange = waitForResourceChange(observedGeneration)
+        const next = await Promise.race([
+          execution.then((value) => ({ kind: "execution" as const, value })),
+          resourceChange.promise.then(() => ({ kind: "resource" as const })),
+        ])
+        resourceChange.cancel()
+        if (next.kind === "execution") settledExecution = next.value
         continue
       }
       if (
@@ -526,7 +582,6 @@ async function runBoundedCase<T>(
   let cleanupTimer: ReturnType<typeof setTimeout> | undefined
   const cleanupTimeout = new Promise<"timeout">((resolve) => {
     cleanupTimer = setTimeout(() => resolve("timeout"), cleanupGraceMs)
-    cleanupTimer.unref?.()
   })
   const cleanupOutcome = await Promise.race([
     finalizer().then(() => "settled" as const),
@@ -540,12 +595,12 @@ async function runBoundedCase<T>(
     let isolationTimer: ReturnType<typeof setTimeout> | undefined
     const isolationTimeout = new Promise<void>((resolve) => {
       isolationTimer = setTimeout(resolve, cleanupGraceMs)
-      isolationTimer.unref?.()
     })
     await Promise.race([
-      Promise.all(cleanups.slice().reverse().map(invokeCleanup)).then(
-        () => undefined,
-      ),
+      Promise.all([
+        ...trackedRuns.map(settleCancel),
+        ...cleanups.slice().reverse().map(invokeCleanup),
+      ]).then(() => undefined),
       isolationTimeout,
     ])
     if (isolationTimer !== undefined) clearTimeout(isolationTimer)

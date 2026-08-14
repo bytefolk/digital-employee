@@ -1127,6 +1127,82 @@ test("an outer process-case timeout cancels the exact fixture owner and disposes
   )
 })
 
+test("emergency cleanup claims runs and cleanups registered after its initial drain", async () => {
+  const directory = await workingDirectory()
+  const lifecycle: string[] = []
+  const adapter = qualificationAdapter({ lifecycle })
+  const originalProbe = adapter.probe.bind(adapter)
+  const originalRun = adapter.run.bind(adapter)
+  let delayProcessProbe = false
+  let primaryCleanupStarted = 0
+  let lateIteratorCleanup = 0
+
+  adapter.probe = async () => {
+    if (delayProcessProbe) {
+      delayProcessProbe = false
+      await new Promise<void>((resolve) => setTimeout(resolve, 2_500))
+    }
+    return await originalProbe()
+  }
+  adapter.run = (request) => {
+    const source = originalRun(request)
+    if (request.runId !== "qualification-process_tree_normal") return source
+    return {
+      [Symbol.asyncIterator]() {
+        const iterator = source[Symbol.asyncIterator]()
+        return {
+          next: () => iterator.next(),
+          return: async () => {
+            lateIteratorCleanup += 1
+            return iterator.return
+              ? await iterator.return()
+              : { done: true as const, value: undefined }
+          },
+        }
+      },
+    }
+  }
+
+  const fixture: QualificationProcessTreeFixture = {
+    async create() {
+      delayProcessProbe = true
+      return {
+        adapter,
+        async descendants() {
+          return { childPid: process.pid + 1, grandchildPid: process.pid + 2 }
+        },
+        async dispose() {
+          primaryCleanupStarted += 1
+          await new Promise<void>(() => {})
+        },
+      }
+    },
+  }
+  const startedAt = Date.now()
+  await assert.rejects(
+    () =>
+      runQualificationSuite(adapter, {
+        workingDirectory: directory,
+        generatedAt: GENERATED_AT,
+        caseTimeoutMs: 1_000,
+        processTreeFixture: fixture,
+      }),
+    (error: unknown) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "QUALIFICATION_CLEANUP_TIMEOUT",
+  )
+  assert.equal(primaryCleanupStarted, 1)
+  assert.equal(
+    lifecycle.filter(
+      (entry) => entry === "cancel:qualification-process_tree_normal",
+    ).length,
+    1,
+  )
+  assert.equal(lateIteratorCleanup, 1)
+  assert.ok(Date.now() - startedAt < 3_500)
+})
+
 test("sentinel scanning covers conforming, malformed, rejected and thrown paths", async () => {
   const directory = await workingDirectory()
   const makeAdapter = (

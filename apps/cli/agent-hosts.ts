@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process"
+import { spawn } from "node:child_process"
 
 import {
   AGENT_HOST_PROTOCOL_VERSION,
@@ -10,6 +10,10 @@ import type {
   AgentHostProbeResult,
   AgentHostProbeStatus,
 } from "../../packages/core/src/agent-host.js"
+import {
+  signalAgentHostProcessTree,
+  waitForAgentHostProcessTreeExit,
+} from "./agent-host-process-tree.js"
 
 export const BUILT_IN_AGENT_HOST_IDS = [
   "claude-code",
@@ -40,6 +44,7 @@ export interface VersionCommandResult {
 export type VersionCommandExecutor = (
   command: string,
   args: string[],
+  options?: { signal?: AbortSignal },
 ) => Promise<VersionCommandResult>
 
 function versionProbeEnvironment(
@@ -180,31 +185,95 @@ function cleanVersionOutput(value: string): string | undefined {
 export const executeVersionCommand: VersionCommandExecutor = (
   command,
   args,
+  options = {},
 ) =>
   new Promise((resolve) => {
-    execFile(
-      command,
-      args,
-      {
-        encoding: "utf8",
-        timeout: 10_000,
-        maxBuffer: 64 * 1024,
-        windowsHide: true,
+    if (options.signal?.aborted) {
+      resolve({ status: "probe_failed" })
+      return
+    }
+    let child
+    try {
+      child = spawn(command, args, {
+        detached: process.platform !== "win32",
         env: versionProbeEnvironment(process.env),
-      },
-      (error, stdout, stderr) => {
-        if (!error) {
-          resolve({
-            status: "installed",
-            output: cleanVersionOutput(stdout) ?? cleanVersionOutput(stderr),
-          })
-          return
-        }
+        shell: false,
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      })
+    } catch (error) {
+      resolve({
+        status: (error as NodeJS.ErrnoException).code === "ENOENT"
+          ? "not_found"
+          : "probe_failed",
+      })
+      return
+    }
+    const stdout: Buffer[] = []
+    const stderr: Buffer[] = []
+    let stdoutBytes = 0
+    let stderrBytes = 0
+    let settling = false
+    const outputLimit = 64 * 1024
+    let timer: NodeJS.Timeout | undefined
 
-        const code = (error as NodeJS.ErrnoException).code
-        resolve({ status: code === "ENOENT" ? "not_found" : "probe_failed" })
-      },
-    )
+    const cleanup = () => {
+      if (timer) clearTimeout(timer)
+      options.signal?.removeEventListener("abort", abort)
+    }
+    const settle = async (result: VersionCommandResult) => {
+      if (settling) return
+      settling = true
+      cleanup()
+      // A version probe is disposable. Always terminate the detached group so
+      // a wrapper cannot leave descendants after its leader exits, and do not
+      // release the caller's admission slot until the group is gone.
+      signalAgentHostProcessTree(child, "SIGKILL")
+      await waitForAgentHostProcessTreeExit(child, 5_000)
+      resolve(result)
+    }
+    const abort = () => {
+      void settle({ status: "probe_failed" })
+    }
+    child.stdout?.on("data", (chunk: Buffer) => {
+      stdoutBytes += chunk.byteLength
+      if (stdoutBytes > outputLimit) {
+        void settle({ status: "probe_failed" })
+        return
+      }
+      stdout.push(Buffer.from(chunk))
+    })
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderrBytes += chunk.byteLength
+      if (stderrBytes > outputLimit) {
+        void settle({ status: "probe_failed" })
+        return
+      }
+      stderr.push(Buffer.from(chunk))
+    })
+    child.once("error", (error) => {
+      void settle({
+        status: (error as NodeJS.ErrnoException).code === "ENOENT"
+          ? "not_found"
+          : "probe_failed",
+      })
+    })
+    child.once("close", (code) => {
+      void settle(
+        code === 0
+          ? {
+              status: "installed",
+              output:
+                cleanVersionOutput(Buffer.concat(stdout).toString("utf8")) ??
+                cleanVersionOutput(Buffer.concat(stderr).toString("utf8")),
+            }
+          : { status: "probe_failed" },
+      )
+    })
+    options.signal?.addEventListener("abort", abort, { once: true })
+    timer = setTimeout(abort, 10_000)
+    timer.unref()
+    if (options.signal?.aborted) abort()
   })
 
 export function isBuiltInAgentHostId(

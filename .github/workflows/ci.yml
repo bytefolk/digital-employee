@@ -76,6 +76,45 @@ jobs:
       - run: npm run build
       - run: npm run test:coverage
 
+  package-consumer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci
+      - name: Pack and verify the clean installed CLI deploy journey
+        shell: bash
+        run: |
+          pack_destination="$RUNNER_TEMP/ci-release-pack"
+          mkdir -p "$pack_destination"
+          npm pack --json --pack-destination "$pack_destination" > "$pack_destination/root-pack.json"
+          npm pack ./packages/core --json --pack-destination "$pack_destination" > "$pack_destination/core-pack.json"
+          node ./scripts/release-pack-check.js \
+            "$pack_destination" \
+            "$pack_destination/root-pack.json" \
+            "$pack_destination/core-pack.json"
+          root_package="$(node --input-type=module -e "import fs from 'node:fs'; const [entry] = JSON.parse(fs.readFileSync('$pack_destination/root-pack.json', 'utf8')); process.stdout.write(entry.filename)")"
+          core_package="$(node --input-type=module -e "import fs from 'node:fs'; const [entry] = JSON.parse(fs.readFileSync('$pack_destination/core-pack.json', 'utf8')); process.stdout.write(entry.filename)")"
+          core_consumer="$RUNNER_TEMP/ci-core-package-consumer"
+          mkdir -p "$core_consumer"
+          npm install --prefix "$core_consumer" \
+            --ignore-scripts \
+            --no-audit \
+            --no-fund \
+            --offline \
+            "$pack_destination/$core_package"
+          (
+            cd "$core_consumer"
+            node --input-type=module -e "await import('@fullstack-ai-infra/digital-employee-core')"
+          )
+          node ./scripts/release-consumer-check.js \
+            "$pack_destination/$root_package" \
+            ./tests/apps/fixtures/fake-qoder.mjs
+
   container:
     runs-on: ubuntu-latest
     steps:

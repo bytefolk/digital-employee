@@ -110,3 +110,64 @@ test("runEmployeePackage detects a package mutation made by preflight", async ()
   )
   assert.equal(runCalled, false)
 })
+
+test("managed callers retain cancellation accounting until Host preflight settles", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "runner-package-"))
+  const directory = path.join(parent, "answer-agent")
+  await createEmployeePackage(directory)
+  let preflightStarted!: () => void
+  const started = new Promise<void>((resolve) => {
+    preflightStarted = resolve
+  })
+  let releasePreflight!: () => void
+  const blocked = new Promise<void>((resolve) => {
+    releasePreflight = resolve
+  })
+  let cancelled = false
+  const adapter: AgentHostAdapter = {
+    hostId: "fixture-host",
+    async probe() {
+      return readyProbe()
+    },
+    async preflight() {
+      preflightStarted()
+      await blocked
+      return readyProbe()
+    },
+    async cancel() {
+      cancelled = true
+    },
+    async *run() {
+      throw new Error("cancelled preflight must not launch a run")
+    },
+  }
+  const registry = new AgentHostRegistry().register({
+    id: "fixture-host",
+    probe: () => adapter.probe(),
+    createAdapter: () => adapter,
+  })
+  const controller = new AbortController()
+  let settled = false
+  const execution = runEmployeePackage({
+    directory,
+    engine: "fixture-host",
+    hostRegistry: registry,
+    input: { message: "hello" },
+    signal: controller.signal,
+    waitForPreflightCleanupOnAbort: true,
+  }).finally(() => {
+    settled = true
+  })
+  await started
+  controller.abort()
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(cancelled, true)
+  assert.equal(settled, false)
+  releasePreflight()
+  const result = await execution
+  assert.equal(result.status, "failed")
+  assert.equal(
+    result.status === "failed" && result.error.code,
+    "agent_host_cancelled",
+  )
+})

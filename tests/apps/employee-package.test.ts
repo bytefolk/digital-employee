@@ -1,10 +1,13 @@
 import assert from "node:assert/strict"
+import { spawnSync } from "node:child_process"
 import {
   lstat,
   mkdir,
   mkdtemp,
   readFile,
   readdir,
+  rename,
+  rm,
   symlink,
   writeFile,
 } from "node:fs/promises"
@@ -266,4 +269,50 @@ test("static validation refuses symlinked package artifacts", async () => {
     () => inspectEmployeePackage(target),
     /employee_package_symlink_not_allowed/,
   )
+})
+
+test("inspection fails closed across final-file and ancestor replacement races", async (t) => {
+  for (const mode of ["symlink", "fifo", "ancestor"] as const) {
+    await t.test(mode, async () => {
+      const parent = await mkdtemp(path.join(os.tmpdir(), `employee-open-race-${mode}-`))
+      const target = path.join(parent, "team-answer")
+      const asset = path.join(target, "knowledge", "README.md")
+      const held = path.join(parent, `held-${mode}`)
+      const outside = path.join(parent, `outside-${mode}`)
+      await createEmployeePackage(target)
+      await writeFile(outside, "must never become trusted package bytes")
+      let injected = false
+      const started = Date.now()
+      await assert.rejects(
+        () => inspectEmployeePackage(target, {
+          async beforeFileOpen(portablePath) {
+            if (injected || portablePath !== "./knowledge/README.md") return
+            injected = true
+            if (mode === "ancestor") {
+              await rename(path.dirname(asset), held)
+              const outsideDirectory = path.join(parent, "outside-directory")
+              await mkdir(outsideDirectory)
+              await writeFile(
+                path.join(outsideDirectory, "README.md"),
+                "outside ancestor bytes",
+              )
+              await symlink(outsideDirectory, path.dirname(asset))
+              return
+            }
+            await rename(asset, held)
+            if (mode === "symlink") {
+              await symlink(outside, asset)
+            } else {
+              const result = spawnSync("mkfifo", [asset], { encoding: "utf8" })
+              assert.equal(result.status, 0, result.stderr)
+            }
+          },
+        }),
+        /employee_package_file_(?:unavailable_for_snapshot|invalid_for_snapshot|changed_during_snapshot)/,
+      )
+      assert.equal(injected, true)
+      assert.ok(Date.now() - started < 2_000, "replacement race must fail bounded")
+      await rm(parent, { recursive: true, force: true })
+    })
+  }
 })

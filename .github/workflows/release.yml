@@ -108,7 +108,7 @@ jobs:
   verify:
     needs: prepare
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: source
@@ -153,7 +153,7 @@ jobs:
           root_consumer="$RUNNER_TEMP/root-package-consumer"
           core_consumer="$RUNNER_TEMP/core-package-consumer"
           mkdir -p "$root_consumer" "$core_consumer"
-          if [[ "${{ needs.prepare.outputs.mode }}" == "push" ]]; then
+          if [[ "${{ needs.prepare.outputs.mode }}" != "asset-backfill" ]]; then
             node ./scripts/release-consumer-check.js \
               "$pack_destination/$root_package" \
               ./tests/apps/fixtures/fake-qoder.mjs

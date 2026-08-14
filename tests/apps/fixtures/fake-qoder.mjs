@@ -110,7 +110,11 @@ const init = {
 
 async function executeRun() {
   await writeCapture()
-  if (mode === "hang" || mode === "buffered-hang") {
+  if (
+    mode === "hang" ||
+    mode === "buffered-hang" ||
+    mode === "hang-ignore-sigterm"
+  ) {
     if (mode === "buffered-hang") {
       emit({
         type: "stream_event",
@@ -136,6 +140,7 @@ async function executeRun() {
     }
     // An unresolved top-level await does not keep Node alive by itself. Hold a
     // referenced timer so only the Adapter's deadline/cancel path ends it.
+    if (mode === "hang-ignore-sigterm") process.on("SIGTERM", () => {})
     await new Promise(() => {
       setInterval(() => {}, 1_000)
     })

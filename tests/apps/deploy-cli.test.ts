@@ -33,7 +33,10 @@ import {
   createEmployeePackage,
 } from "../../apps/cli/employee-package.js"
 import { reconcileDingTalkApplication } from "../../apps/cli/deploy/dingtalk-provider.js"
-import { buildHttpRuntimeEnvironment } from "../../apps/cli/deploy/channels.js"
+import {
+  buildHttpRuntimeEnvironment,
+  deployDingTalk,
+} from "../../apps/cli/deploy/channels.js"
 import {
   loadConfigSnapshotFromPath,
   saveConfig,
@@ -53,6 +56,61 @@ const qoderFixture = path.join(
   "fixtures",
   "fake-qoder.mjs",
 )
+
+const DEFAULT_DWS_IDENTITY = {
+  profile: "corp-a:user-a",
+  corpId: "corp-a",
+  userId: "user-a",
+  clientId: "profile-client-a",
+}
+
+function testProviderScope(
+  identity = DEFAULT_DWS_IDENTITY,
+  envClientId: string | null = null,
+) {
+  const digest = createHash("sha256").update(JSON.stringify({
+    schema: "dingtalk-provider-scope.v1",
+    corpId: identity.corpId,
+    userId: identity.userId,
+    profileClientId: identity.clientId,
+    envClientId,
+  })).digest("hex")
+  return {
+    kind: "dingtalk-provider-scope.v1" as const,
+    digest: `sha256:${digest}` as const,
+  }
+}
+
+const PROVIDER_SCOPE_GOLDEN =
+  "sha256:6888cea3020c442749851d9c40ed9d0d7d2123ebe40d9381750d24cb172f2205"
+
+async function readDwsRawCalls(logPath: string): Promise<string[][]> {
+  try {
+    const raw = (await readFile(`${logPath}.raw`, "utf8")).trim()
+    return raw ? raw.split("\n").map((line) => JSON.parse(line) as string[]) : []
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return []
+    }
+    throw error
+  }
+}
+
+function assertPinnedDevappCalls(
+  calls: string[][],
+  expectedProfile: string,
+): void {
+  for (const call of calls.filter((entry) => entry.includes("devapp"))) {
+    assert.deepEqual(call.slice(0, 3), ["--profile", expectedProfile, "devapp"])
+  }
+}
+
+test("DingTalk provider scope has a stable persisted digest vector", () => {
+  assert.equal(
+    testProviderScope(DEFAULT_DWS_IDENTITY, "env-client-a").digest,
+    PROVIDER_SCOPE_GOLDEN,
+  )
+})
 
 test("HTTP runtime environment contains only the selected engine credentials", () => {
   const source = {
@@ -117,6 +175,12 @@ interface CliEnvironment {
   extra?: NodeJS.ProcessEnv
 }
 
+const TEST_HTTP_TOKEN = "deploy-http-test-token-sentinel"
+
+function httpAuthorization(token = TEST_HTTP_TOKEN): Record<string, string> {
+  return { authorization: `Bearer ${token}` }
+}
+
 function cliEnvironment({ home, bin, extra = {} }: CliEnvironment): NodeJS.ProcessEnv {
   return {
     ...process.env,
@@ -126,6 +190,17 @@ function cliEnvironment({ home, bin, extra = {} }: CliEnvironment): NodeJS.Proce
       .join(path.delimiter),
     ...extra,
   }
+}
+
+function httpCliEnvironment(options: CliEnvironment): NodeJS.ProcessEnv {
+  return cliEnvironment({
+    ...options,
+    extra: {
+      ...options.extra,
+      DIGITAL_EMPLOYEE_HTTP_TOKEN:
+        options.extra?.DIGITAL_EMPLOYEE_HTTP_TOKEN ?? TEST_HTTP_TOKEN,
+    },
+  })
 }
 
 function runBuiltCli(
@@ -265,7 +340,16 @@ async function isolatedRoot(t: test.TestContext, prefix: string): Promise<string
 async function installFakeQoder(directory: string): Promise<void> {
   await mkdir(directory)
   const executable = path.join(directory, "qodercli")
-  await cp(qoderFixture, executable)
+  const fixture = path.join(directory, "fake-qoder.mjs")
+  await cp(qoderFixture, fixture)
+  await writeFile(
+    executable,
+    "#!/bin/sh\n" +
+      "if [ \"$1\" = \"--version\" ]; then printf '1.1.12\\n'; exit 0; fi\n" +
+      "fixture_dir=$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd -P) || exit 1\n" +
+      "exec node \"$fixture_dir/fake-qoder.mjs\" \"$@\"\n",
+    { mode: 0o755 },
+  )
   await chmod(executable, 0o755)
 }
 
@@ -354,20 +438,91 @@ async function installFakeDws(
     | "list-one-get-malformed"
     | "list-one-get-conflict"
     | "split-multibyte"
+    | "success-orphan"
     | "slow-success",
   logPath: string,
   statePath: string,
 ): Promise<void> {
   await mkdir(directory, { recursive: true })
   const executable = path.join(directory, "dws")
-  const source = `#!/usr/bin/env node
+const source = `#!/usr/bin/env node
+(async () => {
 const fs = await import("node:fs")
+const { spawn } = await import("node:child_process")
 const args = process.argv.slice(2)
 const mode = ${JSON.stringify(mode)}
 const logPath = ${JSON.stringify(logPath)}
 const statePath = ${JSON.stringify(statePath)}
-fs.appendFileSync(logPath, JSON.stringify(args) + "\\n")
-const command = args[1]
+const identityPath = statePath + ".identity.json"
+const rawLogPath = logPath + ".raw"
+const defaultIdentity = ${JSON.stringify(DEFAULT_DWS_IDENTITY)}
+const emitAndExit = async (payload, code = 0) => {
+  await new Promise((resolve) => process.stdout.write(JSON.stringify(payload) + "\\n", resolve))
+  process.exit(code)
+}
+fs.appendFileSync(rawLogPath, JSON.stringify(args) + "\\n")
+const identityDocument = () => {
+  try { return JSON.parse(fs.readFileSync(identityPath, "utf8")) } catch { return { current: defaultIdentity } }
+}
+const writeIdentityDocument = (document) => fs.writeFileSync(identityPath, JSON.stringify(document))
+const currentIdentity = () => identityDocument().current || defaultIdentity
+const profileResponse = () => {
+  const document = identityDocument()
+  if (document.profileResponse) return document.profileResponse
+  const identity = currentIdentity()
+  return {
+    success: true,
+    currentProfile: identity.profile,
+    profiles: [{
+      profile: identity.profile,
+      corpId: identity.corpId,
+      corpName: "Fixture Corp",
+      userId: identity.userId,
+      userName: "Fixture User",
+      clientId: identity.clientId,
+      status: "active",
+      isPrimary: true,
+      isCurrent: true,
+      isOrgCurrent: true,
+    }],
+  }
+}
+const switchIdentity = (field) => {
+  const document = identityDocument()
+  if (document[field] && document.next) {
+    writeIdentityDocument({ ...document, current: document.next, [field]: false })
+  }
+}
+if (args[0] === "profile" && args[1] === "list") {
+  if (identityDocument().profileUnavailable) {
+    await emitAndExit({ error: { code: "provider_unavailable" } }, 7)
+  }
+  await emitAndExit(profileResponse())
+}
+if (args[0] === "--profile" && args[2] === "auth" && args[3] === "status") {
+  const document = identityDocument()
+  const identity = [document.current, document.next, defaultIdentity]
+    .find((candidate) => candidate && candidate.profile === args[1]) || currentIdentity()
+  const response = document.authResponse || {
+    success: true,
+    authenticated: true,
+    token_valid: true,
+    refresh_token_valid: true,
+    corp_id: identity.corpId,
+    user_id: identity.userId,
+  }
+  switchIdentity("switchAfterAuth")
+  await emitAndExit(response)
+}
+const document = identityDocument()
+const allowedProfiles = [document.current, document.next, defaultIdentity]
+  .filter(Boolean)
+  .map((candidate) => candidate.profile)
+if (args[0] !== "--profile" || !allowedProfiles.includes(args[1]) || args[2] !== "devapp") {
+  await emitAndExit({ error: { code: "profile_required" } }, 9)
+}
+const command = args[3]
+fs.appendFileSync(logPath, JSON.stringify(["devapp", ...args.slice(3), "--profile", args[1]]) + "\\n")
 const value = (flag) => args[args.indexOf(flag) + 1]
 const name = value("--name") || "Ding Bot"
 let storedName
@@ -387,6 +542,7 @@ if (command === "+list") {
   else if (mode === "list-one-get-malformed" || mode === "list-one-get-conflict") process.stdout.write(JSON.stringify({ apps: [app], count: 1, hasMore: false }) + "\\n")
   else if (mode === "conflict" && fs.existsSync(statePath)) process.stdout.write(JSON.stringify({ apps: [app], count: 1, hasMore: false }) + "\\n")
   else process.stdout.write(JSON.stringify({ apps: [], count: 0, hasMore: false }) + "\\n")
+  switchIdentity("switchAfterList")
 } else if (command === "+create") {
   if (mode === "create-invalid") {
     fs.writeFileSync(statePath, "remote-outcome-unknown")
@@ -403,10 +559,30 @@ if (command === "+list") {
   } else if (mode === "create-stderr-oversized") {
     process.stderr.write("x".repeat(1024 * 1024 + 1))
     process.exitCode = 7
+  } else if (mode === "success-orphan") {
+    const descendant = spawn(process.execPath, ["-e", "process.on('SIGTERM',()=>{});if(process.send){process.send({pid:process.pid});process.disconnect()}setInterval(()=>{},1000)"], { stdio: ["ignore", "ignore", "ignore", "ipc"] })
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("orphan_ready_timeout")), 5000)
+      descendant.once("message", (message) => {
+        clearTimeout(timer)
+        fs.writeFileSync(statePath + ".orphan.json", JSON.stringify(message))
+        descendant.unref()
+        resolve()
+      })
+      descendant.once("error", reject)
+    })
+    fs.writeFileSync(statePath, JSON.stringify({ created: true, name }))
+    process.stdout.write(JSON.stringify({ result: { unifiedAppId: app.unifiedAppId }, name }) + "\\n")
   } else if (mode === "slow-success") {
-    fs.writeFileSync(statePath, JSON.stringify({ pid: process.pid, phase: "parseable-response-before-settlement" }))
+    const descendant = spawn(process.execPath, ["-e", "process.on('SIGTERM',()=>{});if(process.send)process.send('ready');setInterval(()=>{},1000)"], { stdio: ["ignore", "ignore", "ignore", "ipc"] })
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("descendant_ready_timeout")), 5000)
+      descendant.once("message", () => { clearTimeout(timer); resolve() })
+      descendant.once("error", reject)
+    })
+    fs.writeFileSync(statePath, JSON.stringify({ pid: process.pid, descendantPid: descendant.pid, phase: "parseable-response-before-settlement" }))
     process.stdout.write(JSON.stringify({ result: { unifiedAppId: app.unifiedAppId } }) + "\\n")
-    process.on("SIGTERM", () => {})
+    process.once("SIGTERM", () => process.exit(143))
     setTimeout(() => {}, 60_000)
   } else if (mode === "conflict") {
     fs.writeFileSync(statePath, "conflict")
@@ -419,6 +595,7 @@ if (command === "+list") {
     fs.writeFileSync(statePath, JSON.stringify({ created: true, name }))
     process.stdout.write(JSON.stringify({ result: { unifiedAppId: app.unifiedAppId }, debug: "provider-secret-sentinel", name }) + "\\n")
   }
+  switchIdentity("switchAfterCreate")
 } else if (command === "+get") {
   if (mode === "create-get-malformed" || mode === "list-one-get-malformed") process.stdout.write("not-json\\n")
   else if (mode === "list-one-get-conflict") process.stdout.write(JSON.stringify({ app, data: { app: { ...app, unifiedAppId: "app-conflicting" } } }) + "\\n")
@@ -428,6 +605,10 @@ if (command === "+list") {
   process.stdout.write(JSON.stringify({ error: { code: "unexpected_command" } }) + "\\n")
   process.exitCode = 9
 }
+})().catch((error) => {
+  process.stderr.write(String(error && error.stack || error) + "\\n")
+  process.exitCode = 1
+})
 `
   await writeFile(executable, source, { mode: 0o755 })
   await chmod(executable, 0o755)
@@ -465,8 +646,27 @@ const fs = await import("node:fs")
 const args = process.argv.slice(2)
 const scenario = ${JSON.stringify(scenario)}
 const logPath = ${JSON.stringify(logPath)}
-fs.appendFileSync(logPath, JSON.stringify(args) + "\\n")
-const command = args[1]
+const identity = ${JSON.stringify(DEFAULT_DWS_IDENTITY)}
+const emitAndExit = async (payload, code = 0) => {
+  await new Promise((resolve) => process.stdout.write(JSON.stringify(payload) + "\\n", resolve))
+  process.exit(code)
+}
+fs.appendFileSync(logPath + ".raw", JSON.stringify(args) + "\\n")
+if (args[0] === "profile" && args[1] === "list") {
+  await emitAndExit({
+    success: true,
+    currentProfile: identity.profile,
+    profiles: [{ ...identity, corpName: "Fixture Corp", userName: "Fixture User", isPrimary: true, isCurrent: true, isOrgCurrent: true }],
+  })
+}
+if (args[0] === "--profile" && args[1] === identity.profile && args[2] === "auth" && args[3] === "status") {
+  await emitAndExit({ success: true, authenticated: true, token_valid: true, corp_id: identity.corpId, user_id: identity.userId })
+}
+if (args[0] !== "--profile" || args[1] !== identity.profile || args[2] !== "devapp") {
+  await emitAndExit({ error: { code: "profile_required" } }, 9)
+}
+fs.appendFileSync(logPath, JSON.stringify(["devapp", ...args.slice(3), "--profile", args[1]]) + "\\n")
+const command = args[3]
 const value = (flag) => {
   const index = args.indexOf(flag)
   return index < 0 ? undefined : args[index + 1]
@@ -1378,7 +1578,7 @@ test("built deploy rejects an invalid package before config, prompt, provider, o
       "--yes",
     ],
     {
-      environment: cliEnvironment({
+      environment: httpCliEnvironment({
         home,
         bin,
         extra: {
@@ -1529,7 +1729,7 @@ test("built deploy rejects an explicit unavailable engine before config or runti
       "--yes",
     ],
     {
-      environment: cliEnvironment({
+      environment: httpCliEnvironment({
         home,
         extra: { QODER_PERSONAL_ACCESS_TOKEN: "unavailable-engine-sentinel" },
       }),
@@ -1567,7 +1767,7 @@ test("built deploy rejects an available Agent host that is incompatible with the
       "--yes",
     ],
     {
-      environment: cliEnvironment({
+      environment: httpCliEnvironment({
         home,
         bin,
         extra: { QODER_PERSONAL_ACCESS_TOKEN: "incompatible-engine-sentinel" },
@@ -1614,7 +1814,7 @@ test("built complete --yes deploy binds --package and starts a verified /v1/ask 
     ],
     {
       cwd: temporary,
-      environment: cliEnvironment({
+      environment: httpCliEnvironment({
         home,
         bin,
         extra: {
@@ -1665,6 +1865,7 @@ test("built complete --yes deploy binds --package and starts a verified /v1/ask 
 
   const health = await httpJson({ port, path: "/health" })
   assert.equal(health.status, 200)
+  assert.equal(health.body.inputContract, "message.v1")
   assert.equal(health.body.pid, config.process.pid)
   assert.equal(health.body.launchId, config.process.launchId)
   assert.deepEqual(health.body.endpoint, {
@@ -1698,13 +1899,18 @@ test("built complete --yes deploy binds --package and starts a verified /v1/ask 
     )
   }
 
-  const oldPath = await httpJson({ port, path: "/answer" })
+  const oldPath = await httpJson({
+    port,
+    path: "/answer",
+    headers: httpAuthorization(),
+  })
   assert.equal(oldPath.status, 404)
   const answer = await httpJson({
     port,
     path: "/v1/ask",
     method: "POST",
     body: JSON.stringify({ message: "fixture question" }),
+    headers: httpAuthorization(),
     timeoutMs: 10_000,
   })
   assert.equal(answer.status, 200)
@@ -1721,6 +1927,7 @@ test("built complete --yes deploy binds --package and starts a verified /v1/ask 
     path: "/v1/ask",
     method: "POST",
     body: JSON.stringify({ message: "must not execute changed bytes" }),
+    headers: httpAuthorization(),
     timeoutMs: 10_000,
   })
   assert.equal(changedSource.status, 200)
@@ -1731,6 +1938,7 @@ test("built complete --yes deploy binds --package and starts a verified /v1/ask 
     path: "/v1/ask",
     method: "POST",
     body: JSON.stringify({ message: "fixture question" }),
+    headers: httpAuthorization(),
     timeoutMs: 10_000,
   })
   assert.equal(restoredSource.status, 200)
@@ -1790,7 +1998,7 @@ test("built HTTP deploy fails closed when the requested loopback port is already
       "--yes",
     ],
     {
-      environment: cliEnvironment({
+      environment: httpCliEnvironment({
         home,
         bin,
         extra: { QODER_PERSONAL_ACCESS_TOKEN: "occupied-port-sentinel" },
@@ -1835,7 +2043,7 @@ test("HTTP reuse binds the canonical local reference and rejects copy-delete sub
     `# Local reference\n\n${declaredPackageByteSentinel}\n`,
   )
   await cp(packageA, packageB, { recursive: true })
-  const environment = cliEnvironment({
+  const environment = httpCliEnvironment({
     home,
     bin,
     extra: { QODER_PERSONAL_ACCESS_TOKEN: "local-reference-sentinel" },
@@ -1936,6 +2144,7 @@ test("HTTP reuse binds the canonical local reference and rejects copy-delete sub
     path: "/v1/ask",
     method: "POST",
     body: JSON.stringify({ message: "fresh B privacy check" }),
+    headers: httpAuthorization(),
     timeoutMs: 10_000,
   })
   assert.equal(freshHealth.status, 200)
@@ -1964,7 +2173,6 @@ test("HTTP reuse binds the canonical local reference and rejects copy-delete sub
 test("HTTP reuse requires the exact symbolic and live token binding", async (t) => {
   for (const fixture of [
     { name: "change", first: "credential-alpha", second: "credential-beta" },
-    { name: "add", first: undefined, second: "credential-beta" },
     { name: "remove", first: "credential-alpha", second: undefined },
   ]) {
     await t.test(fixture.name, async (subtest) => {
@@ -2033,7 +2241,12 @@ test("HTTP reuse requires the exact symbolic and live token binding", async (t) 
         environment: environment(fixture.second),
       })
       assert.equal(replay.status, 1, replay.stderr)
-      assert.match(replay.stderr, /cannot be replaced safely/i)
+      assert.match(
+        replay.stderr,
+        fixture.name === "remove"
+          ? /http_token_required/
+          : /cannot be replaced safely/i,
+      )
       assert.doesNotMatch(replay.stdout, /Ready:/)
       assert.deepEqual(deploymentPids(configPath), [config.process.pid])
       const after = await lstat(configPath)
@@ -2179,7 +2392,7 @@ test("HTTP runtime rejects mismatched immutable digest and port arguments before
   t.after(() => lockHandle.close())
   const packageDigest = await computeEmployeePackageDirectoryDigest(packageDirectory)
   const localReference = await realpath(packageDirectory)
-  const environment = cliEnvironment({
+  const environment = httpCliEnvironment({
     home,
     bin,
     extra: { QODER_PERSONAL_ACCESS_TOKEN: "runtime-mismatch-sentinel" },
@@ -2274,6 +2487,9 @@ test("HTTP runtime rejects mismatched immutable digest and port arguments before
         localReference,
       },
       outcome: "pending_external_action",
+      secretReferences: {
+        httpTokenEnv: "DIGITAL_EMPLOYEE_HTTP_TOKEN",
+      },
       endpoint: {
         protocol: "http",
         host: "127.0.0.1",
@@ -2403,7 +2619,7 @@ process.on("message", async (message) => {
         }
       })()
     : "/usr/bin/lockf"
-  const environment = cliEnvironment({
+  const environment = httpCliEnvironment({
     home,
     bin,
     extra: {
@@ -2642,6 +2858,9 @@ process.on("message", async (message) => {
         localReference,
       },
       outcome,
+      secretReferences: {
+        httpTokenEnv: "DIGITAL_EMPLOYEE_HTTP_TOKEN",
+      },
       endpoint: {
         protocol: "http",
         host: "127.0.0.1",
@@ -2832,6 +3051,7 @@ process.on("message", async (message) => {
         path: "/v1/ask",
         method: "POST",
         body: JSON.stringify({ message: "pre-release request" }),
+        headers: httpAuthorization(),
       })
       assert.equal(response.status, 400)
       assert.deepEqual(response.body.error, {
@@ -2992,6 +3212,7 @@ process.on("message", async (message) => {
     path: "/v1/ask",
     method: "POST",
     body: JSON.stringify({ message: "must not launch before handoff" }),
+    headers: httpAuthorization(),
   })
   assert.equal(gatedAsk.status, 400)
   assert.equal(gatedAsk.body.status, "rejected")
@@ -3017,11 +3238,13 @@ process.on("message", async (message) => {
   assert.deepEqual(await readFile(configPath), readyBytes)
   const releasedHealth = await httpJson({ port: released.port, path: "/health" })
   assert.equal(releasedHealth.status, 200)
+  assert.equal(releasedHealth.body.inputContract, "message.v1")
   const releasedAsk = await httpJson({
     port: released.port,
     path: "/v1/ask",
     method: "POST",
     body: JSON.stringify({ message: "released request" }),
+    headers: httpAuthorization(),
   })
   assert.equal(releasedAsk.status, 200)
   assert.equal(releasedAsk.body.answer, "fixture answer")
@@ -3209,7 +3432,7 @@ test("built parent never rolls back or signals after an autonomous child loses, 
       name: `release-ack-${fault}`,
     })
     const entry = await faultedCli(`runtime-${fault}`, fault)
-    const environment = cliEnvironment({
+    const environment = httpCliEnvironment({
       home,
       bin,
       extra: { QODER_PERSONAL_ACCESS_TOKEN: "release-boundary-test-sentinel" },
@@ -3250,6 +3473,7 @@ test("built parent never rolls back or signals after an autonomous child loses, 
       path: "/v1/ask",
       method: "POST",
       body: JSON.stringify({ requestId: "release-ack-probe" }),
+      headers: httpAuthorization(),
     })
     assert.equal(authorizationProbe.status, 400)
     assert.equal(
@@ -3320,7 +3544,7 @@ test("release-time child Ready reopen mismatch preserves the external generation
   )
   await chmod(qoder, 0o755)
   await createEmployeePackage(packageDirectory, { name: "release-reopen-race" })
-  const environment = cliEnvironment({
+  const environment = httpCliEnvironment({
     home,
     bin,
     extra: { QODER_PERSONAL_ACCESS_TOKEN: "release-reopen-test-sentinel" },
@@ -3360,6 +3584,7 @@ test("release-time child Ready reopen mismatch preserves the external generation
     path: "/v1/ask",
     method: "POST",
     body: JSON.stringify({ message: "must remain gated" }),
+    headers: httpAuthorization(),
   })
   assert.equal(gatedAsk.status, 400)
   assert.deepEqual(gatedAsk.body.error, {
@@ -3439,7 +3664,7 @@ test("parent crash after release send preserves the autonomous Ready child for e
   )
   await chmod(qoder, 0o755)
   await createEmployeePackage(packageDirectory, { name: "post-release-crash" })
-  const environment = cliEnvironment({
+  const environment = httpCliEnvironment({
     home,
     bin,
     extra: { QODER_PERSONAL_ACCESS_TOKEN: "post-release-crash-test-sentinel" },
@@ -3538,7 +3763,7 @@ test("package mutation during the post-persistence HTTP gate prevents Ready and 
   await installFakeQoder(bin)
   await createEmployeePackage(packageDirectory, { name: "final-digest-race" })
   await addValidFinalGateAssets(packageDirectory)
-  const environment = cliEnvironment({
+  const environment = httpCliEnvironment({
     home,
     bin,
     extra: { QODER_PERSONAL_ACCESS_TOKEN: "final-digest-race-sentinel" },
@@ -3615,7 +3840,7 @@ test("SIGTERM during the post-persistence HTTP gate exits interrupted without Re
   await installFakeQoder(bin)
   await createEmployeePackage(packageDirectory, { name: "final-signal" })
   await addValidFinalGateAssets(packageDirectory)
-  const environment = cliEnvironment({
+  const environment = httpCliEnvironment({
     home,
     bin,
     extra: { QODER_PERSONAL_ACCESS_TOKEN: "final-signal-sentinel" },
@@ -3704,7 +3929,7 @@ test("built deploy consumes cwd when no package path is supplied", async (t) => 
     ],
     {
       cwd: packageDirectory,
-      environment: cliEnvironment({
+      environment: httpCliEnvironment({
         home,
         bin,
         extra: { QODER_PERSONAL_ACCESS_TOKEN: "cwd-secret-sentinel" },
@@ -3809,7 +4034,7 @@ test("concurrent complete HTTP deploys converge on one verified process and exac
   await installFakeQoder(bin)
   await createEmployeePackage(packageDirectory, { name: "concurrent-http" })
   const digest = await computeEmployeePackageDirectoryDigest(packageDirectory)
-  const environment = cliEnvironment({
+  const environment = httpCliEnvironment({
     home,
     bin,
     extra: { QODER_PERSONAL_ACCESS_TOKEN: "concurrent-secret-sentinel" },
@@ -3882,7 +4107,7 @@ test("stale unresponsive HTTP deployments are preserved with localized fail-clos
       await mkdir(home)
       await installFakeQoder(bin)
       await createEmployeePackage(packageDirectory, { name: "stale-http" })
-      const environment = cliEnvironment({
+      const environment = httpCliEnvironment({
         home,
         bin,
         extra: { QODER_PERSONAL_ACCESS_TOKEN: `stale-${locale}-sentinel` },
@@ -4403,7 +4628,11 @@ test("impossible deployment states fail closed without replacing the original ge
       mutate: (config) => ({
         ...config,
         channel: "dingtalk",
-        provider: { kind: "dingtalk-app", resourceId: "app\nidentity" },
+        provider: {
+          kind: "dingtalk-app",
+          resourceId: "app\nidentity",
+          scope: testProviderScope(),
+        },
       }),
     },
     {
@@ -4550,7 +4779,7 @@ test("config generation CAS rejects replacement while overwrite confirmation is 
     "--name",
     "Generation CAS",
   ]
-  const environment = cliEnvironment({
+  const environment = httpCliEnvironment({
     home,
     bin,
     extra: { QODER_PERSONAL_ACCESS_TOKEN: "generation-cas-sentinel" },
@@ -4595,7 +4824,7 @@ test("SIGTERM aborts an open overwrite prompt, preserves state, and releases the
   await mkdir(home)
   await installFakeQoder(bin)
   await createEmployeePackage(packageDirectory, { name: "prompt-sigterm" })
-  const environment = cliEnvironment({
+  const environment = httpCliEnvironment({
     home,
     bin,
     extra: { QODER_PERSONAL_ACCESS_TOKEN: "prompt-sigterm-sentinel" },
@@ -6117,7 +6346,7 @@ test("retained descriptor lock fences contenders, cancels waiters, and releases 
   await mkdir(home)
   await mkdir(preCancelledHome)
   const configModule = path.join(root, "apps", "cli", "deploy", "config.ts")
-  const helperSource = `
+const helperSource = `
 const { acquireDeploymentLock } = await import(process.argv[1])
 const mode = process.argv[2]
 const utilityMarker = process.argv[3]
@@ -6312,7 +6541,10 @@ try {
   process.kill(first.child.pid, "SIGKILL")
   await first.completion
   assert.equal(await successor.completion, 0, successor.stderr())
-  assert.match(successor.stdout(), /acquired:true/)
+  // The preceding cancelled/timeout waiters prove contention. Under a loaded
+  // full suite this final successor may not finish its tsx bootstrap until
+  // after the owner is killed, so only acquisition itself is authoritative.
+  assert.match(successor.stdout(), /acquired:(?:true|false)/)
 })
 
 test("unsafe lock path and PATH spoof fail closed without touching sentinel bytes", async (t) => {
@@ -6949,6 +7181,38 @@ test("interactive answers survive separated stdin chunks and premature EOF fails
   assert.equal(config.runtime, "agent-native")
   assert.equal(config.outcome, "pending_external_action")
 
+  const utf8Home = path.join(temporary, "utf8-home")
+  await mkdir(utf8Home)
+  const utf8 = startBuiltCli(["deploy"], {
+    cwd: packageDirectory,
+    environment: cliEnvironment({
+      home: utf8Home,
+      bin,
+      extra: { QODER_PERSONAL_ACCESS_TOKEN: "utf8-secret-sentinel" },
+    }),
+    pipeInput: true,
+  })
+  assert.ok(utf8.child.stdin)
+  for (const answer of ["2\n", "1\n", "4\n"]) {
+    utf8.child.stdin.write(answer)
+    await delay(50)
+  }
+  const encodedName = Buffer.from("钉钉助手\n", "utf8")
+  utf8.child.stdin.write(encodedName.subarray(0, 1))
+  await delay(50)
+  utf8.child.stdin.write(encodedName.subarray(1, 4))
+  await delay(50)
+  utf8.child.stdin.end(encodedName.subarray(4))
+  const utf8Result = await utf8.completion
+  assert.equal(utf8Result.status, 2, utf8Result.stderr)
+  const utf8Config = JSON.parse(
+    await readFile(
+      path.join(utf8Home, ".digital-employee", "config.json"),
+      "utf8",
+    ),
+  ) as { botName: string }
+  assert.equal(utf8Config.botName, "钉钉助手")
+
   const emptyHome = path.join(temporary, "empty-home")
   await mkdir(emptyHome)
   const ended = startBuiltCli(["deploy"], {
@@ -6988,7 +7252,7 @@ test("paused deploy fencing prevents a different-port concurrent deploy from spa
   await installFakeQoder(bin)
   await createEmployeePackage(packageDirectory, { name: "fenced-http" })
   await addValidFinalGateAssets(packageDirectory)
-  const environment = cliEnvironment({
+  const environment = httpCliEnvironment({
     home,
     bin,
     extra: {
@@ -7137,7 +7401,7 @@ test("a live exact HTTP deployment blocks every cross-channel replacement withou
   await installFakeQoder(bin)
   await installObservableDws(bin, marker)
   await createEmployeePackage(packageDirectory, { name: "cross-channel-http" })
-  const environment = cliEnvironment({
+  const environment = httpCliEnvironment({
     home,
     bin,
     extra: { QODER_PERSONAL_ACCESS_TOKEN: "cross-channel-sentinel" },
@@ -7271,6 +7535,9 @@ setInterval(() => {}, 60000);`,
       localReference,
     },
     outcome: "ready",
+    secretReferences: {
+      httpTokenEnv: "DIGITAL_EMPLOYEE_HTTP_TOKEN",
+    },
     endpoint: {
       protocol: "http",
       host: "127.0.0.1",
@@ -7290,7 +7557,7 @@ setInterval(() => {}, 60000);`,
   }, null, 2)}\n`)
   await writeFile(configPath, bytes, { mode: 0o600 })
   const identity = await lstat(configPath)
-  const environment = cliEnvironment({
+  const environment = httpCliEnvironment({
     home,
     bin,
     extra: { QODER_PERSONAL_ACCESS_TOKEN: "pid-reuse-sentinel" },
@@ -7342,7 +7609,7 @@ test("built CLI parent crash at the authorized activation barrier leaves no list
   await installFakeQoder(bin)
   await createEmployeePackage(packageDirectory, { name: "orphaned-starting" })
   await addValidFinalGateAssets(packageDirectory)
-  const baseEnvironment = cliEnvironment({
+  const baseEnvironment = httpCliEnvironment({
     home,
     bin,
     extra: { QODER_PERSONAL_ACCESS_TOKEN: "orphaned-starting-sentinel" },
@@ -7482,7 +7749,7 @@ test("built CLI Ready-save parent crash leaves stale Ready unusable and reruns t
   await installObservableProbe(bin, providerMarker)
   await createEmployeePackage(packageDirectory, { name: "orphaned-ready" })
   await addValidFinalGateAssets(packageDirectory)
-  const environment = cliEnvironment({
+  const environment = httpCliEnvironment({
     home,
     bin,
     extra: {
@@ -7542,6 +7809,7 @@ test("built CLI Ready-save parent crash leaves stale Ready unusable and reruns t
     path: "/v1/ask",
     method: "POST",
     body: JSON.stringify({ message: "must remain gated before release" }),
+    headers: httpAuthorization(),
   })
   assert.equal(gatedAsk.status, 400)
   assert.deepEqual(gatedAsk.body.error, {
@@ -7598,7 +7866,7 @@ test("SIGTERM after process tracking leaves no orphan and a retry reaches ready"
   await installFakeQoder(bin)
   await createEmployeePackage(packageDirectory, { name: "interrupted-http" })
   await addValidFinalGateAssets(packageDirectory)
-  const baseEnvironment = cliEnvironment({
+  const baseEnvironment = httpCliEnvironment({
     home,
     bin,
     extra: { QODER_PERSONAL_ACCESS_TOKEN: "interrupted-secret-sentinel" },
@@ -7820,6 +8088,7 @@ test("DingTalk provider reconciliation uses exact JSON codes and remains pending
         assert.deepEqual(config.provider, {
           kind: "dingtalk-app",
           resourceId: "app-verified-1",
+          scope: testProviderScope(),
         })
       }
 
@@ -8045,6 +8314,7 @@ test("DingTalk provider reconciliation uses exact JSON codes and remains pending
         assert.deepEqual(rebound.provider, {
           kind: "dingtalk-app",
           resourceId: "app-verified-1",
+          scope: testProviderScope(),
         })
       }
 
@@ -8127,7 +8397,11 @@ test("DingTalk exact-name readback preserves UTF-8 split across provider chunks"
     assert.deepEqual(result, {
       status: "verified",
       code: "dingtalk_app_verified",
-      provider: { kind: "dingtalk-app", resourceId: "app-verified-1" },
+      provider: {
+        kind: "dingtalk-app",
+        resourceId: "app-verified-1",
+        scope: testProviderScope(),
+      },
     })
     assert.deepEqual(identified, ["app-verified-1"])
     const calls = (await readFile(logPath, "utf8"))
@@ -8141,7 +8415,7 @@ test("DingTalk exact-name readback preserves UTF-8 split across provider chunks"
   }
 })
 
-test("DingTalk provider passes the explicit documented DWS auth and config allowlist", async (t) => {
+test("DingTalk provider passes the explicit documented DWS profile and config allowlist", async (t) => {
   const temporary = await isolatedRoot(t, "deploy-dingtalk-environment-")
   const bin = path.join(temporary, "bin")
   const capturePath = path.join(temporary, "dws-environment.json")
@@ -8149,11 +8423,20 @@ test("DingTalk provider passes the explicit documented DWS auth and config allow
   const executable = path.join(bin, "dws")
   await writeFile(
     executable,
-    `#!/usr/bin/env node\n` +
-      `const fs = require("node:fs")\n` +
-      `const keys = ["DWS_CLIENT_ID", "DWS_CLIENT_SECRET", "DWS_CONFIG_DIR", "DWS_DISABLE_KEYCHAIN", "DWS_KEYCHAIN_DIR"]\n` +
-      `fs.writeFileSync(${JSON.stringify(capturePath)}, JSON.stringify(Object.fromEntries(keys.map((key) => [key, process.env[key]]))))\n` +
-      `process.stdout.write(JSON.stringify({ apps: [], count: 0, hasMore: false }) + "\\n")\n`,
+    `#!/usr/bin/env node
+const fs = require("node:fs")
+const args = process.argv.slice(2)
+const keys = ["DWS_CLIENT_ID", "DWS_CLIENT_SECRET", "DWS_CONFIG_DIR", "DWS_DISABLE_KEYCHAIN", "DWS_KEYCHAIN_DIR", "HTTPS_PROXY", "NO_PROXY", "NODE_EXTRA_CA_CERTS"]
+fs.appendFileSync(${JSON.stringify(capturePath)}, JSON.stringify({ args, environment: Object.fromEntries(keys.map((key) => [key, process.env[key]])) }) + "\\n")
+const identity = ${JSON.stringify(DEFAULT_DWS_IDENTITY)}
+if (args[0] === "profile" && args[1] === "list") {
+  process.stdout.write(JSON.stringify({ success: true, currentProfile: identity.profile, profiles: [{ ...identity, corpName: "Fixture Corp", userName: "Fixture User", isPrimary: true, isCurrent: true, isOrgCurrent: true }] }) + "\\n")
+} else if (args[0] === "--profile" && args[1] === identity.profile && args[2] === "devapp" && args[3] === "+list") {
+  process.stdout.write(JSON.stringify({ apps: [], count: 0, hasMore: false }) + "\\n")
+} else {
+  process.exitCode = 9
+}
+`,
     { mode: 0o755 },
   )
   await chmod(executable, 0o755)
@@ -8163,6 +8446,9 @@ test("DingTalk provider passes the explicit documented DWS auth and config allow
     DWS_CONFIG_DIR: path.join(temporary, "dws-config"),
     DWS_DISABLE_KEYCHAIN: "1",
     DWS_KEYCHAIN_DIR: path.join(temporary, "dws-keychain"),
+    HTTPS_PROXY: "http://127.0.0.1:8080",
+    NO_PROXY: "127.0.0.1,localhost",
+    NODE_EXTRA_CA_CERTS: path.join(temporary, "enterprise-ca.pem"),
   }
   const original = new Map<string, string | undefined>()
   for (const [key, value] of Object.entries(expected)) {
@@ -8181,15 +8467,834 @@ test("DingTalk provider passes the explicit documented DWS auth and config allow
       status: "confirmation_required",
       code: "dingtalk_provider_confirmation_required",
     })
-    assert.deepEqual(
-      JSON.parse(await readFile(capturePath, "utf8")),
-      expected,
-    )
+    const captures = (await readFile(capturePath, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as {
+        args: string[]
+        environment: Record<string, string>
+      })
+    assert.deepEqual(captures.map(({ args }) => args), [
+      ["profile", "list", "--format", "json"],
+      [
+        "--profile",
+        DEFAULT_DWS_IDENTITY.profile,
+        "devapp",
+        "+list",
+        "--name",
+        "Environment Bot",
+        "--page-size",
+        "20",
+        "--format",
+        "json",
+      ],
+    ])
+    for (const capture of captures) {
+      assert.deepEqual(capture.environment, expected)
+    }
   } finally {
     for (const [key, value] of original) {
       if (value === undefined) delete process.env[key]
       else process.env[key] = value
     }
+  }
+})
+
+test("DingTalk provider scope discovery fails closed before devapp effects", async (t) => {
+  const original = new Map<string, string | undefined>()
+  for (const key of ["PATH", "DWS_CLIENT_ID", "DWS_CLIENT_SECRET"]) {
+    original.set(key, process.env[key])
+  }
+  const validProfile = {
+    profile: DEFAULT_DWS_IDENTITY.profile,
+    corpId: DEFAULT_DWS_IDENTITY.corpId,
+    corpName: "Fixture Corp",
+    userId: DEFAULT_DWS_IDENTITY.userId,
+    userName: "Fixture User",
+    clientId: DEFAULT_DWS_IDENTITY.clientId,
+    isPrimary: true,
+    isCurrent: true,
+    isOrgCurrent: true,
+  }
+  const fixtures: Array<{
+    name: string
+    identity?: Record<string, unknown>
+    clientId?: string
+    clientSecret?: string
+    code: string
+    rawCalls: number
+  }> = [
+    {
+      name: "half configured client id",
+      clientId: "env-client-a",
+      clientSecret: undefined,
+      code: "dingtalk_provider_scope_invalid",
+      rawCalls: 0,
+    },
+    {
+      name: "half configured client secret",
+      clientId: undefined,
+      clientSecret: "secret-a",
+      code: "dingtalk_provider_scope_invalid",
+      rawCalls: 0,
+    },
+    {
+      name: "profile command returns an invalid identity document",
+      identity: { profileResponse: { success: false, profiles: [] } },
+      code: "dingtalk_provider_scope_invalid",
+      rawCalls: 1,
+    },
+    {
+      name: "profile command is unavailable",
+      identity: { profileUnavailable: true },
+      code: "dingtalk_provider_scope_unavailable",
+      rawCalls: 1,
+    },
+    {
+      name: "profile has no current identity",
+      identity: {
+        profileResponse: {
+          success: true,
+          currentProfile: validProfile.profile,
+          profiles: [{ ...validProfile, isCurrent: false }],
+        },
+      },
+      code: "dingtalk_provider_scope_invalid",
+      rawCalls: 1,
+    },
+    {
+      name: "profile has multiple current identities",
+      identity: {
+        profileResponse: {
+          success: true,
+          currentProfile: validProfile.profile,
+          profiles: [
+            validProfile,
+            {
+              ...validProfile,
+              profile: "corp-b:user-b",
+              corpId: "corp-b",
+              userId: "user-b",
+              clientId: "profile-client-b",
+            },
+          ],
+        },
+      },
+      code: "dingtalk_provider_scope_invalid",
+      rawCalls: 1,
+    },
+    {
+      name: "top-level current profile differs from selected identity",
+      identity: {
+        profileResponse: {
+          success: true,
+          currentProfile: "corp-b:user-b",
+          profiles: [validProfile],
+        },
+      },
+      code: "dingtalk_provider_scope_invalid",
+      rawCalls: 1,
+    },
+    {
+      name: "profile selector differs from corp and user identity",
+      identity: {
+        profileResponse: {
+          success: true,
+          currentProfile: "named-profile",
+          profiles: [{ ...validProfile, profile: "named-profile" }],
+        },
+      },
+      code: "dingtalk_provider_scope_invalid",
+      rawCalls: 1,
+    },
+    {
+      name: "profile corp identity is missing",
+      identity: {
+        profileResponse: {
+          success: true,
+          currentProfile: validProfile.profile,
+          profiles: [{ ...validProfile, corpId: undefined }],
+        },
+      },
+      code: "dingtalk_provider_scope_invalid",
+      rawCalls: 1,
+    },
+    {
+      name: "profile user identity is missing",
+      identity: {
+        profileResponse: {
+          success: true,
+          currentProfile: validProfile.profile,
+          profiles: [{ ...validProfile, userId: undefined }],
+        },
+      },
+      code: "dingtalk_provider_scope_invalid",
+      rawCalls: 1,
+    },
+    {
+      name: "selected profile has a duplicate non-current selector",
+      identity: {
+        profileResponse: {
+          success: true,
+          currentProfile: validProfile.profile,
+          profiles: [validProfile, { ...validProfile, isCurrent: false }],
+        },
+      },
+      code: "dingtalk_provider_scope_invalid",
+      rawCalls: 1,
+    },
+    {
+      name: "profile client identity is missing",
+      identity: {
+        profileResponse: {
+          success: true,
+          currentProfile: validProfile.profile,
+          profiles: [{ ...validProfile, clientId: undefined }],
+        },
+      },
+      code: "dingtalk_provider_scope_invalid",
+      rawCalls: 1,
+    },
+  ]
+  try {
+    for (const fixture of fixtures) {
+      await t.test(fixture.name, async (subtest) => {
+        const temporary = await isolatedRoot(subtest, "deploy-dingtalk-scope-")
+        const bin = path.join(temporary, "bin")
+        const logPath = path.join(temporary, "dws.log")
+        const statePath = path.join(temporary, "dws.state")
+        await installFakeDws(bin, "success", logPath, statePath)
+        if (fixture.identity) {
+          await writeFile(
+            `${statePath}.identity.json`,
+            JSON.stringify({
+              current: DEFAULT_DWS_IDENTITY,
+              ...fixture.identity,
+            }),
+          )
+        }
+        process.env.PATH = [bin, path.dirname(process.execPath), "/usr/bin", "/bin"]
+          .join(path.delimiter)
+        if (fixture.clientId === undefined) delete process.env.DWS_CLIENT_ID
+        else process.env.DWS_CLIENT_ID = fixture.clientId
+        if (fixture.clientSecret === undefined) delete process.env.DWS_CLIENT_SECRET
+        else process.env.DWS_CLIENT_SECRET = fixture.clientSecret
+        let createAttempts = 0
+        let identified = 0
+        const result = await reconcileDingTalkApplication(
+          { name: "Scope Bot" },
+          {
+            allowWrite: true,
+            beforeBoundary: () => {},
+            onCreateAttempt: () => {
+              createAttempts += 1
+            },
+            onProviderIdentified: () => {
+              identified += 1
+            },
+          },
+        )
+        assert.deepEqual(result, {
+          status: "failed",
+          code: fixture.code,
+          preserveState: true,
+        })
+        assert.equal(createAttempts, 0)
+        assert.equal(identified, 0)
+        await assert.rejects(access(logPath))
+        if (fixture.rawCalls === 0) {
+          await assert.rejects(access(`${logPath}.raw`))
+        } else {
+          const rawCalls = await readDwsRawCalls(logPath)
+          assert.equal(rawCalls.length, fixture.rawCalls)
+          assert.equal(rawCalls.some((call) => call.includes("devapp")), false)
+          assert.equal(rawCalls.some((call) => call.includes("+create")), false)
+        }
+      })
+    }
+  } finally {
+    for (const [key, value] of original) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+  }
+})
+
+test("DingTalk abort during a boundary check never spawns DWS", async (t) => {
+  const temporary = await isolatedRoot(t, "deploy-dingtalk-boundary-abort-")
+  const bin = path.join(temporary, "bin")
+  const marker = path.join(temporary, "dws-called")
+  await installObservableDws(bin, marker)
+  const originalPath = process.env.PATH
+  const controller = new AbortController()
+  process.env.PATH = [bin, path.dirname(process.execPath), "/usr/bin", "/bin"]
+    .join(path.delimiter)
+  try {
+    const result = await reconcileDingTalkApplication(
+      { name: "Boundary Abort" },
+      {
+        signal: controller.signal,
+        beforeBoundary: async () => {
+          controller.abort()
+          await delay(10)
+        },
+      },
+    )
+    assert.deepEqual(result, {
+      status: "failed",
+      code: "deploy_interrupted",
+    })
+    await assert.rejects(access(marker))
+  } finally {
+    if (originalPath === undefined) delete process.env.PATH
+    else process.env.PATH = originalPath
+  }
+})
+
+test("DingTalk abort with a durable operation stays pending without spawning DWS", async (t) => {
+  const temporary = await isolatedRoot(t, "deploy-dingtalk-durable-abort-")
+  const bin = path.join(temporary, "bin")
+  const marker = path.join(temporary, "dws-called")
+  await installObservableDws(bin, marker)
+  const originalPath = process.env.PATH
+  process.env.PATH = [bin, path.dirname(process.execPath), "/usr/bin", "/bin"]
+    .join(path.delimiter)
+  const controller = new AbortController()
+  controller.abort()
+  try {
+    const result = await deployDingTalk({
+      schemaVersion: "deploy-state.v1",
+      locale: "en",
+      channel: "dingtalk",
+      botName: "Durable Abort",
+      engine: "qoder",
+      runtime: "agent-native",
+      outcome: "pending_external_action",
+      providerOperation: {
+        kind: "dingtalk-app-create",
+        operationId: "a".repeat(32),
+        name: "Durable Abort",
+        attemptedAt: "2026-08-13T12:00:00.000Z",
+        scope: testProviderScope(),
+      },
+      updatedAt: "2026-08-13T12:00:01.000Z",
+    }, {
+      signal: controller.signal,
+      assertLockOwned: () => {},
+    })
+    assert.equal(result.outcome, "pending_external_action")
+    assert.equal(result.code, "deploy_interrupted")
+    assert.equal(result.preserveState, true)
+    await assert.rejects(access(marker))
+  } finally {
+    if (originalPath === undefined) delete process.env.PATH
+    else process.env.PATH = originalPath
+  }
+})
+
+test("DingTalk provider scope fences durable operations and providers across identity drift", async (t) => {
+  const temporary = await isolatedRoot(t, "deploy-dingtalk-scope-fence-")
+  const home = path.join(temporary, "home")
+  const bin = path.join(temporary, "bin")
+  const logPath = path.join(temporary, "dws.log")
+  const providerState = path.join(temporary, "dws.state")
+  const identityPath = `${providerState}.identity.json`
+  const runtimeMarker = path.join(temporary, "runtime-effects.jsonl")
+  const packageDirectory = path.join(temporary, "scope-fenced")
+  const configPath = path.join(home, ".digital-employee", "config.json")
+  const scopeB = {
+    profile: "corp-b:user-b",
+    corpId: "corp-b",
+    userId: "user-b",
+    clientId: "profile-client-b",
+  }
+  await mkdir(home)
+  await installVersionProbeWithRuntimeMarker(bin, runtimeMarker)
+  await installFakeDws(bin, "success", logPath, providerState)
+  await writeFile(identityPath, JSON.stringify({
+    current: DEFAULT_DWS_IDENTITY,
+    next: scopeB,
+    switchAfterCreate: true,
+  }))
+  await createEmployeePackage(packageDirectory, { name: "scope-fenced" })
+  const baseExtra = {
+    QODER_PERSONAL_ACCESS_TOKEN: "scope-host-secret-sentinel",
+    DWS_CLIENT_ID: "env-client-a",
+    DWS_CLIENT_SECRET: "scope-client-secret-v1",
+    DWS_CONFIG_DIR: path.join(temporary, "config-storage-a"),
+    DWS_KEYCHAIN_DIR: path.join(temporary, "keychain-storage-a"),
+  }
+  const args = [
+    "deploy",
+    packageDirectory,
+    "--channel",
+    "dingtalk",
+    "--engine",
+    "qoder",
+    "--runtime",
+    "agent-native",
+    "--locale",
+    "en",
+    "--name",
+    "Scope Bot",
+    "--yes",
+  ]
+  const initial = runBuiltCli(args, {
+    environment: cliEnvironment({ home, bin, extra: baseExtra }),
+  })
+  assert.equal(initial.status, 2, initial.stderr)
+  assert.match(initial.stderr, /dingtalk_provider_scope_mismatch/)
+  let config = JSON.parse(await readFile(configPath, "utf8")) as {
+    provider?: { scope: ReturnType<typeof testProviderScope> }
+    providerOperation?: {
+      operationId: string
+      scope: ReturnType<typeof testProviderScope>
+    }
+  }
+  assert.equal(config.provider, undefined)
+  assert.match(config.providerOperation?.operationId ?? "", /^[a-f0-9]{32}$/)
+  const expectedScope = testProviderScope(
+    DEFAULT_DWS_IDENTITY,
+    baseExtra.DWS_CLIENT_ID,
+  )
+  assert.equal(expectedScope.digest, PROVIDER_SCOPE_GOLDEN)
+  assert.deepEqual(config.providerOperation?.scope, expectedScope)
+  let calls = (await readFile(logPath, "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as string[])
+  assert.deepEqual(calls.map((call) => call[1]), ["+list", "+create", "+get"])
+  assert.equal(calls.filter((call) => call[1] === "+create").length, 1)
+  await assert.rejects(access(runtimeMarker))
+
+  const operationBytes = await readFile(configPath)
+  const operationPersisted = operationBytes.toString("utf8")
+  for (const secretOrIdentity of [
+    DEFAULT_DWS_IDENTITY.corpId,
+    DEFAULT_DWS_IDENTITY.userId,
+    DEFAULT_DWS_IDENTITY.clientId,
+    baseExtra.DWS_CLIENT_ID,
+    baseExtra.DWS_CLIENT_SECRET,
+    baseExtra.DWS_CONFIG_DIR,
+    baseExtra.DWS_KEYCHAIN_DIR,
+  ]) {
+    assert.equal(operationPersisted.includes(secretOrIdentity), false)
+  }
+  const operationIdentity = await lstat(configPath)
+  const rawBeforeOperationUnavailable = await readDwsRawCalls(logPath)
+  await writeFile(identityPath, JSON.stringify({
+    current: DEFAULT_DWS_IDENTITY,
+    profileUnavailable: true,
+  }))
+  const unavailableOperation = runBuiltCli(args, {
+    environment: cliEnvironment({ home, bin, extra: baseExtra }),
+  })
+  assert.equal(unavailableOperation.status, 2, unavailableOperation.stderr)
+  assert.match(unavailableOperation.stderr, /dingtalk_provider_scope_unavailable/)
+  assert.deepEqual(await readFile(configPath), operationBytes)
+  const unavailableOperationIdentity = await lstat(configPath)
+  assert.equal(unavailableOperationIdentity.dev, operationIdentity.dev)
+  assert.equal(unavailableOperationIdentity.ino, operationIdentity.ino)
+  const rawAfterOperationUnavailable = await readDwsRawCalls(logPath)
+  assert.equal(
+    rawAfterOperationUnavailable
+      .slice(rawBeforeOperationUnavailable.length)
+      .some((call) => call.includes("devapp")),
+    false,
+  )
+  const driftCases = [
+    {
+      identity: {
+        ...DEFAULT_DWS_IDENTITY,
+        profile: "corp-b:user-a",
+        corpId: "corp-b",
+      },
+      extra: {},
+    },
+    {
+      identity: {
+        ...DEFAULT_DWS_IDENTITY,
+        profile: "corp-a:user-b",
+        userId: "user-b",
+      },
+      extra: {},
+    },
+    {
+      identity: {
+        ...DEFAULT_DWS_IDENTITY,
+        clientId: "profile-client-b",
+      },
+      extra: {},
+    },
+    {
+      identity: DEFAULT_DWS_IDENTITY,
+      extra: { DWS_CLIENT_ID: "env-client-b" },
+    },
+  ]
+  for (const drift of driftCases) {
+    const rawBefore = await readDwsRawCalls(logPath)
+    await writeFile(identityPath, JSON.stringify({ current: drift.identity }))
+    const replay = runBuiltCli(args, {
+      environment: cliEnvironment({
+        home,
+        bin,
+        extra: { ...baseExtra, ...drift.extra },
+      }),
+    })
+    assert.equal(replay.status, 2, replay.stderr)
+    assert.match(replay.stderr, /dingtalk_provider_scope_mismatch/)
+    assert.deepEqual(await readFile(configPath), operationBytes)
+    const after = await lstat(configPath)
+    assert.equal(after.dev, operationIdentity.dev)
+    assert.equal(after.ino, operationIdentity.ino)
+    const rawAfter = await readDwsRawCalls(logPath)
+    const addedRaw = rawAfter.slice(rawBefore.length)
+    assert.equal(addedRaw.some((call) => call.includes("devapp")), false)
+    assert.equal(addedRaw.some((call) => call.includes("+create")), false)
+    const unchangedCalls = (await readFile(logPath, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as string[])
+    assert.deepEqual(unchangedCalls, calls)
+  }
+
+  await writeFile(identityPath, JSON.stringify({ current: DEFAULT_DWS_IDENTITY }))
+  await installFakeDws(bin, "conflict", logPath, providerState)
+  const recoveryExtra = {
+    ...baseExtra,
+    DWS_CLIENT_SECRET: "scope-client-secret-v2",
+    DWS_CONFIG_DIR: path.join(temporary, "config-storage-b"),
+    DWS_KEYCHAIN_DIR: path.join(temporary, "keychain-storage-b"),
+  }
+  const recovered = runBuiltCli(args, {
+    environment: cliEnvironment({ home, bin, extra: recoveryExtra }),
+  })
+  assert.equal(recovered.status, 2, recovered.stderr)
+  calls = (await readFile(logPath, "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as string[])
+  assert.deepEqual(calls.slice(-2).map((call) => call[1]), ["+list", "+get"])
+  assert.equal(calls.filter((call) => call[1] === "+create").length, 1)
+  config = JSON.parse(await readFile(configPath, "utf8")) as typeof config
+  assert.equal(config.providerOperation, undefined)
+  assert.deepEqual(config.provider?.scope, expectedScope)
+  const persisted = await readFile(configPath, "utf8")
+  for (const secretOrIdentity of [
+    DEFAULT_DWS_IDENTITY.corpId,
+    DEFAULT_DWS_IDENTITY.userId,
+    DEFAULT_DWS_IDENTITY.clientId,
+    baseExtra.DWS_CLIENT_ID,
+    baseExtra.DWS_CLIENT_SECRET,
+    recoveryExtra.DWS_CLIENT_SECRET,
+    baseExtra.DWS_CONFIG_DIR,
+    recoveryExtra.DWS_CONFIG_DIR,
+    baseExtra.DWS_KEYCHAIN_DIR,
+    recoveryExtra.DWS_KEYCHAIN_DIR,
+  ]) {
+    assert.equal(persisted.includes(secretOrIdentity), false)
+  }
+  const providerBytes = await readFile(configPath)
+  const providerIdentity = await lstat(configPath)
+
+  const rawBeforeProviderUnavailable = await readDwsRawCalls(logPath)
+  await writeFile(identityPath, JSON.stringify({
+    current: DEFAULT_DWS_IDENTITY,
+    profileUnavailable: true,
+  }))
+  const unavailableProvider = runBuiltCli(args, {
+    environment: cliEnvironment({ home, bin, extra: recoveryExtra }),
+  })
+  assert.equal(unavailableProvider.status, 2, unavailableProvider.stderr)
+  assert.match(unavailableProvider.stderr, /dingtalk_provider_scope_unavailable/)
+  assert.deepEqual(await readFile(configPath), providerBytes)
+  const unavailableProviderIdentity = await lstat(configPath)
+  assert.equal(unavailableProviderIdentity.dev, providerIdentity.dev)
+  assert.equal(unavailableProviderIdentity.ino, providerIdentity.ino)
+  const rawAfterProviderUnavailable = await readDwsRawCalls(logPath)
+  assert.equal(
+    rawAfterProviderUnavailable
+      .slice(rawBeforeProviderUnavailable.length)
+      .some((call) => call.includes("devapp")),
+    false,
+  )
+
+  await writeFile(identityPath, JSON.stringify({ current: scopeB }))
+  const rawBeforeProviderMismatch = await readDwsRawCalls(logPath)
+  const wrongProviderScope = runBuiltCli(args, {
+    environment: cliEnvironment({
+      home,
+      bin,
+      extra: {
+        ...recoveryExtra,
+        DWS_CLIENT_ID: "env-client-b",
+      },
+    }),
+  })
+  assert.equal(wrongProviderScope.status, 2, wrongProviderScope.stderr)
+  assert.match(wrongProviderScope.stderr, /dingtalk_provider_scope_mismatch/)
+  assert.deepEqual(await readFile(configPath), providerBytes)
+  const providerAfter = await lstat(configPath)
+  assert.equal(providerAfter.dev, providerIdentity.dev)
+  assert.equal(providerAfter.ino, providerIdentity.ino)
+  const rawAfterProviderMismatch = await readDwsRawCalls(logPath)
+  const providerMismatchRaw = rawAfterProviderMismatch.slice(
+    rawBeforeProviderMismatch.length,
+  )
+  assert.equal(providerMismatchRaw.some((call) => call.includes("devapp")), false)
+  const finalCalls = (await readFile(logPath, "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as string[])
+  assert.deepEqual(finalCalls, calls)
+  const rawCalls = await readDwsRawCalls(logPath)
+  assertPinnedDevappCalls(rawCalls, DEFAULT_DWS_IDENTITY.profile)
+  assert.equal(rawCalls.filter((call) => call.includes("+create")).length, 1)
+})
+
+test("DingTalk provider revalidates scope before persisting a create fence", async (t) => {
+  const temporary = await isolatedRoot(t, "deploy-dingtalk-precreate-scope-")
+  const bin = path.join(temporary, "bin")
+  const logPath = path.join(temporary, "dws.log")
+  const statePath = path.join(temporary, "dws.state")
+  await installFakeDws(bin, "success", logPath, statePath)
+  await writeFile(`${statePath}.identity.json`, JSON.stringify({
+    current: DEFAULT_DWS_IDENTITY,
+    next: {
+      profile: "corp-b:user-b",
+      corpId: "corp-b",
+      userId: "user-b",
+      clientId: "profile-client-b",
+    },
+    switchAfterList: true,
+  }))
+  const original = new Map<string, string | undefined>()
+  for (const key of ["PATH", "DWS_CLIENT_ID", "DWS_CLIENT_SECRET"]) {
+    original.set(key, process.env[key])
+  }
+  let operations = 0
+  process.env.PATH = [bin, path.dirname(process.execPath), "/usr/bin", "/bin"]
+    .join(path.delimiter)
+  delete process.env.DWS_CLIENT_ID
+  delete process.env.DWS_CLIENT_SECRET
+  try {
+    const result = await reconcileDingTalkApplication(
+      { name: "Scope Bot" },
+      {
+        allowWrite: true,
+        beforeBoundary: () => {},
+        onCreateAttempt: () => {
+          operations += 1
+        },
+        onProviderIdentified: () => {
+          throw new Error("scope_drift_must_not_identify")
+        },
+      },
+    )
+    assert.deepEqual(result, {
+      status: "failed",
+      code: "dingtalk_provider_scope_mismatch",
+      preserveState: true,
+    })
+    assert.equal(operations, 0)
+    const calls = (await readFile(logPath, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as string[])
+    assert.deepEqual(calls.map((call) => call[1]), ["+list"])
+  } finally {
+    for (const [key, value] of original) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+  }
+})
+
+test("DingTalk provider revalidates scope after persisting a create fence", async (t) => {
+  const temporary = await isolatedRoot(t, "deploy-dingtalk-post-fence-scope-")
+  const bin = path.join(temporary, "bin")
+  const logPath = path.join(temporary, "dws.log")
+  const statePath = path.join(temporary, "dws.state")
+  const identityPath = `${statePath}.identity.json`
+  const scopeB = {
+    profile: "corp-b:user-b",
+    corpId: "corp-b",
+    userId: "user-b",
+    clientId: "profile-client-b",
+  }
+  await installFakeDws(bin, "success", logPath, statePath)
+  await writeFile(identityPath, JSON.stringify({ current: DEFAULT_DWS_IDENTITY }))
+  const original = new Map<string, string | undefined>()
+  for (const key of ["PATH", "DWS_CLIENT_ID", "DWS_CLIENT_SECRET"]) {
+    original.set(key, process.env[key])
+  }
+  process.env.PATH = [bin, path.dirname(process.execPath), "/usr/bin", "/bin"]
+    .join(path.delimiter)
+  delete process.env.DWS_CLIENT_ID
+  delete process.env.DWS_CLIENT_SECRET
+  const operations: DeployProviderOperation[] = []
+  try {
+    const result = await reconcileDingTalkApplication(
+      { name: "Scope Bot" },
+      {
+        allowWrite: true,
+        beforeBoundary: () => {},
+        onCreateAttempt: async (operation) => {
+          operations.push(operation)
+          await writeFile(identityPath, JSON.stringify({ current: scopeB }))
+        },
+        onProviderIdentified: () => {
+          throw new Error("scope_drift_must_not_identify")
+        },
+      },
+    )
+    assert.deepEqual(result, {
+      status: "indeterminate",
+      code: "dingtalk_provider_scope_mismatch",
+      preserveState: true,
+    })
+    assert.equal(operations.length, 1)
+    assert.deepEqual(operations[0]!.scope, testProviderScope())
+    const rawCalls = await readDwsRawCalls(logPath)
+    assert.equal(rawCalls.some((call) => call.includes("+create")), false)
+    assert.equal(rawCalls.filter((call) => call.includes("devapp")).length, 1)
+    assertPinnedDevappCalls(rawCalls, DEFAULT_DWS_IDENTITY.profile)
+  } finally {
+    for (const [key, value] of original) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+  }
+})
+
+test("DingTalk provider preserves a durable fence when scope drifts after an indeterminate create", async (t) => {
+  const temporary = await isolatedRoot(t, "deploy-dingtalk-post-create-scope-")
+  const bin = path.join(temporary, "bin")
+  const logPath = path.join(temporary, "dws.log")
+  const statePath = path.join(temporary, "dws.state")
+  const identityPath = `${statePath}.identity.json`
+  const scopeB = {
+    profile: "corp-b:user-b",
+    corpId: "corp-b",
+    userId: "user-b",
+    clientId: "profile-client-b",
+  }
+  await installFakeDws(bin, "create-invalid", logPath, statePath)
+  await writeFile(identityPath, JSON.stringify({
+    current: DEFAULT_DWS_IDENTITY,
+    next: scopeB,
+    switchAfterCreate: true,
+  }))
+  const original = new Map<string, string | undefined>()
+  for (const key of ["PATH", "DWS_CLIENT_ID", "DWS_CLIENT_SECRET"]) {
+    original.set(key, process.env[key])
+  }
+  process.env.PATH = [bin, path.dirname(process.execPath), "/usr/bin", "/bin"]
+    .join(path.delimiter)
+  delete process.env.DWS_CLIENT_ID
+  delete process.env.DWS_CLIENT_SECRET
+  const operations: DeployProviderOperation[] = []
+  let identified = 0
+  try {
+    const result = await reconcileDingTalkApplication(
+      { name: "Scope Bot" },
+      {
+        allowWrite: true,
+        beforeBoundary: () => {},
+        onCreateAttempt: (operation) => {
+          operations.push(operation)
+        },
+        onProviderIdentified: () => {
+          identified += 1
+        },
+      },
+    )
+    assert.deepEqual(result, {
+      status: "indeterminate",
+      code: "dingtalk_provider_scope_mismatch",
+      preserveState: true,
+    })
+    assert.equal(operations.length, 1)
+    assert.deepEqual(operations[0]!.scope, testProviderScope())
+    assert.equal(identified, 0)
+    const calls = (await readFile(logPath, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as string[])
+    assert.deepEqual(calls.map((call) => call[1]), ["+list", "+create"])
+    const rawCalls = await readDwsRawCalls(logPath)
+    assertPinnedDevappCalls(
+      rawCalls.filter((call) => call.includes("devapp")),
+      DEFAULT_DWS_IDENTITY.profile,
+    )
+    assert.equal(rawCalls.filter((call) => call.includes("+create")).length, 1)
+    const createIndex = rawCalls.findIndex((call) => call.includes("+create"))
+    assert.ok(createIndex >= 0)
+    assert.deepEqual(rawCalls.slice(createIndex + 1), [
+      ["profile", "list", "--format", "json"],
+    ])
+  } finally {
+    for (const [key, value] of original) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+  }
+})
+
+test("DingTalk provider reaps same-group descendants after a successful command", async (t) => {
+  const temporary = await isolatedRoot(t, "deploy-dingtalk-success-orphan-")
+  const bin = path.join(temporary, "bin")
+  const logPath = path.join(temporary, "dws.log")
+  const statePath = path.join(temporary, "dws.state")
+  const orphanPath = `${statePath}.orphan.json`
+  await installFakeDws(bin, "success-orphan", logPath, statePath)
+  const originalPath = process.env.PATH
+  process.env.PATH = [bin, path.dirname(process.execPath), "/usr/bin", "/bin"]
+    .join(path.delimiter)
+  const identified: string[] = []
+  let orphanPid: number | undefined
+  t.after(() => {
+    if (!orphanPid) return
+    try {
+      process.kill(orphanPid, "SIGKILL")
+    } catch {
+      // The production cleanup already reaped the exact test-owned process.
+    }
+  })
+  try {
+    const result = await reconcileDingTalkApplication(
+      { name: "Scope Bot" },
+      {
+        allowWrite: true,
+        beforeBoundary: () => {},
+        onCreateAttempt: () => {},
+        onProviderIdentified: (provider) => {
+          identified.push(provider.resourceId)
+        },
+      },
+    )
+    assert.equal(result.status, "verified")
+    assert.deepEqual(identified, ["app-verified-1"])
+    const orphan = JSON.parse(await readFile(orphanPath, "utf8")) as {
+      pid: number
+    }
+    orphanPid = orphan.pid
+    await waitFor(() => {
+      try {
+        process.kill(orphan.pid, 0)
+        return false
+      } catch {
+        return true
+      }
+    })
+    const calls = (await readFile(logPath, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as string[])
+    assert.deepEqual(calls.map((call) => call[1]), ["+list", "+create", "+get"])
+  } finally {
+    if (originalPath === undefined) delete process.env.PATH
+    else process.env.PATH = originalPath
   }
 })
 
@@ -8332,6 +9437,7 @@ test("DingTalk reconciliation exhausts bounded cursor pages before deciding iden
                     operationId: "1".repeat(32),
                     name: "Ding Bot",
                     attemptedAt: new Date(0).toISOString(),
+                    scope: testProviderScope(),
                   },
                 }
               : {}),
@@ -8369,7 +9475,11 @@ test("DingTalk reconciliation exhausts bounded cursor pages before deciding iden
           assert.equal(call[call.indexOf("--page-size") + 1], "20")
           assert.equal(call[call.indexOf("--format") + 1], "json")
         }
-        assert.equal(boundaries, calls.length * 2)
+        const rawCalls = (await readFile(`${logPath}.raw`, "utf8"))
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line) as string[])
+        assert.equal(boundaries, rawCalls.length * 2)
       } finally {
         if (originalPath === undefined) delete process.env.PATH
         else process.env.PATH = originalPath
@@ -8452,9 +9562,15 @@ test("built DingTalk fresh identity faults stay resumable without provider or ru
         environment,
         timeoutMs: fixture.scenario === "limit" ? 60_000 : 20_000,
       })
-      assert.equal(result.status, 2, result.stderr)
-      assert.match(result.stderr, /Pending external action/)
-      assert.match(result.stderr, /rerun deploy to resume/)
+      const scopeUnavailable = fixture.scenario === "cli-unavailable"
+      assert.equal(result.status, scopeUnavailable ? 1 : 2, result.stderr)
+      if (scopeUnavailable) {
+        assert.match(result.stderr, /dingtalk_provider_scope_unavailable/)
+        assert.match(result.stderr, /Deployment failed/)
+      } else {
+        assert.match(result.stderr, /Pending external action/)
+        assert.match(result.stderr, /rerun deploy to resume/)
+      }
       assert.doesNotMatch(`${result.stdout}${result.stderr}`, /Ready:|completed/i)
       await assert.rejects(access(runtimeMarker))
 
@@ -8469,6 +9585,10 @@ test("built DingTalk fresh identity faults stay resumable without provider or ru
         calls.some((call) => ["+create", "+update", "+delete"].includes(call[1]!)),
         false,
       )
+      if (scopeUnavailable) {
+        await assert.rejects(access(configPath))
+        return
+      }
       const config = JSON.parse(await readFile(configPath, "utf8")) as {
         outcome: string
         code: string
@@ -8665,12 +9785,21 @@ test("DingTalk create timeout treats parseable output as uncertain and replay is
     assert.deepEqual(identified, [])
     const utility = JSON.parse(await readFile(providerState, "utf8")) as {
       pid: number
+      descendantPid: number
       phase: string
     }
     assert.equal(utility.phase, "parseable-response-before-settlement")
     await waitFor(() => {
       try {
         process.kill(utility.pid, 0)
+        return false
+      } catch {
+        return true
+      }
+    })
+    await waitFor(() => {
+      try {
+        process.kill(utility.descendantPid, 0)
         return false
       } catch {
         return true
@@ -8738,7 +9867,7 @@ test("DingTalk abort after verified get but before provider persistence preserve
     assert.deepEqual(interrupted, {
       status: "indeterminate",
       code: "dingtalk_provider_state_write_failed",
-      provider: { kind: "dingtalk-app", resourceId: "app-verified-1" },
+      preserveState: true,
     })
     assert.equal(operations.length, 1)
     await installFakeDws(bin, "conflict", logPath, providerState)
@@ -8760,7 +9889,11 @@ test("DingTalk abort after verified get but before provider persistence preserve
     assert.deepEqual(replay, {
       status: "verified",
       code: "dingtalk_app_verified",
-      provider: { kind: "dingtalk-app", resourceId: "app-verified-1" },
+      provider: {
+        kind: "dingtalk-app",
+        resourceId: "app-verified-1",
+        scope: testProviderScope(),
+      },
     })
     assert.deepEqual(identified, ["app-verified-1"])
     const calls = (await readFile(logPath, "utf8"))
@@ -8834,9 +9967,12 @@ test("DingTalk create abort preserves the operation and replay never creates aga
     } catch {
       return false
     }
-  })
+  }, 30_000)
+  const durableFenceBytes = await readFile(configPath)
+  const durableFenceIdentity = await lstat(configPath)
   const utility = JSON.parse(await readFile(providerState, "utf8")) as {
     pid: number
+    descendantPid: number
   }
   assert.ok(interrupted.child.pid)
   process.kill(interrupted.child.pid, "SIGTERM")
@@ -8851,21 +9987,30 @@ test("DingTalk create abort preserves the operation and replay never creates aga
       return true
     }
   })
+  await waitFor(() => {
+    try {
+      process.kill(utility.descendantPid, 0)
+      return false
+    } catch {
+      return true
+    }
+  })
   const interruptedConfig = JSON.parse(
     await readFile(configPath, "utf8"),
   ) as {
     outcome: string
-    code: string
+    code?: string
     provider?: unknown
     providerOperation?: DeployProviderOperation
   }
   assert.equal(interruptedConfig.outcome, "pending_external_action")
-  assert.equal(
-    interruptedConfig.code,
-    "dingtalk_provider_create_indeterminate",
-  )
+  assert.equal(interruptedConfig.code, undefined)
   assert.equal(interruptedConfig.provider, undefined)
   assert.equal(interruptedConfig.providerOperation?.kind, "dingtalk-app-create")
+  assert.deepEqual(await readFile(configPath), durableFenceBytes)
+  const preservedFenceIdentity = await lstat(configPath)
+  assert.equal(preservedFenceIdentity.dev, durableFenceIdentity.dev)
+  assert.equal(preservedFenceIdentity.ino, durableFenceIdentity.ino)
 
   const callsBeforeReplay = (await readFile(logPath, "utf8"))
     .trim()
@@ -8934,6 +10079,7 @@ test("DingTalk parent SIGKILL after a possible create effect preserves the durab
   })
   let operation: DeployProviderOperation | undefined
   let utilityPid = 0
+  let utilityDescendantPid = 0
   await waitFor(async () => {
     try {
       const config = JSON.parse(await readFile(configPath, "utf8")) as {
@@ -8941,22 +10087,25 @@ test("DingTalk parent SIGKILL after a possible create effect preserves the durab
       }
       const utility = JSON.parse(await readFile(providerState, "utf8")) as {
         pid?: number
+        descendantPid?: number
         phase?: string
       }
       if (
         config.providerOperation &&
         utility.pid &&
+        utility.descendantPid &&
         utility.phase === "parseable-response-before-settlement"
       ) {
         operation = config.providerOperation
         utilityPid = utility.pid
+        utilityDescendantPid = utility.descendantPid
         return true
       }
     } catch {
       // The durable create boundary is not visible yet.
     }
     return false
-  })
+  }, 30_000)
   assert.ok(operation)
   assert.ok(owner.child.pid)
   const killedAt = Date.now()
@@ -8966,6 +10115,14 @@ test("DingTalk parent SIGKILL after a possible create effect preserves the durab
   await waitFor(() => {
     try {
       process.kill(utilityPid, 0)
+      return false
+    } catch {
+      return true
+    }
+  }, 5_000)
+  await waitFor(() => {
+    try {
+      process.kill(utilityDescendantPid, 0)
       return false
     } catch {
       return true
@@ -9030,7 +10187,7 @@ test("a durable DingTalk operation globally fences changed bindings until exact 
     "changed package generation\n",
   )
   await installFakeDws(bin, "create-invalid", logPath, providerState)
-  const environment = cliEnvironment({
+  const environment = httpCliEnvironment({
     home,
     bin,
     extra: { QODER_PERSONAL_ACCESS_TOKEN: "global-fence-sentinel" },

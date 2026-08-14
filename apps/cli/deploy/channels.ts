@@ -30,6 +30,8 @@ export interface ChannelDeployResult {
   endpoint?: DeployEndpoint
   process?: DeployProcessState
   provider?: DeployProviderState
+  /** Do not rewrite the latest durable state for this outcome. */
+  preserveState?: true
   /** In-memory ownership handle; never persisted or rendered. */
   cleanup?: () => Promise<boolean>
   /** Completes the parent-coupled activation only after final publication gates. */
@@ -98,6 +100,15 @@ export async function deployDingTalk(
       onProviderIdentified: context.onProviderVerified,
     },
   )
+  if (
+    result.code === "deploy_interrupted" &&
+    result.status !== "indeterminate"
+  ) {
+    return {
+      ...outcome("failed", result.code, t("deploy.error_interrupted")),
+      ...(result.preserveState ? { preserveState: true as const } : {}),
+    }
+  }
   if (result.status === "verified") {
     if (!result.provider) {
       return outcome(
@@ -122,6 +133,7 @@ export async function deployDingTalk(
         t("deploy.guidance_dingtalk_pending"),
       ),
       ...(result.provider ? { provider: result.provider } : {}),
+      ...(result.preserveState ? { preserveState: true as const } : {}),
     }
   }
   if (result.status === "confirmation_required") {
@@ -134,6 +146,7 @@ export async function deployDingTalk(
   return {
     ...outcome("failed", result.code, t("deploy.error_dingtalk_provider")),
     ...(result.provider ? { provider: result.provider } : {}),
+    ...(result.preserveState ? { preserveState: true as const } : {}),
   }
 }
 
@@ -171,6 +184,7 @@ export async function deployConsole(
 interface HttpReadiness {
   schemaVersion?: unknown
   status?: unknown
+  inputContract?: unknown
   pid?: unknown
   launchId?: unknown
   activationFence?: unknown
@@ -297,6 +311,7 @@ function readinessMatches(
   return Boolean(
     readiness?.schemaVersion === "deploy-readiness.v1" &&
       readiness.status === "ok" &&
+      readiness.inputContract === "message.v1" &&
       readiness.pid === expected.pid &&
       readiness.launchId === expected.launchId &&
       readiness.activationFence === expected.activationFence &&
@@ -376,6 +391,7 @@ export function buildHttpRuntimeEnvironment(
     "no_proxy",
     "SSL_CERT_FILE",
     "SSL_CERT_DIR",
+    "NODE_EXTRA_CA_CERTS",
   ] as const
   const engineVariables: Record<string, readonly string[]> = {
     "claude-code": ["ANTHROPIC_API_KEY"],
@@ -648,6 +664,21 @@ export async function deployHttp(
       "unsupported",
       "http_standalone_runtime_not_available",
       t("deploy.guidance_standalone_unsupported"),
+    )
+  }
+  const tokenReference = config.secretReferences?.httpTokenEnv
+  const httpToken = tokenReference === "DIGITAL_EMPLOYEE_HTTP_TOKEN"
+    ? process.env[tokenReference]?.trim()
+    : undefined
+  if (
+    !httpToken ||
+    httpToken.length > 8_192 ||
+    /[\u0000-\u001f\u007f]/.test(httpToken)
+  ) {
+    return outcome(
+      "failed",
+      "http_token_required",
+      t("deploy.error_state_invalid"),
     )
   }
   if (signal?.aborted) {

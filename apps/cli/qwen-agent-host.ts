@@ -991,11 +991,11 @@ export class QwenAgentHostAdapter implements AgentHostAdapter {
       ((directory) => rm(directory, { recursive: true, force: true }))
   }
 
-  async probe(): Promise<AgentHostProbeResult> {
+  async probe(signal?: AbortSignal): Promise<AgentHostProbeResult> {
     const result = await this.versionExecutor(this.command, [
       ...this.commandPrefixArgs,
       "--version",
-    ])
+    ], { signal })
     const issues: AgentHostIssue[] = []
     const available = result.status === "installed"
     let status: AgentHostProbeResult["status"] = result.status
@@ -1085,7 +1085,7 @@ export class QwenAgentHostAdapter implements AgentHostAdapter {
   }
 
   async preflight(request: AgentHostRunRequest): Promise<AgentHostProbeResult> {
-    const probe = await this.probe()
+    const probe = await this.probe(request.signal)
     const issues = [...probe.issues]
     try {
       await prepareRun(request)
@@ -1147,7 +1147,7 @@ export class QwenAgentHostAdapter implements AgentHostAdapter {
 
       const beforePrepareError = stoppedRunError(active)
       if (beforePrepareError) throw beforePrepareError
-      const probe = await this.probe()
+      const probe = await this.probe(request.signal)
       const afterProbeError = stoppedRunError(active)
       if (afterProbeError) throw afterProbeError
       const blockingProbeIssue = probe.issues.find((entry) => entry.blocking)

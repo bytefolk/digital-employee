@@ -15,6 +15,8 @@ implicit standalone fallback. A complete automation invocation uses `--yes`
 and must also provide `--channel`, `--engine`, and `--runtime`:
 
 ```bash
+export QODER_PERSONAL_ACCESS_TOKEN='...'
+export DIGITAL_EMPLOYEE_HTTP_TOKEN='...'
 node ./dist/apps/cli/bin.js deploy ./team-answer \
   --channel http \
   --engine qoder \
@@ -90,14 +92,14 @@ change that would orphan that verified resource. The original state bytes and
 remote identity remain untouched. Package or engine rebinding under the same
 DingTalk name reconciles the existing id rather than creating a replacement.
 
-When a non-empty `DIGITAL_EMPLOYEE_HTTP_TOKEN` is present at deployment time,
+HTTP deployment requires a non-empty `DIGITAL_EMPLOYEE_HTTP_TOKEN`.
 `POST /v1/ask` requires the exact `Authorization: Bearer <token>` header;
 missing or incorrect credentials receive 401. `/health` remains an
 unauthenticated loopback readiness endpoint. The state stores only
 `secretReferences.httpTokenEnv = "DIGITAL_EMPLOYEE_HTTP_TOKEN"`, never the raw
 value, and the credential is not placed in process arguments or response
-artifacts. Reuse requires the same symbolic binding and live value; adding,
-removing, or changing it fails closed without replacing the verified process.
+artifacts. Reuse requires the same symbolic binding and live value; removing or
+changing it fails closed without replacing the verified process.
 
 HTTP startup is parent-coupled. The runtime progresses through durable
 `prepared` and `authorized` process states, starts listening only after exact
@@ -167,11 +169,24 @@ knowledge connector. Application reconciliation uses current `dws` JSON
 commands only:
 
 ```text
-dws devapp +list --name <name> --page-size 20 --format json
-dws devapp +list --name <name> --page-size 20 --cursor <nextCursor> --format json
-dws devapp +create --name <name> --desc <description> --format json --yes
-dws devapp +get --unified-app-id <id> --format json
+dws profile list --format json
+dws --profile <corpId>:<userId> devapp +list --name <name> --page-size 20 --format json
+dws --profile <corpId>:<userId> devapp +list --name <name> --page-size 20 --cursor <nextCursor> --format json
+dws --profile <corpId>:<userId> devapp +create --name <name> --desc <description> --format json --yes
+dws --profile <corpId>:<userId> devapp +get --unified-app-id <id> --format json
 ```
+
+Deploy resolves one exact current `corpId:userId` profile from the local,
+non-refreshing profile index and binds both the verified provider and every durable
+create fence to a domain-separated SHA-256 digest of the non-secret tenant,
+user, profile client, and explicit client-id identity. Raw identity fields,
+client secrets, and storage paths are never persisted. Every provider call is
+pinned to that profile. The same scope is revalidated before and immediately
+after publishing a create fence, and again before an operation fence can be
+cleared; scope drift leaves the last durable state byte-for-byte unchanged and
+performs no `devapp` or remote-application call in the new provider scope.
+Client-secret rotation and credential-storage relocation remain safe when the
+semantic profile/client identity is unchanged.
 
 Listing is deliberately strict: each page must contain a boolean `hasMore`,
 and a non-empty `nextCursor` must exist if and only if `hasMore` is true. The

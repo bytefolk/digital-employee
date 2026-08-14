@@ -12,7 +12,7 @@ not delivery dates or full issue specifications.
 
 | Area | Evidence in the current source | Maturity and remaining boundary |
 | --- | --- | --- |
-| Agent-native authoring | Host-neutral `init`, package-aware `validate`, and bounded `doctor` commands | **shipped** in source; neutral recipes and executable evals are M0 work |
+| Agent-native authoring | Host-neutral `init`, package-aware `validate`, bounded `doctor`, the `minimal-answer.v1` and `structured-action.v1` recipes, and executable offline contract evals | **shipped** in current source and the `0.3.0` root artifact; fixture eval does not prove live model entitlement |
 | Local Agent Host execution | Version-gated one-shot paths for Qoder CLI, Claude Code, Qwen Code and CodeBuddy Code | **preview** and **fixture-conformant**; live entitlement is not proven |
 | Codex | Discovery and readiness diagnosis | **probe-only**; it is not a runnable Adapter |
 | Runner kernel | Package digest and sealed snapshot, signed task/lease verification, replay port, hash-chained events and signed receipt for one task | **preview** embeddable kernel; no long-running Runner or public network SDK is shipped |
@@ -109,10 +109,15 @@ different employees use the same contracts; evals execute; failures are
 actionable and fail closed; support claims use the strategy's evidence
 vocabulary; published artifacts are independently verified.
 
-**Known blocker:** #26 currently invokes `npm --prefix packages/core pack
---dry-run`, which erroneously verifies the root package instead of the core
-package. The release gate cannot close until the intended artifact is packed
-and independently inspected.
+**Release evidence:** the historical core-package dry-run defect is no longer
+present. The release workflow actually packs the root and
+`./packages/core` targets separately, verifies each archive's identity,
+contents and digest, and performs clean-consumer checks. Root and standalone
+core `0.3.0` artifacts are public. Issue labels and milestones remain the
+source of truth for current status; this evidence does not by itself declare an
+Issue closed. Current push and repair releases run the full clean-installed
+consumer journey; historical asset-backfill runs intentionally use the tagged
+release's own checks plus import-only compatibility verification.
 
 ## M1 — Seller Runner Ready
 
@@ -192,7 +197,8 @@ weaken the qualification gate for any other Host.
 
 ## Blockers and decision points
 
-- #26 is blocked by the core-package dry-run defect described above.
+- The historical #26 core-package dry-run defect is resolved in the release
+  workflow; current #26 status still comes from its Issue labels and milestone.
 - #35 cannot close until #29, #27 and #28 are accepted; parallel code does not
   waive those contracts. #37 then proves the combined path.
 - #39 waits for #31; #14 then consumes its stable package compatibility line.

@@ -80,6 +80,14 @@ export interface EmployeePackageInspection extends EmployeePackageSummary {
   }
 }
 
+/** @internal Coordinates deterministic path-replacement security tests. */
+export interface EmployeePackageInspectionHooks {
+  beforeFileOpen?: (
+    portablePath: string,
+    filePath: string,
+  ) => void | Promise<void>
+}
+
 export interface SealedEmployeePackageSnapshot {
   /** Local ephemeral projection; never sent to or hosted by the platform. */
   directory: string
@@ -412,25 +420,43 @@ export async function createEmployeePackage(
   }
 }
 
-async function readBoundedFile(
-  filePath: string,
-  maxBytes: number,
-  label: string,
-): Promise<string> {
-  const stat = await lstat(filePath)
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    throw new TypeError(`employee_package_file_must_be_regular:${label}`)
-  }
-  if (stat.size > maxBytes) {
-    throw new TypeError(`employee_package_file_too_large:${label}`)
-  }
-  return readFile(filePath, "utf8")
+interface PackagePathIdentity {
+  filePath: string
+  portablePath: string
+  components: Array<{
+    path: string
+    device: number
+    inode: number
+    mode: number
+    size: number
+    ctimeMs: number
+    directory: boolean
+  }>
 }
 
-async function resolvePackageFile(
+const inspectionDigestEntries = new WeakMap<
+  EmployeePackageInspection,
+  EmployeePackageDigestEntry[]
+>()
+
+function samePathIdentity(
+  stat: Awaited<ReturnType<typeof lstat>>,
+  expected: PackagePathIdentity["components"][number],
+): boolean {
+  return stat.dev === expected.device &&
+    stat.ino === expected.inode &&
+    stat.mode === expected.mode &&
+    stat.size === expected.size &&
+    stat.ctimeMs === expected.ctimeMs &&
+    stat.isDirectory() === expected.directory &&
+    !stat.isSymbolicLink()
+}
+
+async function capturePackagePath(
   directory: string,
   portablePath: string,
-): Promise<string> {
+  maxBytes: number,
+): Promise<PackagePathIdentity> {
   const resolved = path.resolve(directory, portablePath.slice(2))
   const relative = path.relative(directory, resolved)
   if (
@@ -441,16 +467,81 @@ async function resolvePackageFile(
   ) {
     throw new TypeError(`employee_package_path_escape_not_allowed:${portablePath}`)
   }
-  const segments = relative.split(path.sep)
+  const paths = [directory]
   let current = directory
-  for (const segment of segments) {
+  for (const segment of relative.split(path.sep)) {
     current = path.join(current, segment)
-    const stat = await lstat(current)
+    paths.push(current)
+  }
+  const components: PackagePathIdentity["components"] = []
+  for (const [index, componentPath] of paths.entries()) {
+    const stat = await lstat(componentPath)
     if (stat.isSymbolicLink()) {
       throw new TypeError(`employee_package_symlink_not_allowed:${portablePath}`)
     }
+    const final = index === paths.length - 1
+    if ((!final && !stat.isDirectory()) || (final && !stat.isFile())) {
+      throw new TypeError(`employee_package_file_must_be_regular:${portablePath}`)
+    }
+    if (final && stat.size > maxBytes) {
+      throw new TypeError(`employee_package_file_too_large:${portablePath}`)
+    }
+    components.push({
+      path: componentPath,
+      device: stat.dev,
+      inode: stat.ino,
+      mode: stat.mode,
+      size: stat.size,
+      ctimeMs: stat.ctimeMs,
+      directory: stat.isDirectory(),
+    })
   }
-  return resolved
+  return { filePath: resolved, portablePath, components }
+}
+
+async function assertPackagePathUnchanged(
+  captured: PackagePathIdentity,
+): Promise<void> {
+  for (const component of captured.components) {
+    let stat
+    try {
+      stat = await lstat(component.path)
+    } catch {
+      throw new TypeError(
+        `employee_package_file_changed_during_snapshot:${captured.portablePath}`,
+      )
+    }
+    if (!samePathIdentity(stat, component)) {
+      throw new TypeError(
+        `employee_package_file_changed_during_snapshot:${captured.portablePath}`,
+      )
+    }
+  }
+}
+
+function freezeSharedPackageComponents(
+  frozen: Map<string, PackagePathIdentity["components"][number]>,
+  captured: PackagePathIdentity,
+): void {
+  for (const component of captured.components) {
+    const expected = frozen.get(component.path)
+    if (expected) {
+      if (
+        expected.device !== component.device ||
+        expected.inode !== component.inode ||
+        expected.mode !== component.mode ||
+        expected.size !== component.size ||
+        expected.ctimeMs !== component.ctimeMs ||
+        expected.directory !== component.directory
+      ) {
+        throw new TypeError(
+          `employee_package_file_changed_during_snapshot:${captured.portablePath}`,
+        )
+      }
+      continue
+    }
+    frozen.set(component.path, component)
+  }
 }
 
 function validateSkillFrontmatter(content: string, expectedName: string): void {
@@ -512,6 +603,7 @@ function validateJsonSchema(
 
 export async function inspectEmployeePackage(
   requestedDirectory: string,
+  hooks: EmployeePackageInspectionHooks = {},
 ): Promise<EmployeePackageInspection> {
   const directory = path.resolve(requestedDirectory)
   const root = await lstat(directory)
@@ -519,12 +611,30 @@ export async function inspectEmployeePackage(
     throw new TypeError("employee_package_root_must_be_a_real_directory")
   }
 
-  const manifestPath = path.join(directory, EMPLOYEE_PACKAGE_MANIFEST_NAME)
-  const manifestContent = await readBoundedFile(
-    manifestPath,
+  const manifestPortablePath = `./${EMPLOYEE_PACKAGE_MANIFEST_NAME}`
+  const manifestCapture = await capturePackagePath(
+    directory,
+    manifestPortablePath,
     MAX_MANIFEST_BYTES,
-    EMPLOYEE_PACKAGE_MANIFEST_NAME,
   )
+  const frozenComponents = new Map<
+    string,
+    PackagePathIdentity["components"][number]
+  >()
+  freezeSharedPackageComponents(frozenComponents, manifestCapture)
+  await assertPackagePathUnchanged(manifestCapture)
+  await hooks.beforeFileOpen?.(
+    manifestPortablePath,
+    manifestCapture.filePath,
+  )
+  const manifestBytes = await readRegularFileNoFollow(
+    manifestCapture.filePath,
+    MAX_MANIFEST_BYTES,
+    manifestPortablePath,
+    manifestCapture,
+  )
+  await assertPackagePathUnchanged(manifestCapture)
+  const manifestContent = manifestBytes.toString("utf8")
   let manifestValue: unknown
   try {
     manifestValue = JSON.parse(manifestContent) as unknown
@@ -543,26 +653,47 @@ export async function inspectEmployeePackage(
   if (files.length > MAX_DECLARED_FILES) {
     throw new TypeError("employee_package_too_many_declared_files")
   }
-  const resolved = new Map<string, string>()
-  for (const file of files) resolved.set(file, await resolvePackageFile(directory, file))
-  let totalBytes = 0
-  for (const [file, filePath] of resolved) {
-    const stat = await lstat(filePath)
-    if (!stat.isFile() || stat.isSymbolicLink()) {
-      throw new TypeError(`employee_package_file_must_be_regular:${file}`)
+  const byteLimit = (file: string): number => {
+    if (file === manifest.entrypoints.skill) return MAX_SKILL_BYTES
+    if (
+      file === manifest.entrypoints.inputSchema ||
+      file === manifest.entrypoints.outputSchema ||
+      file === manifest.entrypoints.mcp
+    ) {
+      return MAX_SCHEMA_BYTES
     }
-    totalBytes += stat.size
+    return MAX_ASSET_BYTES
+  }
+  const resolved = new Map<string, PackagePathIdentity>()
+  for (const file of files) {
+    const captured = await capturePackagePath(directory, file, byteLimit(file))
+    freezeSharedPackageComponents(frozenComponents, captured)
+    resolved.set(file, captured)
+  }
+  let totalBytes = 0
+  for (const captured of resolved.values()) {
+    totalBytes += captured.components.at(-1)!.size
     if (totalBytes > MAX_TOTAL_BYTES) {
       throw new TypeError("employee_package_declared_files_too_large")
     }
   }
 
-  const skill = await readBoundedFile(
-    resolved.get(manifest.entrypoints.skill)!,
-    MAX_SKILL_BYTES,
-    manifest.entrypoints.skill,
-  )
-  const skillPath = resolved.get(manifest.entrypoints.skill)!
+  const fileBytes = new Map<string, Buffer>()
+  for (const [file, captured] of resolved) {
+    await assertPackagePathUnchanged(captured)
+    await hooks.beforeFileOpen?.(file, captured.filePath)
+    const bytes = await readRegularFileNoFollow(
+      captured.filePath,
+      byteLimit(file),
+      file,
+      captured,
+    )
+    await assertPackagePathUnchanged(captured)
+    fileBytes.set(file, bytes)
+  }
+
+  const skill = fileBytes.get(manifest.entrypoints.skill)!.toString("utf8")
+  const skillPath = resolved.get(manifest.entrypoints.skill)!.filePath
   if (
     path.basename(skillPath) !== "SKILL.md" ||
     path.basename(path.dirname(skillPath)) !== manifest.name
@@ -571,20 +702,16 @@ export async function inspectEmployeePackage(
   }
   validateSkillFrontmatter(skill, manifest.name)
 
-  const inputSchemaContent = await readBoundedFile(
-    resolved.get(manifest.entrypoints.inputSchema)!,
-    MAX_SCHEMA_BYTES,
-    manifest.entrypoints.inputSchema,
-  )
+  const inputSchemaContent = fileBytes
+    .get(manifest.entrypoints.inputSchema)!
+    .toString("utf8")
   const inputSchema = validateJsonSchema(
     inputSchemaContent,
     manifest.entrypoints.inputSchema,
   )
-  const outputSchemaContent = await readBoundedFile(
-    resolved.get(manifest.entrypoints.outputSchema)!,
-    MAX_SCHEMA_BYTES,
-    manifest.entrypoints.outputSchema,
-  )
+  const outputSchemaContent = fileBytes
+    .get(manifest.entrypoints.outputSchema)!
+    .toString("utf8")
   const outputSchema = validateJsonSchema(
     outputSchemaContent,
     manifest.entrypoints.outputSchema,
@@ -592,21 +719,13 @@ export async function inspectEmployeePackage(
 
   let mcpManifest: EmployeeMcpManifest | undefined
   if (manifest.entrypoints.mcp) {
-    const mcp = await readBoundedFile(
-      resolved.get(manifest.entrypoints.mcp)!,
-      MAX_SCHEMA_BYTES,
-      manifest.entrypoints.mcp,
-    )
+    const mcp = fileBytes.get(manifest.entrypoints.mcp)!.toString("utf8")
     mcpManifest = validateEmployeeMcpManifest(
       parseJsonObject(mcp, manifest.entrypoints.mcp),
     )
   }
 
-  for (const asset of manifest.assets) {
-    await readBoundedFile(resolved.get(asset)!, MAX_ASSET_BYTES, asset)
-  }
-
-  return {
+  const inspection: EmployeePackageInspection = {
     directory,
     manifest,
     files,
@@ -617,6 +736,14 @@ export async function inspectEmployeePackage(
       ...(mcpManifest ? { mcp: mcpManifest } : {}),
     },
   }
+  inspectionDigestEntries.set(inspection, [
+    { path: manifestPortablePath, bytes: manifestBytes },
+    ...files.map((portablePath) => ({
+      path: portablePath,
+      bytes: fileBytes.get(portablePath)!,
+    })),
+  ])
+  return inspection
 }
 
 export async function readDeclaredEmployeePackageAsset(
@@ -626,12 +753,19 @@ export async function readDeclaredEmployeePackageAsset(
   if (!inspection.manifest.assets.includes(portablePath)) {
     throw new TypeError(`employee_package_asset_not_declared:${portablePath}`)
   }
-  const filePath = await resolvePackageFile(inspection.directory, portablePath)
+  const captured = await capturePackagePath(
+    inspection.directory,
+    portablePath,
+    MAX_ASSET_BYTES,
+  )
+  await assertPackagePathUnchanged(captured)
   const bytes = await readRegularFileNoFollow(
-    filePath,
+    captured.filePath,
     MAX_ASSET_BYTES,
     portablePath,
+    captured,
   )
+  await assertPackagePathUnchanged(captured)
   return bytes.toString("utf8")
 }
 
@@ -639,16 +773,54 @@ async function readRegularFileNoFollow(
   filePath: string,
   maxBytes: number,
   label: string,
+  captured?: PackagePathIdentity,
 ): Promise<Buffer> {
   let handle
   try {
-    handle = await open(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW)
+    handle = await open(
+      filePath,
+      fsConstants.O_RDONLY |
+        fsConstants.O_NOFOLLOW |
+        (fsConstants.O_NONBLOCK ?? 0),
+    )
     const stat = await handle.stat()
     if (!stat.isFile() || stat.size > maxBytes) {
       throw new TypeError(`employee_package_file_invalid_for_snapshot:${label}`)
     }
-    const bytes = await handle.readFile()
-    if (bytes.length !== stat.size) {
+    const expected = captured?.components.at(-1)
+    if (expected && !samePathIdentity(stat, expected)) {
+      throw new TypeError(`employee_package_file_changed_during_snapshot:${label}`)
+    }
+    const bytes = Buffer.alloc(stat.size)
+    let offset = 0
+    while (offset < bytes.length) {
+      const result = await handle.read(
+        bytes,
+        offset,
+        bytes.length - offset,
+        offset,
+      )
+      if (result.bytesRead === 0) {
+        throw new TypeError(`employee_package_file_changed_during_snapshot:${label}`)
+      }
+      offset += result.bytesRead
+    }
+    const overflow = Buffer.alloc(1)
+    const overflowRead = await handle.read(overflow, 0, 1, bytes.length)
+    const finalStat = await handle.stat()
+    if (
+      overflowRead.bytesRead !== 0 ||
+      !samePathIdentity(finalStat, {
+        path: filePath,
+        device: stat.dev,
+        inode: stat.ino,
+        mode: stat.mode,
+        size: stat.size,
+        ctimeMs: stat.ctimeMs,
+        directory: false,
+      }) ||
+      (expected && !samePathIdentity(finalStat, expected))
+    ) {
       throw new TypeError(`employee_package_file_changed_during_snapshot:${label}`)
     }
     return bytes
@@ -669,30 +841,12 @@ async function readPackageDigestEntries(
   directory: string,
   inspection: EmployeePackageInspection,
 ): Promise<EmployeePackageDigestEntry[]> {
-  const portablePaths = [
-    ...new Set([
-      `./${EMPLOYEE_PACKAGE_MANIFEST_NAME}`,
-      ...inspection.files,
-    ]),
-  ]
-  const entries: EmployeePackageDigestEntry[] = []
-  let totalBytes = 0
-  for (const portablePath of portablePaths) {
-    const filePath = await resolvePackageFile(directory, portablePath)
-    const bytes = await readRegularFileNoFollow(
-      filePath,
-      portablePath === `./${EMPLOYEE_PACKAGE_MANIFEST_NAME}`
-        ? MAX_MANIFEST_BYTES
-        : MAX_ASSET_BYTES,
-      portablePath,
-    )
-    totalBytes += bytes.length
-    if (totalBytes > MAX_TOTAL_BYTES + MAX_MANIFEST_BYTES) {
-      throw new TypeError("employee_package_snapshot_too_large")
-    }
-    entries.push({ path: portablePath, bytes })
+  if (path.resolve(directory) !== inspection.directory) {
+    throw new TypeError("employee_package_inspection_directory_mismatch")
   }
-  return entries
+  const entries = inspectionDigestEntries.get(inspection)
+  if (!entries) throw new TypeError("employee_package_inspection_bytes_unavailable")
+  return entries.map((entry) => ({ path: entry.path, bytes: Buffer.from(entry.bytes) }))
 }
 
 export async function computeEmployeePackageDirectoryDigest(

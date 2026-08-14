@@ -1,11 +1,12 @@
 /** Strict DingTalk application reconciliation through the current dws CLI. */
 
 import { spawn } from "node:child_process"
-import { randomBytes } from "node:crypto"
+import { createHash, randomBytes } from "node:crypto"
 import { fileURLToPath } from "node:url"
 
 import type {
   DeployProviderOperation,
+  DeployProviderScope,
   DeployProviderState,
 } from "./config.js"
 
@@ -39,6 +40,8 @@ export interface DingTalkProviderResult {
   status: "verified" | "confirmation_required" | "indeterminate" | "failed"
   code: string
   provider?: DeployProviderState
+  /** Keep the latest durable state byte-for-byte unchanged. */
+  preserveState?: true
 }
 
 export interface DingTalkProviderOptions {
@@ -69,6 +72,22 @@ interface CommandFailure {
   indeterminate?: boolean
 }
 
+interface DingTalkProviderIdentity {
+  profile: string
+  corpId: string
+  userId: string
+  profileClientId: string
+}
+
+interface DingTalkProviderSession extends DingTalkProviderIdentity {
+  environment: NodeJS.ProcessEnv
+  scope: DeployProviderScope
+}
+
+type ProviderSessionResolution =
+  | { ok: true; session: DingTalkProviderSession }
+  | { ok: false; code: string }
+
 function isIdentityReadUncertainty(failure: CommandFailure): boolean {
   return Boolean(
     failure.indeterminate ||
@@ -81,7 +100,7 @@ function isObject(value: unknown): value is ProviderObject {
   return Boolean(value && typeof value === "object" && !Array.isArray(value))
 }
 
-function safeEnvironment(): NodeJS.ProcessEnv {
+function captureSafeEnvironment(): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = {}
   for (const key of [
     "PATH",
@@ -93,6 +112,15 @@ function safeEnvironment(): NodeJS.ProcessEnv {
     "LC_ALL",
     "LC_CTYPE",
     "NO_COLOR",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "NO_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
+    "NODE_EXTRA_CA_CERTS",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
     "DWS_CLIENT_ID",
     "DWS_CLIENT_SECRET",
     "DWS_CONFIG_DIR",
@@ -102,6 +130,25 @@ function safeEnvironment(): NodeJS.ProcessEnv {
     if (process.env[key] !== undefined) environment[key] = process.env[key]
   }
   return environment
+}
+
+function strictEnvironmentCredential(
+  environment: NodeJS.ProcessEnv,
+): { ok: true; clientId: string | null } | { ok: false } {
+  const rawClientId = environment.DWS_CLIENT_ID
+  const rawClientSecret = environment.DWS_CLIENT_SECRET
+  if (rawClientId === undefined && rawClientSecret === undefined) {
+    return { ok: true, clientId: null }
+  }
+  const valid = (value: string | undefined): value is string => Boolean(
+    value !== undefined &&
+      value.length > 0 &&
+      value.length <= 4_096 &&
+      value === value.trim() &&
+      !/[\u0000-\u001f\u007f]/.test(value),
+  )
+  if (!valid(rawClientId) || !valid(rawClientSecret)) return { ok: false }
+  return { ok: true, clientId: rawClientId }
 }
 
 function parseJson(value: string): unknown | undefined {
@@ -170,15 +217,38 @@ function actionableProviderFailureCode(value: unknown): string | undefined {
 
 async function runDwsJson(
   args: string[],
+  environment: NodeJS.ProcessEnv,
   signal?: AbortSignal,
   beforeBoundary?: () => void | Promise<void>,
   timeoutMs = 30_000,
   effectMayHaveOccurred = false,
 ): Promise<CommandSuccess | CommandFailure> {
+  if (signal?.aborted) {
+    return {
+      ok: false,
+      code: "deploy_interrupted",
+      ...(effectMayHaveOccurred ? { indeterminate: true } : {}),
+    }
+  }
   try {
     await beforeBoundary?.()
   } catch {
-    return { ok: false, code: "dingtalk_provider_fence_unavailable" }
+    return {
+      ok: false,
+      code: signal?.aborted
+        ? "deploy_interrupted"
+        : "dingtalk_provider_fence_unavailable",
+      ...(effectMayHaveOccurred && signal?.aborted
+        ? { indeterminate: true }
+        : {}),
+    }
+  }
+  if (signal?.aborted) {
+    return {
+      ok: false,
+      code: "deploy_interrupted",
+      ...(effectMayHaveOccurred ? { indeterminate: true } : {}),
+    }
   }
   return new Promise((resolve) => {
     let child
@@ -188,7 +258,7 @@ async function runDwsJson(
         DWS_SUPERVISOR_ENTRY,
         ...args,
       ], {
-        env: safeEnvironment(),
+        env: environment,
         stdio: ["ignore", "pipe", "pipe", "ipc"],
         detached: process.platform !== "win32",
         windowsHide: true,
@@ -208,6 +278,10 @@ async function runDwsJson(
     let settled = false
     let spawnError: unknown
     let supervisedSpawnError: string | undefined
+    let supervisedCompletion: {
+      code: number | null
+      signal: NodeJS.Signals | null
+    } | undefined
     let terminationReason: "abort" | "timeout" | "output" | undefined
     let killTimer: ReturnType<typeof setTimeout> | undefined
     const killTree = (signalName: NodeJS.Signals) => {
@@ -267,24 +341,61 @@ async function runDwsJson(
         typeof message.code === "string"
       ) {
         supervisedSpawnError = message.code
+      } else if (
+        isObject(message) &&
+        message.type === "dws-supervisor-command-complete" &&
+        (message.code === null ||
+          (typeof message.code === "number" && Number.isInteger(message.code))) &&
+        (message.signal === null || typeof message.signal === "string") &&
+        !supervisedCompletion
+      ) {
+        supervisedCompletion = {
+          code: message.code,
+          signal: message.signal as NodeJS.Signals | null,
+        }
+        // The supervisor is still the live process-group leader when this IPC
+        // message is delivered, so the PGID cannot be recycled before this
+        // synchronous group kill reaches every same-group descendant.
+        killTree("SIGKILL")
       }
     })
     child.once("close", async (code, exitSignal) => {
       if (settled) return
       settled = true
-      cleanup()
+      if (terminationReason || !supervisedCompletion) {
+        // Timeout/abort or an unexpected supervisor exit did not complete the
+        // normal parent-acknowledged cleanup protocol.
+        killTree("SIGKILL")
+        if (killTimer) {
+          clearTimeout(killTimer)
+          killTimer = undefined
+        }
+      }
       const parsedStdout = parseJson(Buffer.concat(stdout).toString("utf8"))
       const parsedStderr = parseJson(Buffer.concat(stderr).toString("utf8"))
       try {
         await beforeBoundary?.()
       } catch {
+        cleanup()
         resolve({
           ok: false,
-          code: "dingtalk_provider_fence_unavailable",
+          code: signal?.aborted
+            ? "deploy_interrupted"
+            : "dingtalk_provider_fence_unavailable",
           ...(effectMayHaveOccurred ? { indeterminate: true } : {}),
         })
         return
       }
+      if (signal?.aborted) {
+        cleanup()
+        resolve({
+          ok: false,
+          code: "deploy_interrupted",
+          ...(effectMayHaveOccurred ? { indeterminate: true } : {}),
+        })
+        return
+      }
+      cleanup()
       const systemCode = supervisedSpawnError ?? fileErrorCode(spawnError)
       if (systemCode === "ENOENT") {
         resolve({ ok: false, code: "dingtalk_provider_cli_unavailable" })
@@ -302,7 +413,19 @@ async function runDwsJson(
         })
         return
       }
-      if (spawnError || code !== 0 || exitSignal) {
+      if (!supervisedCompletion) {
+        resolve({
+          ok: false,
+          code: "dingtalk_provider_command_failed",
+          indeterminate: true,
+        })
+        return
+      }
+      const commandCode = supervisedCompletion?.code ?? code
+      const commandSignal = supervisedCompletion
+        ? supervisedCompletion.signal
+        : exitSignal
+      if (spawnError || commandCode !== 0 || commandSignal) {
         const streamScans = [parsedStdout, parsedStderr].map(providerCodeScan)
         const conflictingStream = streamScans.some(
           (scan) => scan.malformed || scan.codes.size > 1,
@@ -320,7 +443,9 @@ async function runDwsJson(
           ) ??
             "dingtalk_provider_command_failed",
           ...(explicitProviderCode ? { explicitProviderCode } : {}),
-          ...(!explicitProviderCode || exitSignal ? { indeterminate: true } : {}),
+          ...(!explicitProviderCode || commandSignal
+            ? { indeterminate: true }
+            : {}),
         })
         return
       }
@@ -351,6 +476,172 @@ function validProviderIdentifier(value: unknown): value is string {
       value.length <= 256 &&
       !/[\u0000-\u001f\u007f]/.test(value),
   )
+}
+
+function strictIdentityString(value: unknown, maxLength = 512): string | undefined {
+  return typeof value === "string" &&
+      value.length > 0 &&
+      value.length <= maxLength &&
+      value === value.trim() &&
+      !/[\u0000-\u001f\u007f]/.test(value)
+    ? value
+    : undefined
+}
+
+function profileIdentity(value: unknown): DingTalkProviderIdentity | undefined {
+  if (!isObject(value) || value.success !== true) return undefined
+  const currentProfile = strictIdentityString(value.currentProfile)
+  if (!currentProfile || !Array.isArray(value.profiles)) return undefined
+  if (
+    !value.profiles.every(
+      (entry) => isObject(entry) && typeof entry.isCurrent === "boolean",
+    )
+  ) {
+    return undefined
+  }
+  const current = value.profiles.filter(
+    (entry): entry is ProviderObject => isObject(entry) && entry.isCurrent === true,
+  )
+  if (current.length !== 1) return undefined
+  const profile = strictIdentityString(current[0]!.profile)
+  const corpId = strictIdentityString(current[0]!.corpId)
+  const userId = strictIdentityString(current[0]!.userId)
+  const profileClientId = strictIdentityString(current[0]!.clientId, 4_096)
+  if (
+    !profile ||
+    !corpId ||
+    !userId ||
+    !profileClientId ||
+    profile !== `${corpId}:${userId}` ||
+    currentProfile !== profile
+  ) {
+    return undefined
+  }
+  const selectorMatches = value.profiles.filter((entry) =>
+    isObject(entry) && strictIdentityString(entry.profile) === profile
+  )
+  if (selectorMatches.length !== 1) return undefined
+  return { profile, corpId, userId, profileClientId }
+}
+
+function sameProviderIdentity(
+  left: DingTalkProviderIdentity,
+  right: DingTalkProviderIdentity,
+): boolean {
+  return left.profile === right.profile &&
+    left.corpId === right.corpId &&
+    left.userId === right.userId &&
+    left.profileClientId === right.profileClientId
+}
+
+function providerScope(
+  identity: DingTalkProviderIdentity,
+  envClientId: string | null,
+): DeployProviderScope {
+  const canonical = JSON.stringify({
+    schema: "dingtalk-provider-scope.v1",
+    corpId: identity.corpId,
+    userId: identity.userId,
+    profileClientId: identity.profileClientId,
+    envClientId,
+  })
+  return {
+    kind: "dingtalk-provider-scope.v1",
+    digest: `sha256:${createHash("sha256").update(canonical).digest("hex")}`,
+  }
+}
+
+async function resolveDingTalkProviderSession(
+  environment: NodeJS.ProcessEnv,
+  signal?: AbortSignal,
+  beforeBoundary?: () => void | Promise<void>,
+  commandTimeoutMs?: number,
+): Promise<ProviderSessionResolution> {
+  const credentials = strictEnvironmentCredential(environment)
+  if (!credentials.ok) {
+    return { ok: false, code: "dingtalk_provider_scope_invalid" }
+  }
+  const profile = await runDwsJson(
+    ["profile", "list", "--format", "json"],
+    environment,
+    signal,
+    beforeBoundary,
+    commandTimeoutMs,
+  )
+  if (!profile.ok) {
+    return {
+      ok: false,
+      code: profile.code === "deploy_interrupted"
+        ? profile.code
+        : "dingtalk_provider_scope_unavailable",
+    }
+  }
+  const identity = profileIdentity(profile.value)
+  if (!identity) {
+    return { ok: false, code: "dingtalk_provider_scope_invalid" }
+  }
+  return {
+    ok: true,
+    session: {
+      ...identity,
+      environment,
+      scope: providerScope(identity, credentials.clientId),
+    },
+  }
+}
+
+async function revalidateDingTalkProviderSession(
+  session: DingTalkProviderSession,
+  signal?: AbortSignal,
+  beforeBoundary?: () => void | Promise<void>,
+  commandTimeoutMs?: number,
+): Promise<{ ok: true } | { ok: false; code: string }> {
+  const current = await resolveDingTalkProviderSession(
+    session.environment,
+    signal,
+    beforeBoundary,
+    commandTimeoutMs,
+  )
+  if (!current.ok) return current
+  if (
+    !sameProviderIdentity(session, current.session) ||
+    session.scope.digest !== current.session.scope.digest
+  ) {
+    return { ok: false, code: "dingtalk_provider_scope_mismatch" }
+  }
+  return { ok: true }
+}
+
+function scopedDevappArgs(
+  session: DingTalkProviderSession,
+  args: string[],
+): string[] {
+  return ["--profile", session.profile, "devapp", ...args]
+}
+
+function sameProviderScope(
+  left: DeployProviderScope | undefined,
+  right: DeployProviderScope,
+): boolean {
+  return left?.kind === right.kind && left.digest === right.digest
+}
+
+function providerScopeFailure(
+  code: string,
+  durableFence: boolean,
+): DingTalkProviderResult {
+  if (code === "deploy_interrupted") {
+    return {
+      status: durableFence ? "indeterminate" : "failed",
+      code,
+      ...(durableFence ? { preserveState: true as const } : {}),
+    }
+  }
+  return {
+    status: durableFence ? "indeterminate" : "failed",
+    code,
+    preserveState: true,
+  }
 }
 
 function appFromObject(value: unknown): ProviderApp | undefined {
@@ -470,6 +761,7 @@ function createdAppId(value: unknown): string | undefined {
 }
 
 async function readbackApp(
+  session: DingTalkProviderSession,
   resourceId: string,
   expectedName: string,
   signal?: AbortSignal,
@@ -477,14 +769,14 @@ async function readbackApp(
   commandTimeoutMs?: number,
 ): Promise<DingTalkProviderResult> {
   const response = await runDwsJson(
-    [
-      "devapp",
+    scopedDevappArgs(session, [
       "+get",
       "--unified-app-id",
       resourceId,
       "--format",
       "json",
-    ],
+    ]),
+    session.environment,
     signal,
     beforeBoundary,
     commandTimeoutMs,
@@ -509,11 +801,13 @@ async function readbackApp(
   const provider = {
     kind: "dingtalk-app" as const,
     resourceId,
+    scope: session.scope,
   }
   return { status: "verified", code: "dingtalk_app_verified", provider }
 }
 
 async function findExactApp(
+  session: DingTalkProviderSession,
   name: string,
   signal?: AbortSignal,
   beforeBoundary?: () => void | Promise<void>,
@@ -530,8 +824,7 @@ async function findExactApp(
   let appCount = 0
   for (let pageNumber = 0; pageNumber < MAX_PROVIDER_PAGES; pageNumber += 1) {
     const response = await runDwsJson(
-      [
-      "devapp",
+      scopedDevappArgs(session, [
       "+list",
       "--name",
       name,
@@ -540,7 +833,8 @@ async function findExactApp(
       ...(cursor ? ["--cursor", cursor] : []),
       "--format",
       "json",
-      ],
+      ]),
+      session.environment,
       signal,
       beforeBoundary,
       commandTimeoutMs,
@@ -618,18 +912,77 @@ export async function reconcileDingTalkApplication(
     onProviderIdentified,
   }: DingTalkProviderOptions = {},
 ): Promise<DingTalkProviderResult> {
+  const environment = captureSafeEnvironment()
+  const resolvedSession = await resolveDingTalkProviderSession(
+    environment,
+    signal,
+    beforeBoundary,
+    commandTimeoutMs,
+  )
+  const durableFence = Boolean(existing || existingOperation)
+  if (!resolvedSession.ok) {
+    return providerScopeFailure(resolvedSession.code, durableFence)
+  }
+  const session = resolvedSession.session
+  if (
+    (existing && !sameProviderScope(existing.scope, session.scope)) ||
+    (existingOperation &&
+      !sameProviderScope(existingOperation.scope, session.scope))
+  ) {
+    return providerScopeFailure(
+      "dingtalk_provider_scope_mismatch",
+      durableFence,
+    )
+  }
+
   if (existing?.kind === "dingtalk-app") {
-    return readbackApp(
+    const readback = await readbackApp(
+      session,
       existing.resourceId,
       name,
       signal,
       beforeBoundary,
       commandTimeoutMs,
     )
+    if (readback.status !== "verified") {
+      const revalidated = await revalidateDingTalkProviderSession(
+        session,
+        signal,
+        beforeBoundary,
+        commandTimeoutMs,
+      )
+      return revalidated.ok
+        ? readback
+        : providerScopeFailure(revalidated.code, true)
+    }
+    const revalidated = await revalidateDingTalkProviderSession(
+      session,
+      signal,
+      beforeBoundary,
+      commandTimeoutMs,
+    )
+    return revalidated.ok
+      ? readback
+      : providerScopeFailure(revalidated.code, true)
   }
 
-  let found = await findExactApp(name, signal, beforeBoundary, commandTimeoutMs)
+  let found = await findExactApp(
+    session,
+    name,
+    signal,
+    beforeBoundary,
+    commandTimeoutMs,
+  )
   if (existingOperation && found.status !== "one") {
+    const revalidated = await revalidateDingTalkProviderSession(
+      session,
+      signal,
+      beforeBoundary,
+      commandTimeoutMs,
+    )
+    if (!revalidated.ok) {
+      return providerScopeFailure(revalidated.code, true)
+    }
     return {
       status: "indeterminate",
       code: "dingtalk_provider_create_indeterminate",
@@ -640,8 +993,10 @@ export async function reconcileDingTalkApplication(
     const provider = {
       kind: "dingtalk-app" as const,
       resourceId: found.app.unifiedAppId,
+      scope: session.scope,
     }
     const readback = await readbackApp(
+      session,
       found.app.unifiedAppId,
       name,
       signal,
@@ -649,6 +1004,17 @@ export async function reconcileDingTalkApplication(
       commandTimeoutMs,
     )
     if (readback.status !== "verified") {
+      if (existingOperation) {
+        const revalidated = await revalidateDingTalkProviderSession(
+          session,
+          signal,
+          beforeBoundary,
+          commandTimeoutMs,
+        )
+        if (!revalidated.ok) {
+          return providerScopeFailure(revalidated.code, true)
+        }
+      }
       return existingOperation
         ? {
             status: "indeterminate",
@@ -656,13 +1022,22 @@ export async function reconcileDingTalkApplication(
           }
         : readback
     }
+    const revalidated = await revalidateDingTalkProviderSession(
+      session,
+      signal,
+      beforeBoundary,
+      commandTimeoutMs,
+    )
+    if (!revalidated.ok) {
+      return providerScopeFailure(revalidated.code, Boolean(existingOperation))
+    }
     try {
       await onProviderIdentified?.(provider)
     } catch {
       return {
-        status: "failed",
+        status: existingOperation ? "indeterminate" : "failed",
         code: "dingtalk_provider_state_write_failed",
-        provider,
+        preserveState: true,
       }
     }
     return readback
@@ -684,21 +1059,42 @@ export async function reconcileDingTalkApplication(
   if (!onCreateAttempt || !onProviderIdentified) {
     return { status: "failed", code: "dingtalk_provider_fence_unavailable" }
   }
+  const beforeCreate = await revalidateDingTalkProviderSession(
+    session,
+    signal,
+    beforeBoundary,
+    commandTimeoutMs,
+  )
+  if (!beforeCreate.ok) {
+    return providerScopeFailure(beforeCreate.code, false)
+  }
   const operation: DeployProviderOperation = {
     kind: "dingtalk-app-create",
     operationId: randomBytes(16).toString("hex"),
     name,
     attemptedAt: new Date().toISOString(),
+    scope: session.scope,
   }
   try {
     await onCreateAttempt(operation)
-    await beforeBoundary?.()
   } catch {
-    return { status: "failed", code: "dingtalk_provider_fence_write_failed" }
+    return {
+      status: "indeterminate",
+      code: "dingtalk_provider_fence_write_failed",
+      preserveState: true,
+    }
+  }
+  const afterFence = await revalidateDingTalkProviderSession(
+    session,
+    signal,
+    beforeBoundary,
+    commandTimeoutMs,
+  )
+  if (!afterFence.ok) {
+    return providerScopeFailure(afterFence.code, true)
   }
   const created = await runDwsJson(
-    [
-      "devapp",
+    scopedDevappArgs(session, [
       "+create",
       "--name",
       name,
@@ -707,20 +1103,31 @@ export async function reconcileDingTalkApplication(
       "--format",
       "json",
       "--yes",
-    ],
+    ]),
+    session.environment,
     signal,
     beforeBoundary,
     commandTimeoutMs,
     true,
   )
+  const durableCreateFailure = async (
+    code = "dingtalk_provider_create_indeterminate",
+  ): Promise<DingTalkProviderResult> => {
+    const revalidated = await revalidateDingTalkProviderSession(
+      session,
+      signal,
+      beforeBoundary,
+      commandTimeoutMs,
+    )
+    return revalidated.ok
+      ? { status: "indeterminate", code }
+      : providerScopeFailure(revalidated.code, true)
+  }
   let resourceId: string | undefined
   if (created.ok) {
     resourceId = createdAppId(created.value)
     if (!resourceId) {
-      return {
-        status: "indeterminate",
-        code: "dingtalk_provider_create_indeterminate",
-      }
+      return durableCreateFailure()
     }
   } else {
     const normalized = created.explicitProviderCode?.toLowerCase()
@@ -729,30 +1136,31 @@ export async function reconcileDingTalkApplication(
       // result cannot prove that the remote side performed no write, even
       // when it contains a well-formed machine code. Keep the durable
       // operation fence and make every replay reconcile-only.
-      return {
-        status: "indeterminate",
-        code: created.explicitProviderCode
+      return durableCreateFailure(
+        created.explicitProviderCode
           ? created.code
           : "dingtalk_provider_create_indeterminate",
-      }
+      )
     }
-    found = await findExactApp(name, signal, beforeBoundary, commandTimeoutMs)
-    if (found.status === "failed") {
-      return {
-        status: "indeterminate",
-        code: "dingtalk_provider_create_indeterminate",
-      }
-    }
+    found = await findExactApp(
+      session,
+      name,
+      signal,
+      beforeBoundary,
+      commandTimeoutMs,
+    )
     if (found.status !== "one") {
-      return {
-        status: "indeterminate",
-        code: "dingtalk_provider_create_indeterminate",
-      }
+      return durableCreateFailure()
     }
     resourceId = found.app.unifiedAppId
   }
-  const provider = { kind: "dingtalk-app" as const, resourceId }
+  const provider = {
+    kind: "dingtalk-app" as const,
+    resourceId,
+    scope: session.scope,
+  }
   const readback = await readbackApp(
+    session,
     resourceId,
     name,
     signal,
@@ -760,10 +1168,16 @@ export async function reconcileDingTalkApplication(
     commandTimeoutMs,
   )
   if (readback.status !== "verified") {
-    return {
-      status: "indeterminate",
-      code: "dingtalk_provider_create_indeterminate",
-    }
+    return durableCreateFailure()
+  }
+  const beforePersist = await revalidateDingTalkProviderSession(
+    session,
+    signal,
+    beforeBoundary,
+    commandTimeoutMs,
+  )
+  if (!beforePersist.ok) {
+    return providerScopeFailure(beforePersist.code, true)
   }
   try {
     await onProviderIdentified(provider)
@@ -771,7 +1185,7 @@ export async function reconcileDingTalkApplication(
     return {
       status: "indeterminate",
       code: "dingtalk_provider_state_write_failed",
-      provider,
+      preserveState: true,
     }
   }
   return readback

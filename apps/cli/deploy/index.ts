@@ -577,7 +577,6 @@ async function deployImpl(options: DeployOptions = {}): Promise<void> {
     failCode("deploy.error_engine_unavailable", preflightFailure)
     return
   }
-
   let locale: SupportedLocale
   if (options.locale) {
     locale = options.locale
@@ -597,6 +596,16 @@ async function deployImpl(options: DeployOptions = {}): Promise<void> {
     failCode("deploy.error_incompatible_options", "port_requires_http_channel")
     return
   }
+  const httpToken = process.env.DIGITAL_EMPLOYEE_HTTP_TOKEN?.trim()
+  if (
+    channel === "http" &&
+    (!httpToken ||
+      httpToken.length > 8_192 ||
+      /[\u0000-\u001f\u007f]/.test(httpToken))
+  ) {
+    failCode("deploy.error_aborted", "http_token_required")
+    return
+  }
   const botName = options.name?.trim() || (
     options.yes
       ? t("deploy.name_default")
@@ -604,7 +613,7 @@ async function deployImpl(options: DeployOptions = {}): Promise<void> {
   )
   const port = validPort(options.port ?? "3000")!
   const secretReferences: NonNullable<DeployConfig["secretReferences"]> = {}
-  if (channel === "http" && process.env.DIGITAL_EMPLOYEE_HTTP_TOKEN?.trim()) {
+  if (channel === "http") {
     secretReferences.httpTokenEnv = "DIGITAL_EMPLOYEE_HTTP_TOKEN"
   }
   const candidate: DeployConfig = {
@@ -874,8 +883,10 @@ async function deployImpl(options: DeployOptions = {}): Promise<void> {
       return
     }
     writeBinding(binding, runtime)
-    const deterministicUnsupported = channel === "lark" || channel === "wecom"
-    if (!deterministicUnsupported) {
+    const writesInitialState = channel !== "lark" &&
+      channel !== "wecom" &&
+      channel !== "dingtalk"
+    if (writesInitialState) {
       try {
         stateGeneration = await saveConfig(candidate, {
           expected: stateGeneration,
@@ -945,6 +956,17 @@ async function deployImpl(options: DeployOptions = {}): Promise<void> {
         code: "deploy_orchestration_failed",
         guidance: t("deploy.error_orchestration"),
       }
+    }
+
+    if (result.preserveState) {
+      try {
+        const preserved = await loadExactConfigGeneration(stateGeneration, lock)
+        renderOutcome(preserved.config, result)
+        setOutcomeExitCode(result.outcome)
+      } catch {
+        failCode("deploy.error_state_load", "deploy_config_generation_changed")
+      }
+      return
     }
 
     if (controller.signal.aborted) {

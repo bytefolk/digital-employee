@@ -19,7 +19,10 @@
     "access": "public"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "prepack": "npm --prefix ../.. run build"

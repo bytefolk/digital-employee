@@ -56,6 +56,13 @@ export interface RunEmployeePackageOptions {
   expectedPackageDigest?: string
   deadline?: string
   signal?: AbortSignal
+  /**
+   * Keep the caller's lifecycle open until an aborted Host preflight settles.
+   * Managed HTTP uses this barrier so an uncancellable version probe cannot
+   * escape its admission and shutdown accounting. Lease-driven runners leave
+   * it disabled so an untrusted custom adapter cannot block local settlement.
+   */
+  waitForPreflightCleanupOnAbort?: boolean
   onEvent?: (event: AgentHostEvent) => void | Promise<void>
 }
 
@@ -442,9 +449,11 @@ export async function runEmployeePackage(
     return failed(identity, "agent_host_cancelled", true)
   }
   let preflightResult: AbortableResult<AgentHostProbeResult>
+  let preflightOperation: Promise<AgentHostProbeResult>
   try {
+    preflightOperation = adapter.preflight(request)
     preflightResult = await settleAbortably(
-      adapter.preflight(request),
+      preflightOperation,
       options.signal,
     )
   } catch {
@@ -452,6 +461,14 @@ export async function runEmployeePackage(
   }
   if (preflightResult.status === "aborted") {
     await cancelAdapterSafely(adapter, runId)
+    if (options.waitForPreflightCleanupOnAbort) {
+      try {
+        await preflightOperation
+      } catch {
+        // The cancelled result is already fail-closed. Waiting here is only a
+        // lifecycle barrier for the owner of the admission slot.
+      }
+    }
     return failed(identity, "agent_host_cancelled", true)
   }
   if (preflightResult.status === "rejected") {
@@ -516,7 +533,10 @@ export async function runEmployeePackage(
       if (next.kind === "aborted") {
         await cancelAdapterSafely(adapter, runId)
         try {
-          void Promise.resolve(iterator.return?.()).catch(() => undefined)
+          // Await the generator's finally block: built-in adapters reap their
+          // process group and remove credential-bearing run roots there. The
+          // request must remain active until that cleanup has completed.
+          await iterator.return?.()
         } catch {
           // The cancelled result is already fail-closed.
         }
@@ -547,7 +567,7 @@ export async function runEmployeePackage(
       if (publication.status === "aborted") {
         await cancelAdapterSafely(adapter, runId)
         try {
-          void Promise.resolve(iterator.return?.()).catch(() => undefined)
+          await iterator.return?.()
         } catch {
           // The cancelled result is already fail-closed.
         }

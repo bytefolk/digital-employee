@@ -720,11 +720,11 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
       ((directory) => rm(directory, { recursive: true, force: true }))
   }
 
-  async probe(): Promise<AgentHostProbeResult> {
+  async probe(signal?: AbortSignal): Promise<AgentHostProbeResult> {
     const result = await this.versionExecutor(this.command, [
       ...this.commandPrefixArgs,
       "--version",
-    ])
+    ], { signal })
     const issues: AgentHostIssue[] = []
     const available = result.status === "installed"
     let status: AgentHostProbeResult["status"] = result.status
@@ -818,7 +818,7 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
       }
     }
 
-    const probe = await this.probe()
+    const probe = await this.probe(request.signal)
     const issues = [...probe.issues]
     try {
       validateRequestShape(request)

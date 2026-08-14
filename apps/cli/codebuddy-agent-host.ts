@@ -1229,11 +1229,14 @@ export class CodeBuddyAgentHostAdapter implements AgentHostAdapter {
       ((directory) => rm(directory, { recursive: true, force: true }))
   }
 
-  private async probeCommand(command: string): Promise<AgentHostProbeResult> {
+  private async probeCommand(
+    command: string,
+    signal?: AbortSignal,
+  ): Promise<AgentHostProbeResult> {
     const result = await this.versionExecutor(command, [
       ...this.commandPrefixArgs,
       "--version",
-    ])
+    ], { signal })
     const issues: AgentHostIssue[] = []
     const available = result.status === "installed"
     let status: AgentHostProbeResult["status"] = result.status
@@ -1295,13 +1298,13 @@ export class CodeBuddyAgentHostAdapter implements AgentHostAdapter {
     }
   }
 
-  async probe(): Promise<AgentHostProbeResult> {
+  async probe(signal?: AbortSignal): Promise<AgentHostProbeResult> {
     const executable = await inspectExecutable(this.command, this.environment)
-    return this.probeCommand(executable?.path ?? this.command)
+    return this.probeCommand(executable?.path ?? this.command, signal)
   }
 
   async preflight(request: AgentHostRunRequest): Promise<AgentHostProbeResult> {
-    const probe = await this.probe()
+    const probe = await this.probe(request.signal)
     const issues = [...probe.issues]
     try {
       await prepareRun(request)
@@ -1365,7 +1368,7 @@ export class CodeBuddyAgentHostAdapter implements AgentHostAdapter {
         this.environment,
       )
       const spawnCommand = executableBefore?.path ?? this.command
-      const probe = await this.probeCommand(spawnCommand)
+      const probe = await this.probeCommand(spawnCommand, request.signal)
       const afterProbeError = stoppedRunError(active)
       if (afterProbeError) throw afterProbeError
       const blockingProbeIssue = probe.issues.find((entry) => entry.blocking)

@@ -1,0 +1,6 @@
+Digital Employee
+Copyright 2026 fullstack-ai-infra contributors
+
+This product includes optional integration with dingtalk-stream, distributed
+under the MIT License. The dependency is loaded only when the DingTalk channel
+is enabled.

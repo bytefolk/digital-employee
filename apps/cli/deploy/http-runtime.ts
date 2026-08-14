@@ -3,9 +3,16 @@
 import path from "node:path"
 import { closeSync, fstatSync, lstatSync, readSync } from "node:fs"
 
-import { createSealedEmployeePackageSnapshot } from "../employee-package.js"
+import {
+  createSealedEmployeePackageSnapshot,
+  inspectEmployeePackage,
+} from "../employee-package.js"
 import { runEmployeePackage } from "../agent-run.js"
-import { createHttpServer } from "../../server/server.js"
+import {
+  acceptsHttpMessageInputSchema,
+  completedHttpAnswer,
+  createHttpServer,
+} from "../../server/server.js"
 import { loadConfigSnapshotFromPath } from "./config.js"
 import type { DeployConfig } from "./config.js"
 
@@ -30,6 +37,8 @@ interface RuntimeArguments {
 }
 
 const ACTIVATION_LEASE_FD = 4
+const HTTP_RUNTIME_SHUTDOWN_TIMEOUT_MS = 15_000
+const HTTP_RUNTIME_SNAPSHOT_CLEANUP_TIMEOUT_MS = 5_000
 
 function readActivationLeaseRecord(size: number): Record<string, unknown> {
   if (!Number.isSafeInteger(size) || size < 2 || size > 4_096) {
@@ -165,13 +174,6 @@ function requiredRuntimeArguments(argv: string[]): RuntimeArguments {
     healthPath,
     ...requiredActivationLease(statePath),
   }
-}
-
-function safeCompletedOutput(output: unknown): Record<string, unknown> {
-  if (output && typeof output === "object" && !Array.isArray(output)) {
-    return { status: "answered", ...(output as Record<string, unknown>) }
-  }
-  return { status: "answered", output }
 }
 
 function tupleMatches(
@@ -345,7 +347,8 @@ async function activatedConfig(
     config.process?.pid !== process.pid ||
     config.process.launchId !== expected.launchId ||
     config.process.activationFence !== expected.activationFence ||
-    config.process.activationState !== activationState
+    config.process.activationState !== activationState ||
+    config.secretReferences?.httpTokenEnv !== "DIGITAL_EMPLOYEE_HTTP_TOKEN"
   ) {
     throw new TypeError("deploy_http_runtime_activation_state_invalid")
   }
@@ -391,10 +394,72 @@ export async function runHttpDeploymentRuntime(
   runtimeArguments: RuntimeArguments,
 ): Promise<void> {
   let parentLost = false
+  let acceptsRequests = false
+  let server: ReturnType<typeof createHttpServer> | undefined
+  let packageSnapshot: Awaited<
+    ReturnType<typeof createSealedEmployeePackageSnapshot>
+  > | undefined
+  let packageSnapshotPromise: Promise<
+    Awaited<ReturnType<typeof createSealedEmployeePackageSnapshot>>
+  > | undefined
+  let snapshotCleanup: Promise<boolean> | undefined
+  let stopping: Promise<boolean> | undefined
+
+  const cleanupSnapshot = async (): Promise<boolean> => {
+    snapshotCleanup ??= (async () => {
+      try {
+        const snapshot = packageSnapshot ?? await packageSnapshotPromise
+        if (!snapshot) return true
+        await snapshot.cleanup()
+        return true
+      } catch {
+        return false
+      }
+    })()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await Promise.race([
+        snapshotCleanup,
+        new Promise<boolean>((resolve) => {
+          timer = setTimeout(
+            () => resolve(false),
+            HTTP_RUNTIME_SNAPSHOT_CLEANUP_TIMEOUT_MS,
+          )
+        }),
+      ])
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
+  const stopRuntime = (): Promise<boolean> => {
+    stopping ??= (async () => {
+      acceptsRequests = false
+      const serverClean = server
+        ? await server.shutdown({
+            timeoutMs: HTTP_RUNTIME_SHUTDOWN_TIMEOUT_MS,
+          }).catch(() => false)
+        : true
+      const snapshotClean = await cleanupSnapshot()
+      return serverClean && snapshotClean
+    })()
+    return stopping
+  }
+  const stop = () => {
+    parentLost = true
+    if (process.connected) process.disconnect?.()
+    void stopRuntime().then(
+      (clean) => process.exit(clean ? 0 : 1),
+      () => process.exit(1),
+    )
+  }
   const onParentLost = () => {
     parentLost = true
   }
   process.once("disconnect", onParentLost)
+  // These handlers precede snapshot creation. If a signal lands while the
+  // copy is in progress, stopRuntime waits for that promise and removes it.
+  process.once("SIGINT", stop)
+  process.once("SIGTERM", stop)
   const activationDeadline = setTimeout(() => {
     parentLost = true
     if (process.connected) process.disconnect?.()
@@ -409,39 +474,44 @@ export async function runHttpDeploymentRuntime(
   }
   await activatedConfig(runtimeArguments, stateDigest, "authorized")
   assertActivationLease(runtimeArguments)
-  const packageSnapshot = await createSealedEmployeePackageSnapshot(
+  const tokenReference = config.secretReferences?.httpTokenEnv
+  const httpToken = tokenReference === "DIGITAL_EMPLOYEE_HTTP_TOKEN"
+    ? process.env[tokenReference]?.trim()
+    : undefined
+  if (
+    !httpToken ||
+    httpToken.length > 8_192 ||
+    /[\u0000-\u001f\u007f]/.test(httpToken)
+  ) {
+    throw new TypeError("deploy_http_runtime_token_required")
+  }
+  packageSnapshotPromise = createSealedEmployeePackageSnapshot(
     config.package!.localReference,
   )
+  packageSnapshot = await packageSnapshotPromise
+  if (parentLost || !process.connected) {
+    await stopRuntime()
+    throw new TypeError("deploy_http_runtime_activation_parent_lost")
+  }
   if (
     packageSnapshot.digest !== config.package!.digest ||
     packageSnapshot.manifest.name !== config.package!.name ||
     packageSnapshot.manifest.version !== config.package!.version
   ) {
-    await packageSnapshot.cleanup()
+    await cleanupSnapshot()
     throw new TypeError("deploy_http_runtime_package_digest_mismatch")
   }
-  let acceptsRequests = false
-  let server: ReturnType<typeof createHttpServer> | undefined
-  let stopping = false
-  const stop = () => {
-    if (stopping) return
-    stopping = true
-    acceptsRequests = false
-    const finish = () => {
-      packageSnapshot.cleanup().then(
-        () => process.exit(0),
-        () => process.exit(1),
-      )
-    }
-    if (!server) {
-      finish()
-      return
-    }
-    server.closeAllConnections()
-    server.close(finish)
+  let packageInspection: Awaited<ReturnType<typeof inspectEmployeePackage>>
+  try {
+    packageInspection = await inspectEmployeePackage(packageSnapshot.directory)
+  } catch (error) {
+    await cleanupSnapshot()
+    throw error
   }
-  process.once("SIGINT", stop)
-  process.once("SIGTERM", stop)
+  if (!acceptsHttpMessageInputSchema(packageInspection.artifacts.inputSchema)) {
+    await cleanupSnapshot()
+    throw new TypeError("deploy_http_runtime_message_input_incompatible")
+  }
   try {
     assertActivationLease(runtimeArguments)
     if (parentLost || !process.connected) {
@@ -463,7 +533,7 @@ export async function runHttpDeploymentRuntime(
       throw new TypeError("deploy_http_runtime_activation_parent_lost")
     }
   } catch (error) {
-    await packageSnapshot.cleanup()
+    await cleanupSnapshot()
     throw error
   }
 
@@ -477,12 +547,11 @@ export async function runHttpDeploymentRuntime(
   let activationLeaseClosed = false
   try {
     server = createHttpServer({
-    token: config.secretReferences?.httpTokenEnv
-      ? process.env[config.secretReferences.httpTokenEnv]
-      : undefined,
+    token: httpToken,
+    requireToken: true,
     employee: {
       async answer(input) {
-        if (!acceptsRequests) {
+        if (!acceptsRequests || input.signal.aborted) {
           return {
             status: "rejected",
             error: {
@@ -497,6 +566,8 @@ export async function runHttpDeploymentRuntime(
             engine: config.engine!,
             input: { message: input.message },
             expectedPackageDigest: config.package!.digest,
+            signal: input.signal,
+            waitForPreflightCleanupOnAbort: true,
           })
           if (result.status === "failed") {
             return {
@@ -507,7 +578,7 @@ export async function runHttpDeploymentRuntime(
               },
             }
           }
-          return safeCompletedOutput(result.output)
+          return completedHttpAnswer(result.output)
         } catch {
           return {
             status: "rejected",
@@ -522,6 +593,7 @@ export async function runHttpDeploymentRuntime(
     health: () => ({
       schemaVersion: "deploy-readiness.v1",
       status: "ok",
+      inputContract: "message.v1",
       pid: process.pid,
       launchId: runtimeArguments.launchId,
       activationFence: runtimeArguments.activationFence,
@@ -532,10 +604,11 @@ export async function runHttpDeploymentRuntime(
         healthPath: endpoint.healthPath,
       },
       package: binding,
+      workload: server?.workload(),
     }),
     })
   } catch (error) {
-    await packageSnapshot.cleanup()
+    await cleanupSnapshot()
     throw error
   }
 
@@ -620,17 +693,7 @@ export async function runHttpDeploymentRuntime(
     }
     if (process.connected) process.disconnect?.()
   } catch (error) {
-    await Promise.race([
-      new Promise<void>((resolve) => {
-        server.close(() => resolve())
-        server.closeAllConnections()
-      }),
-      new Promise<void>((resolve) => {
-        const timer = setTimeout(resolve, 1_000)
-        timer.unref()
-      }),
-    ])
-    await packageSnapshot.cleanup()
+    await stopRuntime()
     throw error
   }
 

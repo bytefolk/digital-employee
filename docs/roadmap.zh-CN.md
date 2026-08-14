@@ -11,7 +11,7 @@ Issue label 和 milestone 是当前状态的事实来源；本文定义顺序、
 
 | 领域 | 当前源码中的证据 | 成熟度与剩余边界 |
 | --- | --- | --- |
-| Agent-native 开发 | 宿主中立的 `init`、理解员工包的 `validate`、有上限的 `doctor` | 源码中已 **shipped**；中立 recipe 和可执行 eval 属于 M0 |
+| Agent-native 开发 | 宿主中立的 `init`、理解员工包的 `validate`、有上限的 `doctor`、`minimal-answer.v1` 与 `structured-action.v1` recipe，以及可执行的离线契约 eval | 当前源码与 `0.3.0` root 制品中已 **shipped**；fixture eval 不代表真实模型权益已验证 |
 | 本机 Agent Host 执行 | 对 Qoder CLI、Claude Code、Qwen Code、CodeBuddy Code 提供版本锁定的 one-shot 路径 | **preview** 且 **fixture-conformant**；尚未证明真实模型权益 |
 | Codex | 发现与 readiness 诊断 | **probe-only**；不是可运行 Adapter |
 | Runner 内核 | 单任务的包摘要与密封快照、签名任务/租约校验、replay 端口、hash-chain 事件和签名回执 | 可嵌入的 **preview** 内核；未交付长期 Runner 或公开网络 SDK |
@@ -102,8 +102,12 @@ flowchart LR
 真正执行；失败可定位并 fail closed；支持声明使用策略中的证据词汇；发布制品经过独立
 验证。
 
-**已知阻塞：**#26 当前调用 `npm --prefix packages/core pack --dry-run`，实际错误地验证
-根包，而不是 core 包。只有正确打包并独立检查目标制品后，发布门槛才能关闭。
+**发布证据：**历史上的 core 包 dry-run 缺陷已不存在。发布工作流会分别实际打包 root
+与 `./packages/core` 目标，独立校验每个归档的身份、内容和摘要，并执行干净消费者检查；
+root 与独立 core 的 `0.3.0` 制品均已公开。Issue label 和 milestone 仍是当前状态的事实
+来源；这些证据本身不宣称任何 Issue 已关闭。
+当前 push 与 repair 发布会执行完整的干净安装消费者链路；历史制品的
+asset-backfill 则有意使用对应 tag 自带的校验，并只做 import 兼容性验证。
 
 ## M1 — Seller Runner Ready
 
@@ -174,7 +178,8 @@ Quote/Credit 计算保持分离；写能力默认拒绝并满足 #12。
 
 ## 阻塞与决策点
 
-- #26 被上文 core 包 dry-run 缺陷阻塞。
+- #26 历史上的 core 包 dry-run 缺陷已在发布工作流中解决；#26 当前状态仍以其 Issue
+  label 和 milestone 为准。
 - #29、#27、#28 未验收前，#35 不能关闭；并行代码不能豁免这些契约。随后由 #37
   证明组合链路。
 - #39 等待 #31；随后 #14 消费稳定的员工包兼容契约。

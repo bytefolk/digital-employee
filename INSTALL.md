@@ -27,12 +27,15 @@ npm install @fullstack-ai-infra/digital-employee
 
 # 2. Run setup — this verifies environment, probes hosts, scaffolds an employee
 npx digital-employee setup --json
+
+# 3. Continue inside the scaffolded package
+cd my-employee
 ```
 
 The `setup` command:
 1. Verifies Node.js >= 20.
 2. Probes for installed Agent Hosts (Qoder CLI, Claude Code, Qwen Code, CodeBuddy).
-3. Scaffolds a minimal employee package in the working directory if none exists.
+3. Scaffolds a minimal employee package in `./my-employee` if none exists.
 4. Reports structured status (JSON with `--json` flag).
 
 No personal CLI login, credential, or environment variable is required for setup.

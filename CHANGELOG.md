@@ -35,6 +35,8 @@ All notable changes to this project will be documented in this file.
   pagination metadata, so real DingTalk integration remains on external HOLD.
 - Hardened deploy so DingTalk resources cannot be orphaned by implicit
   rebinding, provider create errors retain their durable reconciliation fence,
+  provider identities and fences are tenant/auth-scope bound without persisting
+  raw identity or credential data,
   HTTP runtimes receive only the selected engine credentials, and requests run
   from a private digest-bound package snapshot.
 - Added bounded interactive input and clean installed-tarball deploy gates,

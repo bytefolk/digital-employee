@@ -57,9 +57,15 @@ export interface DeployProcessState {
   activationState: "prepared" | "authorized"
 }
 
+export interface DeployProviderScope {
+  kind: "dingtalk-provider-scope.v1"
+  digest: `sha256:${string}`
+}
+
 export interface DeployProviderState {
   kind: "dingtalk-app"
   resourceId: string
+  scope: DeployProviderScope
 }
 
 export interface DeployProviderOperation {
@@ -67,6 +73,7 @@ export interface DeployProviderOperation {
   operationId: string
   name: string
   attemptedAt: string
+  scope: DeployProviderScope
 }
 
 export interface DeployConfig {
@@ -172,10 +179,39 @@ function strictOptionalString(
 function strictIsoDate(value: unknown, label: string): string | undefined {
   const result = strictOptionalString(value, label, 64)
   if (!result) return undefined
-  if (Number.isNaN(Date.parse(result))) {
+  const timestamp = Date.parse(result)
+  if (
+    Number.isNaN(timestamp) ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(result) ||
+    new Date(timestamp).toISOString() !== result
+  ) {
     invalidConfig(`deploy_config_invalid_field:${label}`)
   }
   return result
+}
+
+function sanitizeProviderScope(
+  value: unknown,
+  label: string,
+): DeployProviderScope {
+  if (value === undefined) {
+    invalidConfig("deploy_config_provider_scope_missing")
+  }
+  if (!isPlainObject(value)) {
+    invalidConfig(`deploy_config_invalid_field:${label}`)
+  }
+  assertKnownConfigKeys(value, ["kind", "digest"], label)
+  const digest = strictOptionalString(value.digest, `${label}.digest`, 71)
+  if (
+    value.kind !== "dingtalk-provider-scope.v1" ||
+    !digest?.match(/^sha256:[a-f0-9]{64}$/)
+  ) {
+    invalidConfig(`deploy_config_invalid_field:${label}`)
+  }
+  return {
+    kind: "dingtalk-provider-scope.v1",
+    digest: digest as `sha256:${string}`,
+  }
 }
 
 /** Validates every persisted byte; unknown or malformed fields fail closed. */
@@ -341,7 +377,11 @@ function sanitizeConfig(value: unknown): DeployConfig {
     if (!isPlainObject(value.provider)) {
       invalidConfig("deploy_config_invalid_field:provider")
     }
-    assertKnownConfigKeys(value.provider, ["kind", "resourceId"], "provider")
+    assertKnownConfigKeys(
+      value.provider,
+      ["kind", "resourceId", "scope"],
+      "provider",
+    )
     const resourceId = strictOptionalString(
       value.provider.resourceId,
       "provider.resourceId",
@@ -354,7 +394,11 @@ function sanitizeConfig(value: unknown): DeployConfig {
     ) {
       invalidConfig("deploy_config_invalid_field:provider")
     }
-    result.provider = { kind: "dingtalk-app", resourceId }
+    result.provider = {
+      kind: "dingtalk-app",
+      resourceId,
+      scope: sanitizeProviderScope(value.provider.scope, "provider.scope"),
+    }
   }
   if (value.providerOperation !== undefined) {
     if (!isPlainObject(value.providerOperation)) {
@@ -362,7 +406,7 @@ function sanitizeConfig(value: unknown): DeployConfig {
     }
     assertKnownConfigKeys(
       value.providerOperation,
-      ["kind", "operationId", "name", "attemptedAt"],
+      ["kind", "operationId", "name", "attemptedAt", "scope"],
       "providerOperation",
     )
     const operationId = strictOptionalString(
@@ -392,6 +436,10 @@ function sanitizeConfig(value: unknown): DeployConfig {
       operationId,
       name,
       attemptedAt,
+      scope: sanitizeProviderScope(
+        value.providerOperation.scope,
+        "providerOperation.scope",
+      ),
     }
   }
   if (value.secretReferences !== undefined) {

@@ -4,6 +4,7 @@
  */
 
 import { createInterface } from "node:readline"
+import { StringDecoder } from "node:string_decoder"
 
 const queuedAnswers: string[] = []
 const MAX_PROMPT_INPUT_BYTES = 64 * 1024
@@ -18,6 +19,7 @@ let inputListening = false
 let inputEnded = false
 let inputBytes = 0
 let inputFailure: Error | undefined
+let inputDecoder = new StringDecoder("utf8")
 
 function drainAnswers(): void {
   while (queuedAnswers.length > 0 && answerWaiters.length > 0) {
@@ -32,7 +34,7 @@ function collectInput(chunk: Buffer | string): void {
     failPromptInput(new TypeError("deploy_prompt_input_limit_exceeded"))
     return
   }
-  inputRemainder += buffer.toString("utf8")
+  inputRemainder += inputDecoder.write(buffer)
   const lines = inputRemainder.split(/\r?\n/)
   inputRemainder = lines.pop() ?? ""
   if (
@@ -55,11 +57,14 @@ function failPromptInput(error: Error): void {
   inputListening = false
   inputEnded = true
   inputRemainder = ""
+  inputDecoder = new StringDecoder("utf8")
   queuedAnswers.length = 0
   while (answerWaiters.length > 0) answerWaiters.shift()!.reject(inputFailure)
 }
 
 function finishInput(): void {
+  inputRemainder += inputDecoder.end()
+  inputDecoder = new StringDecoder("utf8")
   if (inputRemainder) {
     if (
       Buffer.byteLength(inputRemainder) > MAX_PROMPT_ANSWER_BYTES ||
@@ -71,6 +76,7 @@ function finishInput(): void {
     queuedAnswers.push(inputRemainder)
   }
   inputRemainder = ""
+  inputDecoder = new StringDecoder("utf8")
   inputEnded = true
   drainAnswers()
   while (answerWaiters.length > 0) {
@@ -97,6 +103,7 @@ export function closePromptInput(
   inputFailure = undefined
   inputEnded = process.stdin.readableEnded
   inputRemainder = ""
+  inputDecoder = new StringDecoder("utf8")
   queuedAnswers.length = 0
   while (answerWaiters.length > 0) {
     answerWaiters.shift()!.reject(new TypeError(errorCode))

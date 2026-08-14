@@ -198,7 +198,7 @@ jobs:
       contents: write
     steps:
       - name: Download verified npm packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ needs.verify.outputs.artifact }}
           path: ${{ runner.temp }}/release-pack
@@ -310,7 +310,7 @@ jobs:
           printf 'registry=https://registry.npmjs.org/\nprovenance=true\n' > "$oidc_npmrc"
           echo "NPM_CONFIG_USERCONFIG=$oidc_npmrc" >> "$GITHUB_ENV"
       - name: Download verified npm packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ needs.verify.outputs.artifact }}
           path: ${{ runner.temp }}/release-pack
@@ -390,7 +390,7 @@ jobs:
           printf 'registry=https://registry.npmjs.org/\nprovenance=true\n' > "$oidc_npmrc"
           echo "NPM_CONFIG_USERCONFIG=$oidc_npmrc" >> "$GITHUB_ENV"
       - name: Download verified npm packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ needs.verify.outputs.artifact }}
           path: ${{ runner.temp }}/release-pack

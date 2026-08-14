@@ -2,6 +2,11 @@ name: CI
 
 on:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
   push:
     branches:
       - main
@@ -20,12 +25,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
           package-manager-cache: false
       - run: npm ci
       - run: npm run check
+      - name: Validate actual pull request requirement trace
+        if: github.event_name == 'pull_request' && matrix.node-version == 22
+        run: npm run governance:check -- --github-event-file "$GITHUB_EVENT_PATH"
       - run: npm audit --omit=dev --audit-level=high
 
   coverage:

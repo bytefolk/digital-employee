@@ -81,7 +81,7 @@
     "dingtalk-stream": "2.1.5"
   },
   "devDependencies": {
-    "@types/node": "26.1.2",
+    "@types/node": "26.2.0",
     "tsx": "4.20.6",
     "typescript": "7.0.2"
   }

@@ -14,6 +14,16 @@ import {
 import type { AgentHostStdioRequest } from "../../packages/core/src/agent-host-stdio.js"
 import { CoreError } from "../../packages/core/src/contracts.js"
 import {
+  ADAPTER_QUALIFICATION_DRIVER_SCHEMA_ID,
+  QUALIFICATION_FILESYSTEM_DENIAL_CODE,
+  QUALIFICATION_MCP_DENIAL_CODE,
+  QUALIFICATION_NETWORK_DENIAL_CODE,
+} from "../../packages/core/src/adapter-qualification.js"
+import type {
+  QualificationDriverOperation,
+  QualificationProcessTreeScenario,
+} from "../../packages/core/src/adapter-qualification.js"
+import {
   MCP_CONFORMANCE_CODES,
   SYNTHETIC_DOC_SERVER,
   SYNTHETIC_MEM_SERVER,
@@ -117,6 +127,80 @@ interface SyntheticRunPayload {
   metadata?: Record<string, unknown>
   policy?: { tools?: { allow?: Array<{ name: string; mode: string }> } }
   workingDirectory?: string
+}
+
+function qualificationOperation(
+  payload: { metadata?: Record<string, unknown> },
+): QualificationDriverOperation | undefined {
+  if (!envFlag("REFERENCE_STDIO_QUALIFICATION_MODE")) return undefined
+  const driver = payload.metadata?.adapterQualification
+  if (!driver || typeof driver !== "object" || Array.isArray(driver)) {
+    return undefined
+  }
+  const driverRecord = driver as Record<string, unknown>
+  if (
+    Object.keys(driverRecord).some(
+      (key) => key !== "schema" && key !== "operation",
+    ) ||
+    driverRecord.schema !== ADAPTER_QUALIFICATION_DRIVER_SCHEMA_ID ||
+    !driverRecord.operation ||
+    typeof driverRecord.operation !== "object" ||
+    Array.isArray(driverRecord.operation)
+  ) {
+    return undefined
+  }
+  const operation = driverRecord.operation as Record<string, unknown>
+  if (
+    operation.kind === "filesystem.write" &&
+    operation.path === "../qualification-denied/outside-scope" &&
+    Object.keys(operation).length === 2
+  ) {
+    return {
+      kind: "filesystem.write",
+      path: "../qualification-denied/outside-scope",
+    }
+  }
+  if (
+    operation.kind === "network.connect" &&
+    operation.url === "https://qualification.invalid/" &&
+    Object.keys(operation).length === 2
+  ) {
+    return {
+      kind: "network.connect",
+      url: "https://qualification.invalid/",
+    }
+  }
+  if (
+    operation.kind === "mcp.invoke" &&
+    operation.server === "qualification-denied" &&
+    operation.tool === "qualification.noop" &&
+    Object.keys(operation).length === 3
+  ) {
+    return {
+      kind: "mcp.invoke",
+      server: "qualification-denied",
+      tool: "qualification.noop",
+    }
+  }
+  if (
+    operation.kind === "lifecycle.wait_for_cancel" &&
+    Object.keys(operation).length === 1
+  ) {
+    return { kind: "lifecycle.wait_for_cancel" }
+  }
+  if (
+    operation.kind === "process_tree" &&
+    (operation.scenario === "normal" ||
+      operation.scenario === "timeout" ||
+      operation.scenario === "cancel") &&
+    Object.keys(operation).length === 2
+  ) {
+    return {
+      kind: "process_tree",
+      scenario: operation.scenario,
+    }
+  }
+  return undefined
 }
 
 function loadJsonFile(path: string | undefined): unknown {
@@ -227,20 +311,79 @@ export function serveReferenceStdioHost(): void {
   const lineReader = readline.createInterface({ input: process.stdin })
   let cancelledRunId: string | null = null
   let activeRun: { id: string; runId: string } | null = null
+  let descendantsReady: Promise<void> | undefined
+  const qualificationTrees = new Set<ReturnType<typeof spawn>>()
 
-  if (envFlag("REFERENCE_STDIO_SPAWN_CHILD")) {
-    // Same process group, unref'd and detached from stdio: it survives the
-    // host's own exit, so only a real process-tree cleanup can stop it.
-    const leaked = spawn(
+  const spawnQualificationTree = (
+    scenario: QualificationProcessTreeScenario,
+  ): void => {
+    const child = spawn(
       process.execPath,
-      ["-e", "setInterval(() => {}, 1000)"],
-      { stdio: "ignore" },
+      [
+        "-e",
+        [
+          'const { spawn } = require("node:child_process")',
+          'const grandchild = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" })',
+          'process.stdout.write(String(grandchild.pid) + "\\n")',
+          "setInterval(() => {}, 1000)",
+        ].join(";"),
+      ],
+      { stdio: ["ignore", "pipe", "ignore"] },
     )
-    leaked.unref()
-    diagnostics(`spawned child pid ${leaked.pid ?? 0}`)
+    qualificationTrees.add(child)
+    child.once("exit", () => qualificationTrees.delete(child))
+    child.once("error", () => {
+      diagnostics(
+        `qualification process_tree ${scenario} child pid ${child.pid ?? 0} grandchild pid 0`,
+      )
+    })
+    child.stdout?.once("data", (chunk: Buffer) => {
+      diagnostics(
+        `qualification process_tree ${scenario} child pid ${child.pid ?? 0} grandchild pid ${Number(chunk.toString("utf8").trim())}`,
+      )
+    })
+    child.unref()
   }
 
-  lineReader.on("line", (line) => {
+  if (envFlag("REFERENCE_STDIO_SPAWN_CHILD")) {
+    // The child creates its own grandchild. Both inherit the reference host's
+    // process group and survive a leader-only exit, so qualification can prove
+    // that cleanup reaches two descendant generations.
+    const leaked = spawn(
+      process.execPath,
+      [
+        "-e",
+        [
+          'const { spawn } = require("node:child_process")',
+          'const grandchild = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" })',
+          'process.stdout.write(String(grandchild.pid) + "\\n")',
+          "setInterval(() => {}, 1000)",
+        ].join(";"),
+      ],
+      { stdio: ["ignore", "pipe", "ignore"] },
+    )
+    descendantsReady = new Promise<void>((resolve) => {
+      if (!leaked.stdout) {
+        diagnostics(`spawned child pid ${leaked.pid ?? 0} grandchild pid 0`)
+        resolve()
+        return
+      }
+      leaked.stdout.once("data", (chunk: Buffer) => {
+        const grandchildPid = Number(chunk.toString("utf8").trim())
+        diagnostics(
+          `spawned child pid ${leaked.pid ?? 0} grandchild pid ${grandchildPid}`,
+        )
+        resolve()
+      })
+      leaked.once("error", () => {
+        diagnostics(`spawned child pid ${leaked.pid ?? 0} grandchild pid 0`)
+        resolve()
+      })
+    })
+    leaked.unref()
+  }
+
+  const handleLine = (line: string): void => {
     let request: AgentHostStdioRequest
     try {
       request = parseAgentHostStdioRequest(line)
@@ -277,10 +420,29 @@ export function serveReferenceStdioHost(): void {
         return
       }
       case "preflight": {
-        const payload = request.payload as { policy?: { filesystem?: { write?: string[] } } }
+        const payload = request.payload as {
+          runId?: string
+          policy?: { filesystem?: { write?: string[] } }
+          metadata?: Record<string, unknown>
+        }
+        const operation = qualificationOperation(payload)
+        if (operation?.kind === "filesystem.write") {
+          if (!envFlag("REFERENCE_STDIO_HOSTILE_WRITE_OK")) {
+            errorResponse(request.id, QUALIFICATION_FILESYSTEM_DENIAL_CODE)
+            return
+          }
+        }
         const writes = payload.policy?.filesystem?.write ?? []
         if (writes.length > 0 && !envFlag("REFERENCE_STDIO_HOSTILE_WRITE_OK")) {
           errorResponse(request.id, "agent_host_preflight_invalid")
+          return
+        }
+        if (operation?.kind === "network.connect") {
+          errorResponse(request.id, QUALIFICATION_NETWORK_DENIAL_CODE)
+          return
+        }
+        if (operation?.kind === "mcp.invoke") {
+          errorResponse(request.id, QUALIFICATION_MCP_DENIAL_CODE)
           return
         }
         successResponse(request.id, referenceStdioProbe())
@@ -310,10 +472,15 @@ export function serveReferenceStdioHost(): void {
         const payload = request.payload as {
           runId: string
           outputSchema?: unknown
+          metadata?: Record<string, unknown>
         }
+        const operation = qualificationOperation(payload)
         activeRun = { id: request.id, runId: payload.runId }
         diagnostics(`run started for ${payload.runId}`)
         event(request.id, payload.runId, { type: "run.started" })
+        if (operation?.kind === "process_tree") {
+          spawnQualificationTree(operation.scenario)
+        }
         if (envFlag("REFERENCE_STDIO_DISALLOWED_TOOL")) {
           event(request.id, payload.runId, {
             type: "tool.started",
@@ -321,7 +488,12 @@ export function serveReferenceStdioHost(): void {
             toolName: "shell",
           })
         }
-        if (envFlag("REFERENCE_STDIO_HANG")) {
+        if (
+          envFlag("REFERENCE_STDIO_HANG") ||
+          operation?.kind === "lifecycle.wait_for_cancel" ||
+          (operation?.kind === "process_tree" &&
+            operation.scenario !== "normal")
+        ) {
           return
         }
         if (cancelledRunId === payload.runId) {
@@ -385,6 +557,15 @@ export function serveReferenceStdioHost(): void {
       default:
         errorResponse(request.id, "agent_host_stdio_unknown_message")
     }
+  }
+  lineReader.on("line", (line) => {
+    if (!descendantsReady) {
+      handleLine(line)
+      return
+    }
+    // When the deterministic process-tree fixture is enabled, do not answer
+    // its probe until both descendant PIDs have been captured as evidence.
+    void descendantsReady.then(() => handleLine(line))
   })
   lineReader.on("close", () => {
     process.exit(0)

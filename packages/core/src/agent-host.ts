@@ -215,6 +215,17 @@ export interface AgentHostAdapter {
     decision: "allow" | "deny",
   ): Promise<void>
   cancel?(runId: string): Promise<void>
+  /**
+   * Optional qualification-only binding for deterministic process fixtures.
+   * Implementations expose an opaque configuration digest and the PID that
+   * actually owns their runs; neither value is published in evidence.
+   */
+  qualificationIdentity?(): Promise<AgentHostQualificationIdentity>
+}
+
+export interface AgentHostQualificationIdentity {
+  configurationDigest: string
+  ownerPid: number
 }
 
 export function createUnknownAgentHostCapabilities(): AgentHostCapabilities {

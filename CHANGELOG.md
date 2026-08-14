@@ -20,6 +20,14 @@ All notable changes to this project will be documented in this file.
 
 ### Security
 
+- Adapter qualification kit 1.1.0 now gives every case one awaited, bounded
+  finalizer; teardown that cannot settle aborts the suite without emitting a
+  record. Typed filesystem/network/MCP denial codes replace generic failure evidence,
+  sentinel scans fail closed on accessors, Proxies, descriptor errors, and
+  budget exhaustion, and process cleanup is bound to the exact Adapter,
+  config/probe/version fingerprint, and verified child-to-grandchild lineage.
+  The v1 record validator retains the original 1.0.0 nine-case contract while
+  deriving all domain counts and axes exactly for both supported kit versions.
 - Qoder assistant text is now buffered until successful process and cleanup
   completion, then scrubbed as one value with the exact service credential.
   This prevents secrets split across native stream chunks from escaping in

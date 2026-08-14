@@ -1,4 +1,6 @@
 import assert from "node:assert/strict"
+import { spawn } from "node:child_process"
+import type { ChildProcess } from "node:child_process"
 import { createHash } from "node:crypto"
 import { mkdtemp } from "node:fs/promises"
 import os from "node:os"
@@ -17,6 +19,7 @@ import type {
   AgentHostProbeResult,
   AgentHostRunRequest,
 } from "../../packages/core/src/agent-host.js"
+import { CoreError } from "../../packages/core/src/contracts.js"
 import {
   AGENT_HOST_STDIO_PROTOCOL_VERSION,
   encodeAgentHostStdioLine,
@@ -27,12 +30,19 @@ import {
 import {
   ADAPTER_QUALIFICATION_KIT_VERSION,
   ADAPTER_QUALIFICATION_SCHEMA_ID,
+  DEFAULT_QUALIFICATION_CASE_TIMEOUT_MS,
+  MAX_QUALIFICATION_CASE_TIMEOUT_MS,
+  MIN_QUALIFICATION_CASE_TIMEOUT_MS,
   QUALIFICATION_DOMAINS,
+  QUALIFICATION_FILESYSTEM_DENIAL_CODE,
+  QUALIFICATION_MCP_DENIAL_CODE,
+  QUALIFICATION_NETWORK_DENIAL_CODE,
   canonicalPolicyDigest,
   runQualificationSuite,
   validateAdapterQualificationRecord,
 } from "../../packages/core/src/adapter-qualification.js"
 import type { AdapterQualificationRecord } from "../../packages/core/src/adapter-qualification.js"
+import type { QualificationProcessTreeFixture } from "../../packages/core/src/adapter-qualification.js"
 
 const GENERATED_AT = "2026-08-06T03:00:00Z"
 const SENTINEL = "qualification-sentinel-do-not-leak"
@@ -66,11 +76,39 @@ interface FixtureBehavior {
   missingCapability?: boolean
   probeOnly?: boolean
   acceptHostileWrite?: boolean
+  acceptNetworkDeny?: boolean
+  acceptMcpDeny?: boolean
+  failNetworkDenyAtRun?: boolean
+  failMcpDenyAtRun?: boolean
+  genericNetworkDeny?: boolean
+  genericMcpDeny?: boolean
+  wrongNetworkDenyAtRun?: boolean
+  wrongMcpDenyAtRun?: boolean
+  omitNetworkDenyAttempt?: boolean
+  omitMcpDenyAttempt?: boolean
+  cancelCompletes?: boolean
+  eventAfterCancel?: boolean
+  hangEventStream?: boolean
+  capabilitySource?: unknown
+  hostVersion?: string
+  lifecycle?: string[]
+}
+
+function qualificationOperation(request: AgentHostRunRequest): string {
+  const driver = request.metadata?.adapterQualification
+  if (!driver || typeof driver !== "object" || Array.isArray(driver)) return ""
+  const operation = (driver as Record<string, unknown>).operation
+  if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
+    return ""
+  }
+  return String((operation as Record<string, unknown>).kind ?? "")
 }
 
 function qualificationAdapter(
   behavior: FixtureBehavior = {},
 ): AgentHostAdapter {
+  const cancelled = new Set<string>()
+  const cancelWaiters = new Map<string, () => void>()
   return {
     hostId: "fixture-host",
     async probe() {
@@ -85,15 +123,64 @@ function qualificationAdapter(
       if (behavior.probeOnly) {
         probe.adapterStatus = "probe_only"
       }
+      if (behavior.capabilitySource !== undefined) {
+        ;(probe as unknown as Record<string, unknown>).capabilitySource =
+          behavior.capabilitySource
+      }
+      if (behavior.hostVersion !== undefined) probe.version = behavior.hostVersion
       return probe
     },
     async preflight(request: AgentHostRunRequest) {
+      const operation = qualificationOperation(request)
+      if (operation === "filesystem.write" && !behavior.acceptHostileWrite) {
+        throw new CoreError(
+          QUALIFICATION_FILESYSTEM_DENIAL_CODE,
+          "filesystem operation denied by policy",
+          { status: 403, retryable: false },
+        )
+      }
       if (!behavior.acceptHostileWrite && request.policy.filesystem.write.length > 0) {
         throw new Error("write outside filesystem scope")
+      }
+      if (
+        operation === "network.connect" &&
+        !behavior.acceptNetworkDeny &&
+        !behavior.failNetworkDenyAtRun &&
+        !behavior.wrongNetworkDenyAtRun &&
+        !behavior.omitNetworkDenyAttempt
+      ) {
+        if (behavior.genericNetworkDeny) throw new Error("network denied")
+        throw new CoreError(
+          QUALIFICATION_NETWORK_DENIAL_CODE,
+          "network operation denied by policy",
+          { status: 403, retryable: false },
+        )
+      }
+      if (
+        operation === "mcp.invoke" &&
+        !behavior.acceptMcpDeny &&
+        !behavior.failMcpDenyAtRun &&
+        !behavior.wrongMcpDenyAtRun &&
+        !behavior.omitMcpDenyAttempt
+      ) {
+        if (behavior.genericMcpDeny) throw new Error("undeclared MCP denied")
+        throw new CoreError(
+          QUALIFICATION_MCP_DENIAL_CODE,
+          "MCP operation denied by policy",
+          { status: 403, retryable: false },
+        )
       }
       return verifiedProbe()
     },
     async *run(request) {
+      behavior.lifecycle?.push(`run:${request.runId}`)
+      const operation = qualificationOperation(request)
+      if (
+        (operation === "network.connect" && behavior.omitNetworkDenyAttempt) ||
+        (operation === "mcp.invoke" && behavior.omitMcpDenyAttempt)
+      ) {
+        return
+      }
       const at = "2026-08-06T03:00:00.000Z"
       const started: AgentHostEvent = {
         type: "run.started",
@@ -101,6 +188,78 @@ function qualificationAdapter(
         timestamp: at,
       }
       yield started
+      if (
+        (operation === "network.connect" &&
+          (behavior.failNetworkDenyAtRun ||
+            behavior.wrongNetworkDenyAtRun)) ||
+        (operation === "mcp.invoke" &&
+          (behavior.failMcpDenyAtRun || behavior.wrongMcpDenyAtRun))
+      ) {
+        yield {
+          type: "run.failed",
+          runId: request.runId,
+          timestamp: at,
+          error: {
+            code:
+              behavior.wrongNetworkDenyAtRun || behavior.wrongMcpDenyAtRun
+                ? "unrelated_failure"
+                : operation === "network.connect"
+                ? QUALIFICATION_NETWORK_DENIAL_CODE
+                : QUALIFICATION_MCP_DENIAL_CODE,
+            message: "direct qualification attempt denied",
+            retryable: false,
+          },
+        }
+        return
+      }
+      if (
+        behavior.hangEventStream &&
+        request.runId === "qualification-event_stream"
+      ) {
+        await new Promise<void>((resolve) => {
+          cancelWaiters.set(request.runId, resolve)
+          if (cancelled.has(request.runId)) resolve()
+        })
+        return
+      }
+      if (
+        operation === "lifecycle.wait_for_cancel" ||
+        (operation === "process_tree" &&
+          request.runId !== "qualification-process_tree_normal")
+      ) {
+        if (behavior.cancelCompletes) {
+          yield {
+            type: "run.completed",
+            runId: request.runId,
+            timestamp: at,
+            output: { status: "completed-before-cancel" },
+          }
+          return
+        }
+        await new Promise<void>((resolve) => {
+          cancelWaiters.set(request.runId, resolve)
+          if (cancelled.has(request.runId)) resolve()
+        })
+        yield {
+          type: "run.failed",
+          runId: request.runId,
+          timestamp: at,
+          error: {
+            code: "agent_host_cancelled",
+            message: "run cancelled",
+            retryable: false,
+          },
+        }
+        if (behavior.eventAfterCancel) {
+          yield {
+            type: "usage",
+            runId: request.runId,
+            timestamp: at,
+            totalTokens: 1,
+          }
+        }
+        return
+      }
       if (behavior.echoMetadata) {
         yield {
           type: "assistant.delta",
@@ -146,7 +305,19 @@ function qualificationAdapter(
         }
       }
     },
-    async cancel() {},
+    async cancel(runId) {
+      behavior.lifecycle?.push(`cancel:${runId}`)
+      cancelled.add(runId)
+      cancelWaiters.get(runId)?.()
+    },
+    async qualificationIdentity() {
+      return {
+        configurationDigest: createHash("sha256")
+          .update("fixture-host/default-config")
+          .digest("hex"),
+        ownerPid: process.pid,
+      }
+    },
   }
 }
 
@@ -154,11 +325,288 @@ async function workingDirectory(): Promise<string> {
   return await mkdtemp(path.join(os.tmpdir(), "adapter-qualification-"))
 }
 
+function pidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== "ESRCH"
+  }
+}
+
+async function waitForPidsGone(
+  pids: readonly number[],
+  timeoutMs = 2_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (pids.some(pidAlive) && Date.now() < deadline) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 20))
+  }
+}
+
+async function terminateFixtureTree(
+  child: ChildProcess,
+  grandchildPid?: number,
+): Promise<void> {
+  const pids = [child.pid, grandchildPid].filter(
+    (pid): pid is number => pid !== undefined,
+  )
+  const signal = (name: NodeJS.Signals): void => {
+    if (process.platform !== "win32" && child.pid !== undefined) {
+      try {
+        process.kill(-child.pid, name)
+        return
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error
+      }
+    }
+    for (const pid of pids) {
+      if (!pidAlive(pid)) continue
+      try {
+        process.kill(pid, name)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error
+      }
+    }
+  }
+  signal("SIGTERM")
+  await waitForPidsGone(pids)
+  if (pids.some(pidAlive)) {
+    signal("SIGKILL")
+    await waitForPidsGone(pids)
+  }
+  child.stdout?.destroy()
+  child.unref()
+}
+
+function realProcessTreeFixture(
+  adapter: AgentHostAdapter,
+  observed: Array<{ childPid: number; grandchildPid: number }> = [],
+): QualificationProcessTreeFixture {
+  return {
+    async create() {
+      // These helpers are intentionally terminated, so they must not leave a
+      // half-written V8 coverage artifact in the parent test run.
+      const {
+        NODE_V8_COVERAGE: _testRunnerCoverageDirectory,
+        ...fixtureEnvironment
+      } = process.env
+      const child = spawn(
+        process.execPath,
+        [
+          "-e",
+          [
+            'const { spawn } = require("node:child_process")',
+            'const grandchild = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" })',
+            'process.stdout.write(String(grandchild.pid) + "\\n")',
+            "setInterval(() => {}, 1000)",
+          ].join(";"),
+        ],
+        {
+          detached: false,
+          env: fixtureEnvironment,
+          stdio: ["ignore", "pipe", "ignore"],
+        },
+      )
+      assert.ok(child.pid)
+      let handshakeTimer: ReturnType<typeof setTimeout> | undefined
+      let grandchildPid: number
+      try {
+        grandchildPid = await new Promise<number>((resolve, reject) => {
+          let carry = ""
+          handshakeTimer = setTimeout(
+            () => reject(new Error("grandchild pid fixture timed out")),
+            5_000,
+          )
+          child.stdout?.on("data", (chunk: Buffer) => {
+            carry += chunk.toString("utf8")
+            const newline = carry.indexOf("\n")
+            if (newline === -1) return
+            resolve(Number(carry.slice(0, newline)))
+          })
+          child.once("error", reject)
+        })
+      } catch (error) {
+        await terminateFixtureTree(child)
+        throw error
+      } finally {
+        if (handshakeTimer !== undefined) clearTimeout(handshakeTimer)
+      }
+      child.stdout?.destroy()
+      child.unref()
+      const descendants = { childPid: child.pid, grandchildPid }
+      observed.push(descendants)
+      let disposePromise: Promise<void> | undefined
+      return {
+        adapter,
+        async descendants() {
+          return descendants
+        },
+        dispose() {
+          disposePromise ??= terminateFixtureTree(child, grandchildPid)
+          return disposePromise
+        },
+      }
+    },
+  }
+}
+
+function unrelatedProcessFixture(
+  adapter: AgentHostAdapter,
+  observed: Array<{ childPid: number; grandchildPid: number }> = [],
+): QualificationProcessTreeFixture {
+  return {
+    async create() {
+      const { NODE_V8_COVERAGE: _coverageDirectory, ...fixtureEnvironment } =
+        process.env
+      const child = spawn(
+        process.execPath,
+        ["-e", "setInterval(() => {}, 1000)"],
+        { detached: false, env: fixtureEnvironment, stdio: "ignore" },
+      )
+      const unrelated = spawn(
+        process.execPath,
+        ["-e", "setInterval(() => {}, 1000)"],
+        { detached: false, env: fixtureEnvironment, stdio: "ignore" },
+      )
+      assert.ok(child.pid)
+      assert.ok(unrelated.pid)
+      const descendants = {
+        childPid: child.pid,
+        grandchildPid: unrelated.pid,
+      }
+      observed.push(descendants)
+      let disposePromise: Promise<void> | undefined
+      return {
+        adapter,
+        async descendants() {
+          return descendants
+        },
+        dispose() {
+          disposePromise ??= terminateFixtureTree(child, unrelated.pid)
+          return disposePromise
+        },
+      }
+    },
+  }
+}
+
+function rogueIntermediaryProcessFixture(
+  adapter: AgentHostAdapter,
+  observed: Array<{
+    intermediaryPid: number
+    childPid: number
+    grandchildPid: number
+  }> = [],
+): QualificationProcessTreeFixture {
+  return {
+    async create() {
+      const { NODE_V8_COVERAGE: _coverageDirectory, ...fixtureEnvironment } =
+        process.env
+      const grandchildProgram = "setInterval(() => {}, 1000)"
+      const childProgram = [
+        'const { spawn } = require("node:child_process")',
+        `const grandchild = spawn(process.execPath, ["-e", ${JSON.stringify(grandchildProgram)}], { stdio: "ignore" })`,
+        'process.stdout.write(String(grandchild.pid) + "\\n")',
+        "setInterval(() => {}, 1000)",
+      ].join(";")
+      const intermediaryProgram = [
+        'const { spawn } = require("node:child_process")',
+        `const child = spawn(process.execPath, ["-e", ${JSON.stringify(childProgram)}], { stdio: ["ignore", "pipe", "ignore"] })`,
+        'child.stdout.once("data", (chunk) => process.stdout.write(String(child.pid) + " " + chunk))',
+        "setInterval(() => {}, 1000)",
+      ].join(";")
+      const intermediary = spawn(
+        process.execPath,
+        ["-e", intermediaryProgram],
+        {
+          detached: false,
+          env: fixtureEnvironment,
+          stdio: ["ignore", "pipe", "ignore"],
+        },
+      )
+      assert.ok(intermediary.pid)
+      let handshakeTimer: ReturnType<typeof setTimeout> | undefined
+      let childPid: number
+      let grandchildPid: number
+      try {
+        ;({ childPid, grandchildPid } = await new Promise<{
+          childPid: number
+          grandchildPid: number
+        }>((resolve, reject) => {
+          let carry = ""
+          handshakeTimer = setTimeout(
+            () => reject(new Error("rogue intermediary fixture timed out")),
+            5_000,
+          )
+          intermediary.stdout?.on("data", (chunk: Buffer) => {
+            carry += chunk.toString("utf8")
+            const match = carry.match(/^(\d+)\s+(\d+)\n/)
+            if (!match) return
+            resolve({ childPid: Number(match[1]), grandchildPid: Number(match[2]) })
+          })
+          intermediary.once("error", reject)
+        }))
+      } catch (error) {
+        await terminateFixtureTree(intermediary)
+        throw error
+      } finally {
+        if (handshakeTimer !== undefined) clearTimeout(handshakeTimer)
+      }
+      intermediary.stdout?.destroy()
+      intermediary.unref()
+      const descendants = { childPid, grandchildPid }
+      observed.push({
+        intermediaryPid: intermediary.pid,
+        ...descendants,
+      })
+      let disposePromise: Promise<void> | undefined
+      return {
+        adapter,
+        async descendants() {
+          return descendants
+        },
+        dispose() {
+          disposePromise ??= (async () => {
+            for (const pid of [grandchildPid, childPid]) {
+              if (!pidAlive(pid)) continue
+              try {
+                process.kill(pid, "SIGTERM")
+              } catch (error) {
+                if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error
+              }
+            }
+            await waitForPidsGone([childPid, grandchildPid])
+            for (const pid of [grandchildPid, childPid]) {
+              if (!pidAlive(pid)) continue
+              try {
+                process.kill(pid, "SIGKILL")
+              } catch (error) {
+                if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error
+              }
+            }
+            await waitForPidsGone([childPid, grandchildPid])
+            await terminateFixtureTree(intermediary)
+          })()
+          return disposePromise
+        },
+      }
+    },
+  }
+}
+
 test("a conforming built-in-class adapter earns the fixture axis without live evidence", async () => {
   const directory = await workingDirectory()
-  const record = await runQualificationSuite(qualificationAdapter(), {
+  const observed: Array<{ childPid: number; grandchildPid: number }> = []
+  const adapter = qualificationAdapter()
+  const record = await runQualificationSuite(adapter, {
     workingDirectory: directory,
     generatedAt: GENERATED_AT,
+    caseTimeoutMs: 10_000,
+    processTreeFixture: realProcessTreeFixture(
+      adapter,
+      observed,
+    ),
   })
 
   assert.equal(record.schema, ADAPTER_QUALIFICATION_SCHEMA_ID)
@@ -169,13 +617,20 @@ test("a conforming built-in-class adapter earns the fixture axis without live ev
     implemented: true,
     fixtureConformant: true,
     liveQualified: false,
-  })
+  }, JSON.stringify(record.cases.filter((entry) => !entry.passed)))
   assert.equal(record.liveEvidence, undefined)
-  assert.equal(record.cases.length, 9)
+  assert.equal(record.cases.length, 13)
   assert.ok(record.cases.every((entry) => entry.passed))
   for (const domain of QUALIFICATION_DOMAINS) {
     assert.equal(record.domains[domain].failed, 0, domain)
   }
+  assert.equal(observed.length, 3)
+  assert.ok(
+    observed.every(
+      ({ childPid, grandchildPid }) =>
+        !pidAlive(childPid) && !pidAlive(grandchildPid),
+    ),
+  )
   assert.equal(
     record.policyDigest,
     createHash("sha256")
@@ -184,6 +639,608 @@ test("a conforming built-in-class adapter earns the fixture axis without live ev
       )
       .digest("hex"),
   )
+})
+
+test("qualification cases use the frozen bounded timeout range", async () => {
+  assert.equal(DEFAULT_QUALIFICATION_CASE_TIMEOUT_MS, 30_000)
+  assert.equal(MIN_QUALIFICATION_CASE_TIMEOUT_MS, 1_000)
+  assert.equal(MAX_QUALIFICATION_CASE_TIMEOUT_MS, 600_000)
+  const directory = await workingDirectory()
+  for (const caseTimeoutMs of [999, 600_001, 1_000.5, Number.NaN]) {
+    await assert.rejects(
+      () =>
+        runQualificationSuite(qualificationAdapter(), {
+          workingDirectory: directory,
+          generatedAt: GENERATED_AT,
+          caseTimeoutMs,
+        }),
+      (error: unknown) =>
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "INVALID_QUALIFICATION_CASE_TIMEOUT",
+    )
+  }
+})
+
+test("a hung case times out with a stable result and the suite continues", async () => {
+  const directory = await workingDirectory()
+  const startedAt = Date.now()
+  const record = await runQualificationSuite(
+    qualificationAdapter({ hangEventStream: true }),
+    {
+      workingDirectory: directory,
+      generatedAt: GENERATED_AT,
+      caseTimeoutMs: 1_000,
+    },
+  )
+  assert.ok(Date.now() - startedAt < 4_000)
+  const eventCases = record.cases.filter(
+    (entry) =>
+      entry.id === "events_well_formed" ||
+      entry.id === "exactly_one_terminal",
+  )
+  assert.equal(eventCases.length, 2)
+  assert.ok(
+    eventCases.every(
+      (entry) => !entry.passed && entry.code === "qualification_case_timeout",
+    ),
+  )
+  assert.ok(
+    record.cases.some(
+      (entry) =>
+        entry.id === "terminal_output_matches_schema" && entry.passed,
+    ),
+  )
+})
+
+test("deadline cancellation starts the run before cancelling and requires one failed terminal", async () => {
+  const directory = await workingDirectory()
+  const lifecycle: string[] = []
+  const record = await runQualificationSuite(
+    qualificationAdapter({ lifecycle }),
+    { workingDirectory: directory, generatedAt: GENERATED_AT },
+  )
+  assert.deepEqual(
+    lifecycle.filter((entry) => entry.includes("qualification-cancel")),
+    ["run:qualification-cancel", "cancel:qualification-cancel"],
+  )
+  const cancelCase = record.cases.find(
+    (entry) => entry.id === "cancel_stops_active_run",
+  )
+  assert.deepEqual(cancelCase, {
+    domain: "deadline_cancel",
+    id: "cancel_stops_active_run",
+    passed: true,
+    code: "cancel_stops_active_run_ok",
+  })
+
+  const completed = await runQualificationSuite(
+    qualificationAdapter({ cancelCompletes: true }),
+    { workingDirectory: directory, generatedAt: GENERATED_AT },
+  )
+  assert.equal(
+    completed.cases.find((entry) => entry.id === "cancel_stops_active_run")
+      ?.code,
+    "cancel_completed_terminal",
+  )
+  const lateEvent = await runQualificationSuite(
+    qualificationAdapter({ eventAfterCancel: true }),
+    { workingDirectory: directory, generatedAt: GENERATED_AT },
+  )
+  assert.equal(
+    lateEvent.cases.find((entry) => entry.id === "cancel_stops_active_run")
+      ?.code,
+    "cancel_event_after_terminal",
+  )
+})
+
+test("cleanup fails closed without real child and grandchild evidence", async () => {
+  const directory = await workingDirectory()
+  const record = await runQualificationSuite(qualificationAdapter(), {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+  })
+  const cleanup = record.cases.filter(
+    (entry) => entry.domain === "process_tree_cleanup",
+  )
+  assert.deepEqual(
+    cleanup.map((entry) => entry.id),
+    [
+      "descendants_disposed_normal",
+      "descendants_disposed_timeout",
+      "descendants_disposed_cancel",
+    ],
+  )
+  assert.ok(
+    cleanup.every(
+      (entry) =>
+        !entry.passed && entry.code === "process_tree_fixture_unavailable",
+    ),
+  )
+  assert.equal(record.axes.fixtureConformant, false)
+})
+
+test("process evidence rejects substitute adapters, drifted configuration and unrelated pids", async () => {
+  const directory = await workingDirectory()
+
+  const outer = qualificationAdapter()
+  const substituteObserved: Array<{ childPid: number; grandchildPid: number }> = []
+  const substitute = await runQualificationSuite(outer, {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+    caseTimeoutMs: 10_000,
+    processTreeFixture: realProcessTreeFixture(
+      qualificationAdapter(),
+      substituteObserved,
+    ),
+  })
+  assert.ok(
+    substitute.cases
+      .filter((entry) => entry.domain === "process_tree_cleanup")
+      .every(
+        (entry) =>
+          !entry.passed && entry.code === "process_tree_adapter_mismatch",
+      ),
+  )
+  assert.ok(
+    substituteObserved.every(
+      ({ childPid, grandchildPid }) =>
+        !pidAlive(childPid) && !pidAlive(grandchildPid),
+    ),
+  )
+
+  const drifted = qualificationAdapter()
+  let identityCalls = 0
+  drifted.qualificationIdentity = async () => {
+    identityCalls += 1
+    return {
+      configurationDigest: createHash("sha256")
+        .update(identityCalls === 1 ? "bound-config" : "drifted-config")
+        .digest("hex"),
+      ownerPid: process.pid,
+    }
+  }
+  const driftedRecord = await runQualificationSuite(drifted, {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+    caseTimeoutMs: 10_000,
+    processTreeFixture: realProcessTreeFixture(drifted),
+  })
+  assert.ok(
+    driftedRecord.cases
+      .filter((entry) => entry.domain === "process_tree_cleanup")
+      .every(
+        (entry) =>
+          !entry.passed && entry.code === "process_tree_binding_mismatch",
+      ),
+  )
+
+  const lineageAdapter = qualificationAdapter()
+  const unrelatedRecord = await runQualificationSuite(lineageAdapter, {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+    caseTimeoutMs: 10_000,
+    processTreeFixture: unrelatedProcessFixture(lineageAdapter),
+  })
+  assert.ok(
+    unrelatedRecord.cases
+      .filter((entry) => entry.domain === "process_tree_cleanup")
+      .every(
+        (entry) =>
+          !entry.passed && entry.code === "process_tree_lineage_unverified",
+      ),
+  )
+})
+
+test("process evidence rejects a same-identity tree hidden behind a rogue intermediary", async () => {
+  const directory = await workingDirectory()
+  const adapter = qualificationAdapter()
+  const observed: Array<{
+    intermediaryPid: number
+    childPid: number
+    grandchildPid: number
+  }> = []
+  const record = await runQualificationSuite(adapter, {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+    caseTimeoutMs: 10_000,
+    processTreeFixture: rogueIntermediaryProcessFixture(adapter, observed),
+  })
+  assert.ok(
+    record.cases
+      .filter((entry) => entry.domain === "process_tree_cleanup")
+      .every(
+        (entry) =>
+          !entry.passed && entry.code === "process_tree_lineage_unverified",
+      ),
+    JSON.stringify(record.cases.filter((entry) => entry.domain === "process_tree_cleanup")),
+  )
+  assert.equal(observed.length, 3)
+  assert.ok(
+    observed.every(
+      ({ intermediaryPid, childPid, grandchildPid }) =>
+        !pidAlive(intermediaryPid) &&
+        !pidAlive(childPid) &&
+        !pidAlive(grandchildPid),
+    ),
+  )
+})
+
+test("network and undeclared MCP deny paths must be exercised directly", async () => {
+  const directory = await workingDirectory()
+  const acceptedNetwork = await runQualificationSuite(
+    qualificationAdapter({ acceptNetworkDeny: true }),
+    { workingDirectory: directory, generatedAt: GENERATED_AT },
+  )
+  assert.equal(
+    acceptedNetwork.cases.find((entry) => entry.id === "network_deny_refused")
+      ?.code,
+    "network_deny_accepted",
+  )
+  const acceptedMcp = await runQualificationSuite(
+    qualificationAdapter({ acceptMcpDeny: true }),
+    { workingDirectory: directory, generatedAt: GENERATED_AT },
+  )
+  assert.equal(
+    acceptedMcp.cases.find((entry) => entry.id === "mcp_deny_refused")?.code,
+    "mcp_deny_accepted",
+  )
+  const failedAtRun = await runQualificationSuite(
+    qualificationAdapter({
+      failNetworkDenyAtRun: true,
+      failMcpDenyAtRun: true,
+    }),
+    { workingDirectory: directory, generatedAt: GENERATED_AT },
+  )
+  for (const id of ["network_deny_refused", "mcp_deny_refused"]) {
+    assert.equal(
+      failedAtRun.cases.find((entry) => entry.id === id)?.passed,
+      true,
+      id,
+    )
+  }
+})
+
+test("generic preflight failures are not accepted as direct policy-denial evidence", async () => {
+  const directory = await workingDirectory()
+  const record = await runQualificationSuite(
+    qualificationAdapter({
+      genericNetworkDeny: true,
+      genericMcpDeny: true,
+    }), {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+  })
+  for (const id of ["network_deny_refused", "mcp_deny_refused"]) {
+    const result = record.cases.find((entry) => entry.id === id)
+    assert.equal(result?.passed, false, id)
+    assert.match(result?.code ?? "", /policy_evidence_invalid$/)
+  }
+})
+
+test("a generic hostile-write preflight failure is not typed policy-denial evidence", async () => {
+  const directory = await workingDirectory()
+  const adapter = qualificationAdapter()
+  const originalPreflight = adapter.preflight.bind(adapter)
+  let observedOperation = ""
+  adapter.preflight = async (request) => {
+    const operation = qualificationOperation(request)
+    if (
+      operation === "filesystem.write" ||
+      request.policy.filesystem.write.length > 0
+    ) {
+      observedOperation = operation
+      throw new Error("database unavailable")
+    }
+    return await originalPreflight(request)
+  }
+  const record = await runQualificationSuite(adapter, {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+  })
+  const result = record.cases.find(
+    (entry) => entry.id === "hostile_write_refused",
+  )
+  assert.equal(observedOperation, "filesystem.write")
+  assert.equal(result?.passed, false)
+  assert.equal(result?.code, "filesystem_deny_policy_evidence_invalid")
+})
+
+test("unrelated failed terminals and no-attempt streams are not policy evidence", async () => {
+  const directory = await workingDirectory()
+  for (const behavior of [
+    { wrongNetworkDenyAtRun: true, wrongMcpDenyAtRun: true },
+    { omitNetworkDenyAttempt: true, omitMcpDenyAttempt: true },
+  ]) {
+    const record = await runQualificationSuite(qualificationAdapter(behavior), {
+      workingDirectory: directory,
+      generatedAt: GENERATED_AT,
+    })
+    for (const id of ["network_deny_refused", "mcp_deny_refused"]) {
+      const result = record.cases.find((entry) => entry.id === id)
+      assert.equal(result?.passed, false, `${id}: ${JSON.stringify(behavior)}`)
+      assert.match(result?.code ?? "", /policy_evidence_invalid$/)
+    }
+  }
+})
+
+test("each case awaits cancel and iterator return before starting the next case", async () => {
+  const directory = await workingDirectory()
+  const lifecycle: string[] = []
+  const adapter = qualificationAdapter({ lifecycle })
+  const normalRun = adapter.run.bind(adapter)
+  adapter.run = (request) => {
+    if (request.runId !== "qualification-event_stream") {
+      lifecycle.push(`next:${request.runId}`)
+      return normalRun(request)
+    }
+    let index = 0
+    const events: AgentHostEvent[] = [
+      {
+        type: "run.started",
+        runId: request.runId,
+        timestamp: GENERATED_AT,
+      },
+      {
+        type: "run.completed",
+        runId: request.runId,
+        timestamp: GENERATED_AT,
+        output: { status: "done" },
+      },
+    ]
+    const iterator: AsyncIterator<AgentHostEvent> &
+      AsyncIterable<AgentHostEvent> = {
+      [Symbol.asyncIterator]() {
+        return this
+      },
+      async next() {
+        const value = events[index]
+        index += 1
+        return value === undefined
+          ? { done: true, value: undefined }
+          : { done: false, value }
+      },
+      async return() {
+        await new Promise<void>((resolve) => setTimeout(resolve, 25))
+        lifecycle.push("return:settled")
+        throw new Error(`late cleanup ${SENTINEL}`)
+      },
+    }
+    return iterator
+  }
+
+  const record = await runQualificationSuite(adapter, {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+  })
+  const cancelIndex = lifecycle.indexOf("cancel:qualification-event_stream")
+  const returnIndex = lifecycle.indexOf("return:settled")
+  const nextIndex = lifecycle.findIndex((entry) =>
+    entry.startsWith("next:qualification-cancel"),
+  )
+  assert.ok(cancelIndex !== -1 && cancelIndex < returnIndex)
+  assert.ok(returnIndex !== -1 && returnIndex < nextIndex)
+  assert.equal(
+    record.cases.find((entry) => entry.id === "no_metadata_echo")?.code,
+    "metadata_secret_echoed",
+  )
+})
+
+test("process fixture disposal settles before the following qualification case", async () => {
+  const directory = await workingDirectory()
+  const lifecycle: string[] = []
+  const adapter = qualificationAdapter({ lifecycle })
+  const baseFixture = realProcessTreeFixture(adapter)
+  const fixture: QualificationProcessTreeFixture = {
+    async create(scenario) {
+      const instance = await baseFixture.create(scenario)
+      return {
+        ...instance,
+        async dispose() {
+          await instance.dispose()
+          await new Promise<void>((resolve) => setTimeout(resolve, 20))
+          lifecycle.push(`dispose:settled:${scenario}`)
+        },
+      }
+    },
+  }
+  await runQualificationSuite(adapter, {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+    caseTimeoutMs: 10_000,
+    processTreeFixture: fixture,
+  })
+  for (const [scenario, followingRun] of [
+    ["normal", "qualification-process_tree_timeout"],
+    ["timeout", "qualification-process_tree_cancel"],
+    ["cancel", "qualification-credential"],
+  ] as const) {
+    const disposed = lifecycle.indexOf(`dispose:settled:${scenario}`)
+    const following = lifecycle.indexOf(`run:${followingRun}`)
+    assert.ok(disposed !== -1 && disposed < following, scenario)
+  }
+})
+
+test("an uncooperative teardown aborts the suite with a stable bounded error", async () => {
+  const directory = await workingDirectory()
+  const adapter = qualificationAdapter({ hangEventStream: true })
+  adapter.cancel = async (runId) => {
+    if (runId === "qualification-event_stream") {
+      await new Promise<void>(() => {})
+    }
+  }
+  const startedAt = Date.now()
+  await assert.rejects(
+    () =>
+      runQualificationSuite(adapter, {
+        workingDirectory: directory,
+        generatedAt: GENERATED_AT,
+        caseTimeoutMs: 1_000,
+      }),
+    (error: unknown) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "QUALIFICATION_CLEANUP_TIMEOUT",
+  )
+  assert.ok(Date.now() - startedAt < 3_500)
+})
+
+test("an outer process-case timeout cancels the exact fixture owner and disposes descendants", async () => {
+  const directory = await workingDirectory()
+  const lifecycle: string[] = []
+  const adapter = qualificationAdapter({ lifecycle })
+  const observed: Array<{ childPid: number; grandchildPid: number }> = []
+  const baseFixture = realProcessTreeFixture(adapter, observed)
+  const fixture: QualificationProcessTreeFixture = {
+    async create(scenario) {
+      const instance = await baseFixture.create(scenario)
+      return scenario === "normal"
+        ? {
+            ...instance,
+            async descendants() {
+              await new Promise<void>(() => {})
+              return await instance.descendants()
+            },
+          }
+        : instance
+    },
+  }
+  await assert.rejects(
+    () =>
+      runQualificationSuite(adapter, {
+        workingDirectory: directory,
+        generatedAt: GENERATED_AT,
+        caseTimeoutMs: 1_000,
+        processTreeFixture: fixture,
+      }),
+    (error: unknown) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "QUALIFICATION_CLEANUP_TIMEOUT",
+  )
+  assert.ok(lifecycle.includes("cancel:qualification-process_tree_normal"))
+  assert.ok(
+    observed.every(
+      ({ childPid, grandchildPid }) =>
+        !pidAlive(childPid) && !pidAlive(grandchildPid),
+    ),
+  )
+})
+
+test("sentinel scanning covers conforming, malformed, rejected and thrown paths", async () => {
+  const directory = await workingDirectory()
+  const makeAdapter = (
+    mode: "conforming" | "malformed" | "rejected" | "thrown",
+  ): AgentHostAdapter => {
+    const adapter = qualificationAdapter()
+    if (mode === "conforming") return adapter
+    const run = adapter.run.bind(adapter)
+    adapter.run = (request) => {
+      if (request.runId !== "qualification-credential") return run(request)
+      if (mode === "thrown") throw new Error(`thrown ${SENTINEL}`)
+      if (mode === "rejected") {
+        return {
+          [Symbol.asyncIterator]() {
+            return {
+              next: async () => {
+                throw new Error(`rejected ${SENTINEL}`)
+              },
+            }
+          },
+        }
+      }
+      return (async function* () {
+        yield {
+          type: "malformed",
+          secret: SENTINEL,
+        } as unknown as AgentHostEvent
+      })()
+    }
+    return adapter
+  }
+
+  for (const mode of [
+    "conforming",
+    "malformed",
+    "rejected",
+    "thrown",
+  ] as const) {
+    const record = await runQualificationSuite(makeAdapter(mode), {
+      workingDirectory: directory,
+      generatedAt: GENERATED_AT,
+    })
+    const credentialCase = record.cases.find(
+      (entry) => entry.id === "no_metadata_echo",
+    )
+    assert.equal(
+      credentialCase?.code,
+      mode === "conforming" ? "no_metadata_echo_ok" : "metadata_secret_echoed",
+      mode,
+    )
+    assert.equal(JSON.stringify(record).includes(SENTINEL), false, mode)
+  }
+})
+
+test("qualification accepts exactly the two canonical capability sources", async () => {
+  const directory = await workingDirectory()
+  for (const capabilitySource of [
+    "adapter_declaration",
+    "conformance_test",
+  ] as const) {
+    const record = await runQualificationSuite(
+      qualificationAdapter({ capabilitySource }),
+      { workingDirectory: directory, generatedAt: GENERATED_AT },
+    )
+    assert.equal(record.axes.implemented, true, capabilitySource)
+    assert.equal(
+      record.cases.find((entry) => entry.id === "probe_contract")?.passed,
+      true,
+      capabilitySource,
+    )
+  }
+  for (const capabilitySource of ["vendor_claim", "", undefined]) {
+    const adapter = qualificationAdapter({ capabilitySource })
+    if (capabilitySource === undefined) {
+      const originalProbe = adapter.probe.bind(adapter)
+      adapter.probe = async () => {
+        const probe = (await originalProbe()) as unknown as Record<string, unknown>
+        delete probe.capabilitySource
+        return probe as unknown as AgentHostProbeResult
+      }
+    }
+    const record = await runQualificationSuite(adapter, {
+      workingDirectory: directory,
+      generatedAt: GENERATED_AT,
+    })
+    assert.equal(record.axes.implemented, false, String(capabilitySource))
+    assert.equal(
+      record.cases.find((entry) => entry.id === "probe_contract")?.passed,
+      false,
+      String(capabilitySource),
+    )
+  }
+})
+
+test("responding qualification hosts require an exact bounded version", async () => {
+  const directory = await workingDirectory()
+  const boundary = await runQualificationSuite(
+    qualificationAdapter({ hostVersion: "v".repeat(256) }),
+    { workingDirectory: directory, generatedAt: GENERATED_AT },
+  )
+  assert.equal(boundary.hostVersion.length, 256)
+  for (const hostVersion of ["", "v".repeat(257)]) {
+    await assert.rejects(
+      () =>
+        runQualificationSuite(qualificationAdapter({ hostVersion }), {
+          workingDirectory: directory,
+          generatedAt: GENERATED_AT,
+        }),
+      (error: unknown) =>
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "INVALID_QUALIFICATION_HOST_VERSION",
+    )
+  }
 })
 
 test("a stream violation can never be reported as fixture-conformant", async () => {
@@ -256,7 +1313,7 @@ test("an adapter that accepts hostile writes fails the enforcement domain", asyn
     (entry) => entry.id === "hostile_write_refused",
   )
   assert.equal(fsCase?.passed, false)
-  assert.equal(fsCase?.code, "hostile_write_accepted")
+  assert.equal(fsCase?.code, "filesystem_deny_accepted")
   assert.equal(record.axes.fixtureConformant, false)
 })
 
@@ -391,6 +1448,204 @@ test("the record validator enforces schema, axis consistency and full domain cov
   assert.throws(() => validateAdapterQualificationRecord(null))
 })
 
+test("record validation fails closed on accessors without invoking them", async () => {
+  const directory = await workingDirectory()
+  const record = await runQualificationSuite(qualificationAdapter(), {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+  })
+  let invoked = 0
+  Object.defineProperty(record, Symbol("opaque"), {
+    enumerable: true,
+    get() {
+      invoked += 1
+      return SENTINEL
+    },
+  })
+  assert.throws(
+    () => validateAdapterQualificationRecord(record),
+    (error: unknown) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "QUALIFICATION_EVIDENCE_SCAN_INCOMPLETE",
+  )
+  assert.equal(invoked, 0)
+})
+
+test("record scanning recognizes only native Error stack accessors without invoking custom getters", async () => {
+  const directory = await workingDirectory()
+  const makeRecord = async () =>
+    await runQualificationSuite(qualificationAdapter(), {
+      workingDirectory: directory,
+      generatedAt: GENERATED_AT,
+    })
+
+  const nativeErrorRecord = await makeRecord()
+  Object.defineProperty(nativeErrorRecord, Symbol("native-error"), {
+    value: new Error("ordinary native error"),
+  })
+  assert.doesNotThrow(() => validateAdapterQualificationRecord(nativeErrorRecord))
+
+  let customGetterCalls = 0
+  const customStackRecord = await makeRecord()
+  const customStack = new Error("custom stack descriptor")
+  Object.defineProperty(customStack, "stack", {
+    configurable: true,
+    enumerable: false,
+    get() {
+      customGetterCalls += 1
+      return "custom stack"
+    },
+  })
+  Object.defineProperty(customStackRecord, Symbol("custom-stack"), {
+    value: customStack,
+  })
+  assert.throws(
+    () => validateAdapterQualificationRecord(customStackRecord),
+    (error: unknown) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "QUALIFICATION_EVIDENCE_SCAN_INCOMPLETE",
+  )
+  assert.equal(customGetterCalls, 0)
+
+  const sentinelRecord = await makeRecord()
+  const sentinelStack = new Error("custom stack with symbol evidence")
+  Object.defineProperty(sentinelStack, "stack", {
+    configurable: true,
+    enumerable: false,
+    get() {
+      customGetterCalls += 1
+      return SENTINEL
+    },
+  })
+  Object.defineProperty(sentinelStack, Symbol("external-record"), {
+    value: { leaked: SENTINEL },
+  })
+  Object.defineProperty(sentinelRecord, Symbol("custom-stack"), {
+    value: sentinelStack,
+  })
+  assert.throws(
+    () => validateAdapterQualificationRecord(sentinelRecord),
+    (error: unknown) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "QUALIFICATION_EVIDENCE_SECRET_DETECTED",
+  )
+  assert.equal(customGetterCalls, 0)
+})
+
+test("record scanning inspects symbol data and fails closed on proxies and budget exhaustion", async () => {
+  const directory = await workingDirectory()
+  const makeRecord = async () =>
+    await runQualificationSuite(qualificationAdapter(), {
+      workingDirectory: directory,
+      generatedAt: GENERATED_AT,
+    })
+
+  const symbolEvidence = await makeRecord()
+  Object.defineProperty(symbolEvidence, Symbol("qualification-evidence"), {
+    value: { leaked: SENTINEL },
+    enumerable: false,
+  })
+  assert.throws(
+    () => validateAdapterQualificationRecord(symbolEvidence),
+    (error: unknown) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "QUALIFICATION_EVIDENCE_SECRET_DETECTED",
+  )
+
+  const proxied = new Proxy(await makeRecord(), {
+    ownKeys() {
+      throw new Error("proxy keys unavailable")
+    },
+  })
+  assert.throws(
+    () => validateAdapterQualificationRecord(proxied),
+    (error: unknown) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "QUALIFICATION_EVIDENCE_SCAN_INCOMPLETE",
+  )
+
+  const overBudget = await makeRecord()
+  Object.defineProperty(overBudget, Symbol("wide-evidence"), {
+    value: Array.from({ length: 4_097 }, () => ({ safe: true })),
+  })
+  assert.throws(
+    () => validateAdapterQualificationRecord(overBudget),
+    (error: unknown) =>
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "QUALIFICATION_EVIDENCE_SCAN_INCOMPLETE",
+  )
+})
+
+test("record validation supports the legacy 1.0 contract and derives all summaries", async () => {
+  const directory = await workingDirectory()
+  const current = await runQualificationSuite(qualificationAdapter(), {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+  })
+  const legacyCases = current.cases
+    .filter(
+      (entry) =>
+        ![
+          "descendants_disposed_timeout",
+          "descendants_disposed_cancel",
+          "network_deny_refused",
+          "mcp_deny_refused",
+        ].includes(entry.id),
+    )
+    .map((entry) =>
+      entry.id === "cancel_stops_active_run"
+        ? { ...entry, id: "cancel_stops_run", code: "cancel_stops_run_ok" }
+        : entry.id === "descendants_disposed_normal"
+          ? { ...entry, id: "stream_terminates", code: "stream_terminates_ok" }
+          : entry,
+    )
+  const legacyDomains = Object.fromEntries(
+    QUALIFICATION_DOMAINS.map((domain) => {
+      const entries = legacyCases.filter((entry) => entry.domain === domain)
+      return [
+        domain,
+        {
+          passed: entries.filter((entry) => entry.passed).length,
+          failed: entries.filter((entry) => !entry.passed).length,
+        },
+      ]
+    }),
+  )
+  const legacy = {
+    ...current,
+    kitVersion: "1.0.0",
+    cases: legacyCases,
+    domains: legacyDomains,
+    axes: {
+      implemented: true,
+      fixtureConformant: legacyCases.every((entry) => entry.passed),
+      liveQualified: false,
+    },
+  }
+  assert.doesNotThrow(() => validateAdapterQualificationRecord(legacy))
+  assert.throws(() =>
+    validateAdapterQualificationRecord({
+      ...legacy,
+      domains: {
+        ...legacyDomains,
+        output_schema: { passed: 99, failed: 0 },
+      },
+    }),
+  )
+  assert.throws(() =>
+    validateAdapterQualificationRecord({
+      ...legacy,
+      axes: { ...legacy.axes, fixtureConformant: !legacy.axes.fixtureConformant },
+    }),
+  )
+})
+
 test("qualification records stay machine readable and never embed the credential sentinel", async () => {
   const directory = await workingDirectory()
   const record: AdapterQualificationRecord = await runQualificationSuite(
@@ -510,6 +1765,30 @@ function fakeStdioHost(options: StdioHostOptions = {}) {
         ]
       }
       if (request.kind === "preflight") {
+        const operation = qualificationOperation(payload)
+        if (
+          operation === "filesystem.write" ||
+          operation === "network.connect" ||
+          operation === "mcp.invoke"
+        ) {
+          return [
+            envelope({
+              id: request.id,
+              kind: "response",
+              ok: false,
+              error: {
+                code:
+                  operation === "filesystem.write"
+                    ? QUALIFICATION_FILESYSTEM_DENIAL_CODE
+                    : operation === "network.connect"
+                      ? QUALIFICATION_NETWORK_DENIAL_CODE
+                      : QUALIFICATION_MCP_DENIAL_CODE,
+                message: "qualification deny fixture",
+                retryable: false,
+              },
+            }),
+          ]
+        }
         return [
           envelope({
             id: request.id,
@@ -571,6 +1850,8 @@ function builtinStdioAdapter(
   options: StdioHostOptions = {},
 ): AgentHostAdapter {
   const host = fakeStdioHost(options)
+  const cancelled = new Set<string>()
+  const cancelWaiters = new Map<string, () => void>()
   const exchange = (message: Record<string, unknown>): string[] =>
     host.handle(
       encodeAgentHostStdioLine({
@@ -585,6 +1866,10 @@ function builtinStdioAdapter(
     }
     return message
   }
+  const wireRequest = (request: AgentHostRunRequest): AgentHostRunRequest => {
+    const { signal: _signal, ...wire } = request
+    return wire
+  }
   return {
     hostId: STDIO_HOST_ID,
     async probe() {
@@ -597,22 +1882,81 @@ function builtinStdioAdapter(
       )
     },
     async preflight(request) {
-      return probeResultFromStdioResponse(
-        expectOk(
-          exchange({
-            id: `preflight-${request.runId}`,
-            kind: "preflight",
-            payload: request,
-          }),
-        ),
+      const message = parseAgentHostStdioHostLine(
+        exchange({
+          id: `preflight-${request.runId}`,
+          kind: "preflight",
+          payload: wireRequest(request),
+        })[0],
         STDIO_HOST_ID,
       )
+      if (message.kind !== "response" || message.ok !== true) {
+        const error =
+          message.kind === "response" && message.ok === false
+            ? message.error
+            : {
+                code: "agent_host_stdio_host_error",
+                message: "builtin stdio host refused the exchange",
+                retryable: false,
+              }
+        throw new CoreError(error.code, error.message, {
+          status: 403,
+          retryable: error.retryable,
+        })
+      }
+      return probeResultFromStdioResponse(message, STDIO_HOST_ID)
     },
     async *run(request) {
+      const operation = qualificationOperation(request)
+      if (
+        operation === "lifecycle.wait_for_cancel" ||
+        (operation === "process_tree" &&
+          request.runId !== "qualification-process_tree_normal")
+      ) {
+        const startedLine = encodeAgentHostStdioLine({
+          protocol: AGENT_HOST_STDIO_PROTOCOL_VERSION,
+          id: `run-${request.runId}`,
+          kind: "event",
+          event: {
+            type: "run.started",
+            runId: request.runId,
+            timestamp: STDIO_TIMESTAMP,
+          },
+        })
+        const started = parseAgentHostStdioHostLine(
+          startedLine,
+          STDIO_HOST_ID,
+        )
+        assert.equal(started.kind, "event")
+        yield started.event
+        await new Promise<void>((resolve) => {
+          cancelWaiters.set(request.runId, resolve)
+          if (cancelled.has(request.runId)) resolve()
+        })
+        const failedLine = encodeAgentHostStdioLine({
+          protocol: AGENT_HOST_STDIO_PROTOCOL_VERSION,
+          id: `run-${request.runId}`,
+          kind: "event",
+          event: {
+            type: "run.failed",
+            runId: request.runId,
+            timestamp: STDIO_TIMESTAMP,
+            error: {
+              code: "agent_host_cancelled",
+              message: "run cancelled",
+              retryable: false,
+            },
+          },
+        })
+        const failed = parseAgentHostStdioHostLine(failedLine, STDIO_HOST_ID)
+        assert.equal(failed.kind, "event")
+        yield failed.event
+        return
+      }
       const lines = exchange({
         id: `run-${request.runId}`,
         kind: "run",
-        payload: request,
+        payload: wireRequest(request),
       })
       for (const line of lines) {
         const message = parseAgentHostStdioHostLine(line, STDIO_HOST_ID)
@@ -622,26 +1966,39 @@ function builtinStdioAdapter(
       }
     },
     async cancel(runId) {
+      cancelled.add(runId)
+      cancelWaiters.get(runId)?.()
       expectOk(
         exchange({ id: `cancel-${runId}`, kind: "cancel", payload: { runId } }),
       )
+    },
+    async qualificationIdentity() {
+      return {
+        configurationDigest: createHash("sha256")
+          .update("builtin-stdio-host/default-config")
+          .digest("hex"),
+        ownerPid: process.pid,
+      }
     },
   }
 }
 
 test("the built-in stdio adapter earns the fixture axis offline through the versioned wire", async () => {
   const directory = await workingDirectory()
-  const record = await runQualificationSuite(builtinStdioAdapter(), {
+  const adapter = builtinStdioAdapter()
+  const record = await runQualificationSuite(adapter, {
     workingDirectory: directory,
     generatedAt: GENERATED_AT,
+    caseTimeoutMs: 10_000,
+    processTreeFixture: realProcessTreeFixture(adapter),
   })
   assert.equal(record.hostId, STDIO_HOST_ID)
   assert.deepEqual(record.axes, {
     implemented: true,
     fixtureConformant: true,
     liveQualified: false,
-  })
-  assert.equal(record.cases.length, 9)
+  }, JSON.stringify(record.cases.filter((entry) => !entry.passed)))
+  assert.equal(record.cases.length, 13)
   assert.ok(record.cases.every((entry) => entry.passed))
   for (const domain of QUALIFICATION_DOMAINS) {
     assert.equal(record.domains[domain].failed, 0, domain)
@@ -785,6 +2142,17 @@ test("the record validator rejects hostVersion exceeding 256 characters", async 
     validateAdapterQualificationRecord({
       ...record,
       hostVersion: "v".repeat(256),
+    }),
+  )
+  assert.throws(() =>
+    validateAdapterQualificationRecord({ ...record, hostVersion: "" }),
+  )
+  assert.throws(() =>
+    validateAdapterQualificationRecord({
+      ...record,
+      cases: record.cases.map((entry, index) =>
+        index === 0 ? { ...entry, code: "UPPER CASE" } : entry,
+      ),
     }),
   )
 })

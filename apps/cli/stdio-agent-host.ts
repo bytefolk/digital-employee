@@ -70,6 +70,7 @@ export class ExternalStdioAgentHostAdapter implements AgentHostAdapter {
   readonly hostId: string
 
   private readonly config: StdioAdapterConfig
+  private readonly qualificationConfigurationDigest: string
   private child: ChildProcess | null = null
   private stdoutCarry = ""
   private stderrTail = ""
@@ -84,6 +85,25 @@ export class ExternalStdioAgentHostAdapter implements AgentHostAdapter {
   constructor(config: StdioAdapterConfig) {
     this.config = config
     this.hostId = config.hostId
+    this.qualificationConfigurationDigest = createHash("sha256")
+      .update(
+        JSON.stringify({
+          schema: config.schema,
+          hostId: config.hostId,
+          displayName: config.displayName,
+          executable: config.executable,
+          args: [...config.args],
+          digest: {
+            algorithm: config.digest.algorithm,
+            hex: config.digest.hex,
+          },
+          envAllowlist: [...config.envAllowlist],
+          workingDirectoryPolicy: config.workingDirectoryPolicy,
+          timeoutMs: config.timeoutMs,
+          maxStderrBytes: config.maxStderrBytes,
+        }),
+      )
+      .digest("hex")
   }
 
   /** Bounded stderr diagnostics tail; raw stderr is never surfaced unbounded. */
@@ -100,6 +120,23 @@ export class ExternalStdioAgentHostAdapter implements AgentHostAdapter {
     const payload = validateAgentHostRunRequestWire(this.wirePayload(request))
     const message = await this.exchange("preflight", payload)
     return probeResultFromStdioResponse(message, this.hostId)
+  }
+
+  async qualificationIdentity(): Promise<{
+    configurationDigest: string
+    ownerPid: number
+  }> {
+    const child = await this.ensureChild()
+    if (child.pid === undefined) {
+      throw stdioError(
+        STDIO_CODES.spawnFailed,
+        "stdio adapter process has no qualification owner pid",
+      )
+    }
+    return {
+      configurationDigest: this.qualificationConfigurationDigest,
+      ownerPid: child.pid,
+    }
   }
 
   async *run(request: AgentHostRunRequest): AsyncGenerator<AgentHostEvent> {

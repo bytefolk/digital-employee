@@ -33,6 +33,7 @@ export type {
   AgentHostPolicy,
   AgentHostProbeResult,
   AgentHostProbeStatus,
+  AgentHostQualificationIdentity,
   AgentHostRequirements,
   AgentHostRunRequest,
 } from "./src/agent-host.js"
@@ -97,19 +98,35 @@ export type {
 } from "./src/runner-protocol-vectors.js"
 export {
   ADAPTER_QUALIFICATION_KIT_VERSION,
+  ADAPTER_QUALIFICATION_DRIVER_SCHEMA_ID,
   ADAPTER_QUALIFICATION_SCHEMA_ID,
+  DEFAULT_QUALIFICATION_CASE_TIMEOUT_MS,
+  LEGACY_ADAPTER_QUALIFICATION_KIT_VERSION,
+  MAX_QUALIFICATION_CASE_TIMEOUT_MS,
+  MIN_QUALIFICATION_CASE_TIMEOUT_MS,
+  QUALIFICATION_CAPABILITY_SOURCES,
   QUALIFICATION_DOMAINS,
+  QUALIFICATION_FILESYSTEM_DENIAL_CODE,
+  QUALIFICATION_MCP_DENIAL_CODE,
+  QUALIFICATION_NETWORK_DENIAL_CODE,
   canonicalPolicyDigest,
   runQualificationSuite,
   validateAdapterQualificationRecord,
 } from "./src/adapter-qualification.js"
 export type {
   AdapterQualificationRecord,
+  AdapterQualificationKitVersion,
   QualificationAxes,
   QualificationCaseResult,
   QualificationDomain,
+  QualificationDriverMetadata,
+  QualificationDriverOperation,
   QualificationLiveEvidence,
   QualificationOptions,
+  QualificationProcessTreeDescendants,
+  QualificationProcessTreeFixture,
+  QualificationProcessTreeFixtureInstance,
+  QualificationProcessTreeScenario,
 } from "./src/adapter-qualification.js"
 export {
   AGENT_HOST_STDIO_CONFIG_SCHEMA_VERSION,

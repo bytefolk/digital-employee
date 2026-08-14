@@ -71,8 +71,11 @@ fail-closed paths are reproducible in CI.
 ## Qualification
 
 An Adapter cannot be reported as supported on fixture evidence alone: run the
-Issue #30 qualification kit against it to produce an
+Issue #52 qualification kit against it to produce an
 `adapter-qualification-record.v1` record
-(`tests/apps/stdio-agent-host.test.ts` shows the integration).
+(`tests/apps/stdio-agent-host.test.ts` shows the integration). The complete
+case matrix, timeout bounds, direct deny evidence, and real two-generation
+cleanup fixture contract are documented in
+[`adapter-qualification.md`](adapter-qualification.md).
 
 Stdio isolation is a process boundary, not a multi-tenant sandbox.

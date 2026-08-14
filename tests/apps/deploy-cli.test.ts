@@ -1605,6 +1605,9 @@ test("built deploy help is localized, complete, dynamic, and side-effect free", 
       /package-bound standalone-v1 is unsupported/,
       /http channel only; default 3000/,
       /name=Digital Employee/,
+      /available:\s+http \(ready only after authenticated readback\)/,
+      /preview \/ pending:\s+console \| dingtalk/,
+      /unavailable:\s+lark \| wecom/,
     ],
     "zh-CN": [
       /最多只能提供一个位置路径/,
@@ -1612,6 +1615,9 @@ test("built deploy help is localized, complete, dynamic, and side-effect free", 
       /包绑定 standalone-v1 不受支持/,
       /仅 http；默认 3000/,
       /name=数字员工助手/,
+      /可用：\s+http（仅通过认证读回后 ready）/,
+      /预览 \/ 等待外部操作：\s+console \| dingtalk/,
+      /不可用：\s+lark \| wecom/,
     ],
     ja: [
       /位置引数は最大1つ/,
@@ -1619,6 +1625,9 @@ test("built deploy help is localized, complete, dynamic, and side-effect free", 
       /パッケージ指定standalone-v1は未対応/,
       /httpのみ、デフォルト3000/,
       /name=デジタル従業員/,
+      /利用可能：\s+http（認証済みreadback後のみready）/,
+      /プレビュー \/ 外部操作待ち：\s+console \| dingtalk/,
+      /利用不可：\s+lark \| wecom/,
     ],
   }
   for (const locale of ["en", "zh-CN", "ja"]) {
@@ -1646,10 +1655,6 @@ test("built deploy help is localized, complete, dynamic, and side-effect free", 
       ]) {
         assert.match(result.stdout, new RegExp(option))
       }
-      assert.match(
-        result.stdout,
-        /dingtalk \| lark \| wecom \| console \| http/,
-      )
       assert.match(
         result.stdout,
         /claude-code \| qoder \| qwen-code \| codebuddy/,
@@ -7161,7 +7166,7 @@ test("interactive answers survive separated stdin chunks and premature EOF fails
     pipeInput: true,
   })
   assert.ok(chunked.child.stdin)
-  for (const answer of ["2\n", "1\n", "4\n", "\n"]) {
+  for (const answer of ["2\n", "1\n", "2\n", "\n"]) {
     chunked.child.stdin.write(answer)
     await delay(100)
   }
@@ -7172,6 +7177,23 @@ test("interactive answers survive separated stdin chunks and premature EOF fails
     2,
     `${chunkedResult.stdout}\n${chunkedResult.stderr}`,
   )
+  assert.match(
+    chunkedResult.stdout,
+    /1\) HTTP API — available; ready after authenticated readback/,
+  )
+  assert.match(
+    chunkedResult.stdout,
+    /2\) Console \(terminal\) — preview; pending_external_action/,
+  )
+  assert.match(
+    chunkedResult.stdout,
+    /3\) DingTalk — preview; pending_external_action/,
+  )
+  assert.doesNotMatch(
+    chunkedResult.stdout,
+    /Lark \(Feishu\)|WeCom — unavailable/,
+  )
+  assert.match(chunkedResult.stdout, /Choice \[1-3\]/)
   assert.doesNotMatch(chunkedResult.stdout, /Which runtime should execute/)
   const configPath = path.join(home, ".digital-employee", "config.json")
   const config = JSON.parse(await readFile(configPath, "utf8")) as {
@@ -7193,7 +7215,7 @@ test("interactive answers survive separated stdin chunks and premature EOF fails
     pipeInput: true,
   })
   assert.ok(utf8.child.stdin)
-  for (const answer of ["2\n", "1\n", "4\n"]) {
+  for (const answer of ["2\n", "1\n", "2\n"]) {
     utf8.child.stdin.write(answer)
     await delay(50)
   }

@@ -37,13 +37,21 @@ test("detectSystemLocale returns en for non-zh locale", () => {
 test("setLocale loads English messages", () => {
   setLocale("en")
   assert.equal(getLocale(), "en")
-  assert.equal(t("deploy.channel_dingtalk"), "DingTalk")
+  assert.equal(
+    t("deploy.channel_dingtalk"),
+    "DingTalk — preview; pending_external_action",
+  )
+  assert.match(t("deploy.channel_http"), /available.*authenticated readback/)
 })
 
 test("setLocale loads Chinese messages", () => {
   setLocale("zh-CN")
   assert.equal(getLocale(), "zh-CN")
-  assert.equal(t("deploy.channel_dingtalk"), "钉钉")
+  assert.equal(
+    t("deploy.channel_dingtalk"),
+    "钉钉 — 预览；pending_external_action",
+  )
+  assert.match(t("deploy.channel_lark"), /不可用/)
 })
 
 test("t interpolates variables", () => {
@@ -60,7 +68,10 @@ test("t returns key when message not found", () => {
 test("setLocale falls back to English for unknown locale", () => {
   setLocale("fr")
   assert.equal(getLocale(), "en")
-  assert.equal(t("deploy.channel_dingtalk"), "DingTalk")
+  assert.equal(
+    t("deploy.channel_dingtalk"),
+    "DingTalk — preview; pending_external_action",
+  )
 })
 
 test("getAvailableLocales discovers all locale files", () => {
@@ -83,8 +94,12 @@ test("getLocaleDisplayName returns code for unknown locale", () => {
 test("setLocale loads Japanese messages", () => {
   setLocale("ja")
   assert.equal(getLocale(), "ja")
-  assert.equal(t("deploy.channel_dingtalk"), "DingTalk")
-  assert.equal(t("deploy.channel_console"), "コンソール（ターミナル）")
+  assert.equal(
+    t("deploy.channel_dingtalk"),
+    "DingTalk — プレビュー；pending_external_action",
+  )
+  assert.match(t("deploy.channel_console"), /プレビュー.*pending_external_action/)
+  assert.match(t("deploy.channel_wecom"), /利用不可/)
 })
 
 test("missing key in non-English locale falls back to English", () => {

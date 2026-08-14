@@ -370,11 +370,9 @@ export function renderDeployParseFailure(
 async function resolveChannel(options: DeployOptions): Promise<ChannelId> {
   if (options.channel) return options.channel as ChannelId
   return selectPrompt(t("deploy.channel_prompt"), [
-    { label: t("deploy.channel_dingtalk"), value: "dingtalk" },
-    { label: t("deploy.channel_lark"), value: "lark" },
-    { label: t("deploy.channel_wecom"), value: "wecom" },
-    { label: t("deploy.channel_console"), value: "console" },
     { label: t("deploy.channel_http"), value: "http" },
+    { label: t("deploy.channel_console"), value: "console" },
+    { label: t("deploy.channel_dingtalk"), value: "dingtalk" },
   ]) as Promise<ChannelId>
 }
 

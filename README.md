@@ -14,11 +14,11 @@ evidence.
 > Digital Employee is under active development. Interfaces and package formats
 > may change before a stable release.
 
-The public npm release is `0.3.0`. It includes `setup`, `init`, `doctor`,
-`validate`, `eval`, and one-shot `run`. Package-bound `deploy` is newer than
-`0.3.0` and is available only from a reviewed source checkout until a later
-release publishes it. See the [install guide](INSTALL.md) for the exact
-published-versus-source boundary.
+The public npm release is `0.3.0`. It includes `init`, `doctor`, `validate`,
+`eval`, and one-shot `run`. The convenience `setup` command and package-bound
+`deploy` command are newer than `0.3.0`; both are unreleased previews available
+only from a reviewed source checkout until a later release publishes them. See
+the [install guide](INSTALL.md) for the exact published-versus-source boundary.
 
 ## Run
 
@@ -33,14 +33,16 @@ mkdir digital-employee-workspace
 cd digital-employee-workspace
 npm init -y
 npm install @fullstack-ai-infra/digital-employee@0.3.0
-npx digital-employee setup --json
-cd my-employee
-npx digital-employee validate --json
-npx digital-employee eval --json
+npx digital-employee doctor --json
+npx digital-employee init ./my-employee \
+  --recipe minimal-answer.v1 \
+  --author your-team
+npx digital-employee validate ./my-employee --json
+npx digital-employee eval ./my-employee --json
 ```
 
-`setup`, `validate`, and `eval` do not invoke a model. A live `run` requires
-one supported Agent Host and its service credential:
+`doctor`, `init`, `validate`, and `eval` do not invoke a model. A live `run`
+requires one supported Agent Host and its service credential:
 
 | Engine | Credential |
 | --- | --- |
@@ -61,6 +63,18 @@ node ./dist/apps/cli/bin.js init ./my-employee \
   --author your-team
 node ./dist/apps/cli/bin.js validate ./my-employee
 node ./dist/apps/cli/bin.js eval ./my-employee --json
+```
+
+### Try the source setup preview
+
+`setup` is not part of npm `0.3.0`. The current source preview combines the
+model-free host probe and package scaffolding steps. After building an exact,
+reviewed checkout, invoke its CLI from the empty workspace you want it to
+scaffold:
+
+```bash
+cd /path/to/empty/workspace
+node /path/to/reviewed/digital-employee/dist/apps/cli/bin.js setup --json
 ```
 
 ### Try the source deploy preview

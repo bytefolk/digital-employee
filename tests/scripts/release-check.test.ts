@@ -567,3 +567,24 @@ test("release workflow has independently scoped jobs for all channels", async ()
   assert.match(workflowText, /gh release (?:create|upload)/);
   assert.match(workflowText, /docker push/);
 });
+
+test("pull request CI rejects internal commit email metadata", async () => {
+  const workflowText = await readFile(
+    path.join(repositoryRoot, ".github/workflows/ci.yml"),
+    "utf8"
+  );
+  const workflow = YAML.parse(workflowText);
+  const commitMetadata = workflow.jobs["commit-metadata"];
+  assert.equal(
+    commitMetadata.if,
+    "${{ github.event_name == 'pull_request' }}"
+  );
+  assert.equal(commitMetadata["timeout-minutes"], 5);
+  assert.equal(commitMetadata.steps[0].with["fetch-depth"], 0);
+  const metadataRun = commitMetadata.steps.at(-1).run;
+  assert.match(metadataRun, /git log --format='%ae%n%ce'/);
+  assert.match(metadataRun, /grep --extended-regexp --ignore-case --quiet/);
+  assert.match(metadataRun, /alibaba-inc\\\.com\|alibaba\\\.com/);
+  assert.match(metadataRun, /disallowed internal email domain/);
+  assert.doesNotMatch(metadataRun, /grep[^\n]*(?:--line-number|-n\b)/);
+});

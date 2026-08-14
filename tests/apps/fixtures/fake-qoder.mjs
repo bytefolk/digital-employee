@@ -5,6 +5,7 @@ import path from "node:path"
 import { createInterface } from "node:readline"
 
 const args = process.argv.slice(2)
+const fixtureVersion = "1.1.12"
 
 function option(name) {
   const index = args.indexOf(name)
@@ -12,7 +13,7 @@ function option(name) {
 }
 
 if (args.includes("--version")) {
-  process.stdout.write("1.1.12\n")
+  process.stdout.write(`${fixtureVersion}\n`)
   process.exit(0)
 }
 
@@ -71,6 +72,9 @@ async function writeCapture() {
       sdkEntrypoint: process.env.QODER_AGENT_SDK_ENTRYPOINT,
       sdkVersion: process.env.QODER_AGENT_SDK_VERSION,
       authPayloadMetadata,
+      environmentContainsSchemaMarker: Object.values(process.env).some(
+        (value) => value?.includes("SCHEMA_ARGV_MARKER"),
+      ),
       inputLines,
     }),
   )
@@ -89,7 +93,7 @@ const init = {
   type: "system",
   subtype: "init",
   session_id: sessionId,
-  qodercli_version: "1.1.12",
+  qodercli_version: fixtureVersion,
   ...(mode === "protocol-missing"
     ? {}
     : {
@@ -106,7 +110,30 @@ const init = {
 
 async function executeRun() {
   await writeCapture()
-  if (mode === "hang") {
+  if (mode === "hang" || mode === "buffered-hang") {
+    if (mode === "buffered-hang") {
+      emit({
+        type: "stream_event",
+        session_id: sessionId,
+        event: {
+          delta: { type: "text_delta", text: "buffered-output-must-not-flush" },
+        },
+      })
+      emit({
+        type: "assistant",
+        session_id: sessionId,
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              id: "buffer-observed-before-cancel",
+              name: "Read",
+              input: { file_path: "knowledge/README.md" },
+            },
+          ],
+        },
+      })
+    }
     // An unresolved top-level await does not keep Node alive by itself. Hold a
     // referenced timer so only the Adapter's deadline/cancel path ends it.
     await new Promise(() => {
@@ -238,8 +265,14 @@ async function executeRun() {
   }
   const outputValue = {
     status: "answered",
-    answer: mode === "output-value-credential" ? credential : "fixture answer",
+    answer:
+      mode === "output-value-credential"
+        ? credential
+        : mode === "schema-mismatch"
+          ? 42
+          : "fixture answer",
     citations: [{ label: "Approved", uri: "knowledge/README.md" }],
+    ...(mode === "schema-extra-field" ? { unexpected: true } : {}),
     ...(mode === "output-key-credential" ? { [credential]: "unsafe" } : {}),
   }
   const output = JSON.stringify(outputValue)
@@ -250,7 +283,18 @@ async function executeRun() {
     session_id: sessionId,
     subtype: resultError ? "error_during_execution" : "success",
     is_error: resultError,
-    result: mode === "invalid-output" ? `\`\`\`json\n${output}\n\`\`\`` : output,
+    result:
+      mode === "invalid-output"
+        ? `\`\`\`json\n${output}\n\`\`\``
+        : mode === "prose-output"
+          ? `Result: ${output}`
+          : mode === "truncated-output"
+            ? output.slice(0, -1)
+            : mode === "malformed-output"
+              ? "{not-json}"
+              : mode === "unstructured-prose"
+                ? "plain fixture answer"
+                : output,
   }
   emit(result)
   if (mode === "duplicate-result") emit(result)

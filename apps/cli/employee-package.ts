@@ -500,7 +500,10 @@ function validateJsonSchema(
       strict: false,
       validateSchema: true,
     })
-    ajv.compile(schema)
+    const validate = ajv.compile(schema)
+    if ("$async" in validate && validate.$async === true) {
+      throw new TypeError(`employee_package_invalid_json_schema:${label}`)
+    }
   } catch {
     throw new TypeError(`employee_package_invalid_json_schema:${label}`)
   }

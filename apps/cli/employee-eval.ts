@@ -116,12 +116,16 @@ function parseEvalContract(content: string): EmployeeEvalCase[] {
 function compileFixtureValidator(
   schema: Record<string, unknown>,
 ): ValidateFunction {
-  return new Ajv2020({
+  const validate = new Ajv2020({
     allErrors: true,
     allowUnionTypes: true,
     strict: false,
     validateSchema: true,
   }).compile(schema)
+  if ("$async" in validate && validate.$async === true) {
+    throw new TypeError("employee_async_json_schema_unsupported")
+  }
+  return validate
 }
 
 function employeeIdentity(inspection: EmployeePackageInspection) {
@@ -192,14 +196,14 @@ export async function evaluateEmployeePackage(
   }
 
   const caseResults = cases.map<EmployeeEvalCaseResult>((evalCase) => {
-    if (!validateInput(evalCase.input)) {
+    if (validateInput(evalCase.input) !== true) {
       return {
         id: evalCase.id,
         status: "failed",
         code: "EVAL_CASE_INPUT_SCHEMA_INVALID",
       }
     }
-    if (!validateOutput(evalCase.expectedOutput)) {
+    if (validateOutput(evalCase.expectedOutput) !== true) {
       return {
         id: evalCase.id,
         status: "failed",

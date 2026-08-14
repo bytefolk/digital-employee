@@ -19,6 +19,17 @@ export const AGENT_HOST_CAPABILITIES = [
   "usage_events",
 ] as const
 
+/**
+ * `structured_output` means adapter-enforced terminal validity: when a run
+ * request includes a synchronous `outputSchema`, the adapter may emit
+ * `run.completed` only with the unchanged JSON value accepted by that Schema.
+ * Repair, coercion, defaults, field removal, or redaction must not manufacture
+ * a passing value; if post-validation safety scrubbing would mutate a
+ * schema-bound value, the run fails closed. Invalid JSON, asynchronous Schema,
+ * Schema mismatch, cancellation, and cleanup failure also fail closed. This
+ * capability does not imply host-native constrained generation.
+ */
+
 export type AgentHostCapability = (typeof AGENT_HOST_CAPABILITIES)[number]
 export type AgentHostCapabilitySupport =
   | "supported"

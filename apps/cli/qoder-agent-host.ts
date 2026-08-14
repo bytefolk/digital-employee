@@ -56,6 +56,7 @@ const CLEANUP_ATTEMPTS = 2
 const CLEANUP_ATTEMPT_TIMEOUT_MS = 2_000
 const MAX_PROMPT_BYTES = 256 * 1024
 const MAX_INSTRUCTIONS_BYTES = 128 * 1024
+const MAX_SCHEMA_BYTES = 16 * 1024
 const MAX_STDOUT_BYTES = 4 * 1024 * 1024
 const MAX_STDERR_BYTES = 256 * 1024
 const MAX_LINE_BYTES = 1024 * 1024
@@ -130,6 +131,7 @@ function capabilities(): AgentHostCapabilities {
     "filesystem_scope",
     "network_policy",
     "cancellation",
+    "structured_output",
   ] as const) {
     result[capability] = "supported"
   }
@@ -137,7 +139,6 @@ function capabilities(): AgentHostCapabilities {
     "session_resume",
     "attachments",
     "mcp",
-    "structured_output",
     "approval_callback",
     "sandbox",
   ] as const) {
@@ -273,7 +274,43 @@ async function inspectProjectionFiles(
   return { sourceRoot, files }
 }
 
-function validateRequestShape(request: AgentHostRunRequest): void {
+interface PreparedOutputSchema {
+  json: string
+  validate: (value: unknown) => boolean
+}
+
+function prepareOutputSchema(
+  schema: SafeValue | undefined,
+): PreparedOutputSchema | undefined {
+  if (schema === undefined) return undefined
+  try {
+    const json = JSON.stringify(schema)
+    if (typeof json !== "string") {
+      throw new QoderAdapterError("qoder_output_schema_invalid")
+    }
+    if (byteLength(json) > MAX_SCHEMA_BYTES) {
+      throw new QoderAdapterError("qoder_output_schema_too_large")
+    }
+    const ajv = new Ajv2020({
+      allErrors: true,
+      allowUnionTypes: true,
+      strict: false,
+      validateSchema: true,
+    })
+    const validate = ajv.compile(JSON.parse(json))
+    if ("$async" in validate && validate.$async === true) {
+      throw new QoderAdapterError("qoder_output_schema_invalid")
+    }
+    return { json, validate: (value) => validate(value) === true }
+  } catch (error) {
+    if (error instanceof QoderAdapterError) throw error
+    throw new QoderAdapterError("qoder_output_schema_invalid")
+  }
+}
+
+function validateRequestShape(
+  request: AgentHostRunRequest,
+): PreparedOutputSchema | undefined {
   if (
     !request.runId ||
     request.runId.length > 256 ||
@@ -291,16 +328,11 @@ function validateRequestShape(request: AgentHostRunRequest): void {
   if (!request.prompt.trim() || byteLength(request.prompt) > MAX_PROMPT_BYTES) {
     throw new QoderAdapterError("qoder_invalid_prompt")
   }
-  if (request.outputSchema !== undefined) {
-    let serializedSchema: string
-    try {
-      serializedSchema = JSON.stringify(request.outputSchema)
-    } catch {
-      throw new QoderAdapterError("qoder_output_schema_invalid")
-    }
+  const outputSchema = prepareOutputSchema(request.outputSchema)
+  if (outputSchema !== undefined) {
     if (
       byteLength(request.prompt) +
-        byteLength(serializedSchema) +
+        byteLength(outputSchema.json) +
         1_024 >
       MAX_PROMPT_BYTES
     ) {
@@ -374,6 +406,7 @@ function validateRequestShape(request: AgentHostRunRequest): void {
       throw new QoderAdapterError("qoder_deadline_elapsed")
     }
   }
+  return outputSchema
 }
 
 function qoderNativeTools(policy: AgentHostRunRequest["policy"]): string[] {
@@ -518,9 +551,9 @@ function normalizeOutputValue(
 
 function parseAndValidateOutput(
   text: string,
-  schema: SafeValue | undefined,
+  schema: PreparedOutputSchema | undefined,
 ): SafeValue {
-  if (!schema) return redactText(text)
+  if (schema === undefined) return redactText(text)
   let parsed: unknown
   try {
     parsed = JSON.parse(text)
@@ -528,20 +561,8 @@ function parseAndValidateOutput(
     throw new QoderAdapterError("qoder_output_not_json")
   }
   const normalized = normalizeOutputValue(parsed)
-  try {
-    const ajv = new Ajv2020({
-      allErrors: true,
-      allowUnionTypes: true,
-      strict: false,
-      validateSchema: true,
-    })
-    const validate = ajv.compile(schema as object)
-    if (!validate(normalized)) {
-      throw new QoderAdapterError("qoder_output_schema_mismatch")
-    }
-  } catch (error) {
-    if (error instanceof QoderAdapterError) throw error
-    throw new QoderAdapterError("qoder_output_schema_invalid")
+  if (!schema.validate(normalized)) {
+    throw new QoderAdapterError("qoder_output_schema_mismatch")
   }
   return normalized
 }
@@ -772,6 +793,31 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
   }
 
   async preflight(request: AgentHostRunRequest): Promise<AgentHostProbeResult> {
+    try {
+      prepareOutputSchema(request.outputSchema)
+    } catch (error) {
+      const code =
+        error instanceof QoderAdapterError
+          ? error.code
+          : "qoder_policy_projection_failed"
+      return {
+        protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
+        hostId: QODER_HOST_ID,
+        displayName: QODER_DISPLAY_NAME,
+        status: "not_ready",
+        available: false,
+        adapterStatus: "runnable",
+        capabilities: capabilities(),
+        capabilitySource: "conformance_test",
+        issues: [
+          issue(
+            code,
+            "Qoder cannot safely validate this output Schema",
+          ),
+        ],
+      }
+    }
+
     const probe = await this.probe()
     const issues = [...probe.issues]
     try {
@@ -850,6 +896,7 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
         throw new QoderAdapterError(code)
       }
 
+      const outputSchema = validateRequestShape(request)
       const projection = await inspectProjectionFiles(request)
       const afterProjectionError = stoppedRunError(active)
       if (afterProjectionError) throw afterProjectionError
@@ -954,10 +1001,10 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
         "<employee-task>",
         request.prompt,
         "</employee-task>",
-        ...(request.outputSchema
+        ...(outputSchema !== undefined
           ? [
               "Return exactly one JSON value and no code fence. It must match this JSON Schema:",
-              JSON.stringify(request.outputSchema),
+              outputSchema.json,
             ]
           : []),
       ].join("\n\n")
@@ -1433,9 +1480,9 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
       let output: SafeValue
       try {
         output = scrubOutput(
-          parseAndValidateOutput(resultEvent!.result, request.outputSchema),
+          parseAndValidateOutput(resultEvent!.result, outputSchema),
           credential,
-          request.outputSchema !== undefined,
+          outputSchema !== undefined,
         )
       } catch (error) {
         const code =

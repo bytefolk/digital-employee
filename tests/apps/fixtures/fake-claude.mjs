@@ -198,6 +198,8 @@ if (mode === "unsafe-message-start") {
 const answer =
   mode === "secret-output"
     ? `credential=${process.env.ANTHROPIC_API_KEY}`
+    : mode === "generic-redaction-output"
+    ? "token=fixture-public-nonsecret"
     : "fixture answer"
 const structuredOutput =
   mode === "secret-key-output"

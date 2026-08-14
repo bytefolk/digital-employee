@@ -102,7 +102,12 @@ interface ActiveRun {
 
 interface PreparedRun {
   assets: InlineAgentAsset[]
-  schemaJson?: string
+  outputSchema?: PreparedOutputSchema
+}
+
+interface PreparedOutputSchema {
+  json: string
+  value: SafeValue
 }
 
 export interface ClaudeAgentHostAdapterOptions {
@@ -200,7 +205,9 @@ function validateIdentifier(value: string, code: string): void {
   }
 }
 
-function serializeAndValidateSchema(schema: SafeValue | undefined): string | undefined {
+function serializeAndValidateSchema(
+  schema: SafeValue | undefined,
+): PreparedOutputSchema | undefined {
   if (schema === undefined) return undefined
   let serialized: string | undefined
   try {
@@ -214,15 +221,21 @@ function serializeAndValidateSchema(schema: SafeValue | undefined): string | und
       strict: false,
       validateSchema: true,
     })
-    ajv.compile(schema as object)
+    const value = JSON.parse(serialized) as SafeValue
+    const validate = ajv.compile(value as object)
+    if ("$async" in validate && validate.$async === true) {
+      throw new ClaudeAdapterError("claude_output_schema_invalid")
+    }
+    return { json: serialized, value }
   } catch (error) {
     if (error instanceof ClaudeAdapterError) throw error
     throw new ClaudeAdapterError("claude_output_schema_invalid")
   }
-  return serialized
 }
 
-function validateRequestShape(request: AgentHostRunRequest): string | undefined {
+function validateRequestShape(
+  request: AgentHostRunRequest,
+): PreparedOutputSchema | undefined {
   validateIdentifier(request.runId, "claude_invalid_run_id")
   validateIdentifier(request.employeeId, "claude_invalid_employee_id")
   if (!request.prompt.trim() || byteLength(request.prompt) > MAX_PROMPT_BYTES) {
@@ -234,7 +247,7 @@ function validateRequestShape(request: AgentHostRunRequest): string | undefined 
   ) {
     throw new ClaudeAdapterError("claude_instructions_too_large")
   }
-  const schemaJson = serializeAndValidateSchema(request.outputSchema)
+  const outputSchema = serializeAndValidateSchema(request.outputSchema)
   if (request.policy.tools.default !== "deny") {
     throw new ClaudeAdapterError("claude_tool_policy_must_default_deny")
   }
@@ -289,17 +302,17 @@ function validateRequestShape(request: AgentHostRunRequest): string | undefined 
       throw new ClaudeAdapterError("claude_deadline_elapsed")
     }
   }
-  return schemaJson
+  return outputSchema
 }
 
 async function prepareRun(
   request: AgentHostRunRequest,
   beforeOpen?: (sourcePath: string) => Promise<void>,
 ): Promise<PreparedRun> {
-  const schemaJson = validateRequestShape(request)
+  const outputSchema = validateRequestShape(request)
   try {
     const assets = await readInlineAgentAssets(request, beforeOpen)
-    return { assets, ...(schemaJson ? { schemaJson } : {}) }
+    return { assets, ...(outputSchema ? { outputSchema } : {}) }
   } catch (error) {
     if (error instanceof InlineAgentProjectionError) {
       throw new ClaudeAdapterError(`claude_${error.code}`)
@@ -472,13 +485,14 @@ function scrubOutput(
 function createTaskInput(
   request: AgentHostRunRequest,
   assets: InlineAgentAsset[],
+  outputSchema: PreparedOutputSchema | undefined,
 ): string {
   const envelope = {
     schemaVersion: "digital-employee-context.v1",
     task: request.prompt,
     assets,
-    ...(request.outputSchema !== undefined
-      ? { outputSchema: request.outputSchema }
+    ...(outputSchema !== undefined
+      ? { outputSchema: outputSchema.value }
       : {}),
   }
   const input = [
@@ -724,12 +738,16 @@ export class ClaudeAgentHostAdapter implements AgentHostAdapter {
           systemPromptPath,
           createSystemPrompt(
             request.instructions,
-            prepared.schemaJson !== undefined,
+            prepared.outputSchema !== undefined,
           ),
           { flag: "wx", mode: 0o600 },
         ),
       ])
-      const taskInput = createTaskInput(request, prepared.assets)
+      const taskInput = createTaskInput(
+        request,
+        prepared.assets,
+        prepared.outputSchema,
+      )
       const expectedCwd = await realpath(workspace)
       const args = [
         ...this.commandPrefixArgs,
@@ -891,7 +909,7 @@ export class ClaudeAgentHostAdapter implements AgentHostAdapter {
 
       let completion
       try {
-        completion = normalizer.finish(request.outputSchema)
+        completion = normalizer.finish(prepared.outputSchema?.value)
       } catch (error) {
         if (error instanceof ClaudeStreamProtocolError) {
           throw new ClaudeAdapterError(error.code, error.retryable)
@@ -906,7 +924,7 @@ export class ClaudeAgentHostAdapter implements AgentHostAdapter {
         output: scrubOutput(
           completion.output,
           credential,
-          request.outputSchema !== undefined,
+          prepared.outputSchema !== undefined,
         ),
       }
     } catch (error) {

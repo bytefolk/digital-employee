@@ -114,7 +114,12 @@ interface ActiveRun {
 
 interface PreparedRun {
   assets: InlineAgentAsset[]
-  schemaJson?: string
+  outputSchema?: PreparedOutputSchema
+}
+
+interface PreparedOutputSchema {
+  json: string
+  value: SafeValue
 }
 
 interface QwenStreamNormalizerOptions {
@@ -278,7 +283,9 @@ function validatedBaseUrl(environment: NodeJS.ProcessEnv): string | undefined {
   return value
 }
 
-function serializeAndValidateSchema(schema: SafeValue | undefined): string | undefined {
+function serializeAndValidateSchema(
+  schema: SafeValue | undefined,
+): PreparedOutputSchema | undefined {
   if (schema === undefined) return undefined
   try {
     const serialized = JSON.stringify(schema)
@@ -291,15 +298,21 @@ function serializeAndValidateSchema(schema: SafeValue | undefined): string | und
       strict: false,
       validateSchema: true,
     })
-    ajv.compile(schema as object)
-    return serialized
+    const value = JSON.parse(serialized) as SafeValue
+    const validate = ajv.compile(value as object)
+    if ("$async" in validate && validate.$async === true) {
+      throw new QwenAdapterError("qwen_output_schema_invalid")
+    }
+    return { json: serialized, value }
   } catch (error) {
     if (error instanceof QwenAdapterError) throw error
     throw new QwenAdapterError("qwen_output_schema_invalid")
   }
 }
 
-function validateRequestShape(request: AgentHostRunRequest): string | undefined {
+function validateRequestShape(
+  request: AgentHostRunRequest,
+): PreparedOutputSchema | undefined {
   validateIdentifier(request.runId, "qwen_invalid_run_id")
   validateIdentifier(request.employeeId, "qwen_invalid_employee_id")
   if (!request.prompt.trim() || byteLength(request.prompt) > MAX_PROMPT_BYTES) {
@@ -311,7 +324,7 @@ function validateRequestShape(request: AgentHostRunRequest): string | undefined 
   ) {
     throw new QwenAdapterError("qwen_instructions_too_large")
   }
-  const schemaJson = serializeAndValidateSchema(request.outputSchema)
+  const outputSchema = serializeAndValidateSchema(request.outputSchema)
   if (request.policy.tools.default !== "deny") {
     throw new QwenAdapterError("qwen_tool_policy_must_default_deny")
   }
@@ -366,17 +379,17 @@ function validateRequestShape(request: AgentHostRunRequest): string | undefined 
       throw new QwenAdapterError("qwen_deadline_elapsed")
     }
   }
-  return schemaJson
+  return outputSchema
 }
 
 async function prepareRun(
   request: AgentHostRunRequest,
   beforeOpen?: (sourcePath: string) => Promise<void>,
 ): Promise<PreparedRun> {
-  const schemaJson = validateRequestShape(request)
+  const outputSchema = validateRequestShape(request)
   try {
     const assets = await readInlineAgentAssets(request, beforeOpen)
-    return { assets, ...(schemaJson ? { schemaJson } : {}) }
+    return { assets, ...(outputSchema ? { outputSchema } : {}) }
   } catch (error) {
     if (error instanceof InlineAgentProjectionError) {
       throw new QwenAdapterError(`qwen_${error.code}`)
@@ -555,6 +568,7 @@ function scrubOutput(
 function createTaskInput(
   request: AgentHostRunRequest,
   assets: InlineAgentAsset[],
+  outputSchema: PreparedOutputSchema | undefined,
 ): string {
   const envelope = {
     schemaVersion: "digital-employee-context.v1",
@@ -562,8 +576,8 @@ function createTaskInput(
     ...(request.instructions !== undefined
       ? { instructions: request.instructions }
       : {}),
-    ...(request.outputSchema !== undefined
-      ? { outputSchema: request.outputSchema }
+    ...(outputSchema !== undefined
+      ? { outputSchema: outputSchema.value }
       : {}),
     assets,
   }
@@ -594,7 +608,9 @@ function normalizeOutputValue(
     throw new QwenStreamProtocolError("qwen_output_too_complex")
   }
   if (value === null) return null
-  if (typeof value === "string") return redactText(value)
+  // Preserve the model value for Schema validation. The terminal scrubber
+  // rejects any redaction that would mutate schema-bound output.
+  if (typeof value === "string") return value
   if (typeof value === "boolean") return value
   if (typeof value === "number") {
     if (!Number.isFinite(value)) {
@@ -629,7 +645,10 @@ function validateStructuredOutput(value: unknown, schema: SafeValue): SafeValue 
       validateSchema: true,
     })
     const validate = ajv.compile(schema as object)
-    if (!validate(normalized)) {
+    if ("$async" in validate && validate.$async === true) {
+      throw new QwenStreamProtocolError("qwen_output_schema_invalid")
+    }
+    if (validate(normalized) !== true) {
       throw new QwenStreamProtocolError("qwen_output_schema_mismatch")
     }
   } catch (error) {
@@ -1164,7 +1183,11 @@ export class QwenAgentHostAdapter implements AgentHostAdapter {
         ),
       )
 
-      const taskInput = createTaskInput(request, prepared.assets)
+      const taskInput = createTaskInput(
+        request,
+        prepared.assets,
+        prepared.outputSchema,
+      )
       const expectedCwd = await realpath(workspace)
       const sessionId = randomUUID()
       const args = [
@@ -1327,7 +1350,7 @@ export class QwenAgentHostAdapter implements AgentHostAdapter {
 
       let completion: QwenStreamCompletion
       try {
-        completion = normalizer.finish(request.outputSchema)
+        completion = normalizer.finish(prepared.outputSchema?.value)
       } catch (error) {
         if (error instanceof QwenStreamProtocolError) {
           throw new QwenAdapterError(error.code, error.retryable)
@@ -1342,7 +1365,7 @@ export class QwenAgentHostAdapter implements AgentHostAdapter {
         output: scrubOutput(
           completion.output,
           credential,
-          request.outputSchema !== undefined,
+          prepared.outputSchema !== undefined,
         ),
       }
     } catch (error) {

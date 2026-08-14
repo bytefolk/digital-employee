@@ -229,7 +229,11 @@ function compileValidator(schema: Record<string, unknown>) {
     strict: false,
     validateSchema: true,
   })
-  return ajv.compile(schema)
+  const validate = ajv.compile(schema)
+  if ("$async" in validate && validate.$async === true) {
+    throw new TypeError("employee_async_json_schema_unsupported")
+  }
+  return validate
 }
 
 function asSafeValue(value: unknown): SafeValue {
@@ -385,7 +389,7 @@ export async function runEmployeePackage(
   } catch {
     return failed(identity, "employee_input_schema_invalid")
   }
-  if (!validateInput(options.input)) {
+  if (validateInput(options.input) !== true) {
     return failed(identity, "employee_input_schema_mismatch")
   }
 
@@ -584,7 +588,7 @@ export async function runEmployeePackage(
 
   try {
     const validateOutput = compileValidator(inspection.artifacts.outputSchema)
-    if (!validateOutput(terminal.output)) {
+    if (validateOutput(terminal.output) !== true) {
       return failed(identity, "employee_output_schema_mismatch")
     }
   } catch {

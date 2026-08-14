@@ -130,6 +130,7 @@ test("Qoder probe reports only the fixture-verified stateless capabilities", asy
   assert.equal(probe.capabilities.tool_allowlist, "supported")
   assert.equal(probe.capabilities.filesystem_scope, "supported")
   assert.equal(probe.capabilities.network_policy, "supported")
+  assert.equal(probe.capabilities.structured_output, "supported")
   assert.equal(probe.capabilities.mcp, "unsupported")
   assert.equal(probe.capabilities.usage_events, "unknown")
 })
@@ -173,6 +174,15 @@ test("Qoder run uses an isolated projection, filtered environment, and normalize
   const sentinel = path.join(parent, "must-not-exist")
   const request = await employeeRequest(parent)
   request.prompt = `--yolo; touch ${sentinel}; $(touch ${sentinel})`
+  const schemaMarker = "SCHEMA_ARGV_MARKER"
+  assert.equal(
+    typeof request.outputSchema === "object" && request.outputSchema !== null,
+    true,
+  )
+  request.outputSchema = {
+    ...(request.outputSchema as Record<string, SafeValue>),
+    $comment: schemaMarker,
+  }
 
   const events = await collect(adapter(parent, "success", capture).run(request))
   assert.deepEqual(
@@ -212,6 +222,12 @@ test("Qoder run uses an isolated projection, filtered environment, and normalize
   })
   assert.equal(captured.environmentKeys.includes("SECRET_SHOULD_NOT_PASS"), false)
   assert.equal(captured.environmentKeys.includes("NODE_OPTIONS"), false)
+  assert.equal(captured.environmentContainsSchemaMarker, false)
+  assert.equal(
+    captured.args.some((value: string) => value.includes(schemaMarker)),
+    false,
+  )
+  assert.equal(JSON.stringify(events).includes(schemaMarker), false)
   assert.equal(captured.args.includes("--dangerously-skip-permissions"), false)
   assert.equal(captured.args.includes("--yolo"), false)
   assert.equal(captured.args.includes("dont_ask"), true)
@@ -231,6 +247,7 @@ test("Qoder run uses an isolated projection, filtered environment, and normalize
   const user = JSON.parse(captured.inputLines[1])
   assert.equal(user.type, "user")
   assert.match(user.message.content[0].text, /--yolo; touch/)
+  assert.match(user.message.content[0].text, /SCHEMA_ARGV_MARKER/)
   await assert.rejects(access(sentinel))
   assert.equal(
     (await readdir(parent)).some((entry) =>
@@ -518,6 +535,11 @@ for (const [mode, expectedCode] of [
   ["nonzero", "qoder_process_failed"],
   ["result-error", "qoder_execution_failed"],
   ["invalid-output", "qoder_output_not_json"],
+  ["prose-output", "qoder_output_not_json"],
+  ["truncated-output", "qoder_output_not_json"],
+  ["malformed-output", "qoder_output_not_json"],
+  ["schema-mismatch", "qoder_output_schema_mismatch"],
+  ["schema-extra-field", "qoder_output_schema_mismatch"],
   ["stdout-oversize", "qoder_stdout_limit_exceeded"],
   ["stderr-oversize", "qoder_stderr_limit_exceeded"],
 ] as const) {
@@ -534,8 +556,41 @@ for (const [mode, expectedCode] of [
       terminals[0]?.type === "run.failed" && terminals[0].error.code,
       expectedCode,
     )
+    assert.equal(
+      events.some((event) => event.type === "assistant.delta"),
+      false,
+    )
   })
 }
+
+test("Qoder treats a false JSON Schema as present and fails closed", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "qoder-false-schema-"))
+  const request = await employeeRequest(parent, "run-false-schema")
+  request.outputSchema = false
+  const events = await collect(adapter(parent).run(request))
+  const terminal = events.at(-1)
+
+  assert.equal(terminal?.type, "run.failed")
+  assert.equal(
+    terminal?.type === "run.failed" && terminal.error.code,
+    "qoder_output_schema_mismatch",
+  )
+  assert.equal(events.some((event) => event.type === "assistant.delta"), false)
+})
+
+test("Qoder leaves unstructured output unchanged without outputSchema", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "qoder-unstructured-"))
+  const request = await employeeRequest(parent, "run-unstructured")
+  request.outputSchema = undefined
+  const events = await collect(adapter(parent, "unstructured-prose").run(request))
+  const terminal = events.at(-1)
+
+  assert.equal(terminal?.type, "run.completed")
+  assert.equal(
+    terminal?.type === "run.completed" && terminal.output,
+    "plain fixture answer",
+  )
+})
 
 for (const [mode, expectedCode] of [
   ["protocol-buffered", "qoder_initialize_response_invalid"],
@@ -622,12 +677,44 @@ test("Qoder deadline and explicit cancellation terminate a hanging run", async (
   )
 })
 
+test("Qoder never flushes buffered output on explicit cancellation", async () => {
+  const cancelParent = await mkdtemp(
+    path.join(os.tmpdir(), "qoder-buffered-cancel-"),
+  )
+  const cancelRequest = await employeeRequest(
+    cancelParent,
+    "run-buffered-cancel",
+  )
+  const host = adapter(cancelParent, "buffered-hang")
+  const iterator = host.run(cancelRequest)[Symbol.asyncIterator]()
+  const events: AgentHostEvent[] = []
+  const started = await iterator.next()
+  assert.equal(started.value?.type, "run.started")
+  if (started.value) events.push(started.value)
+  const bufferedTool = await iterator.next()
+  assert.equal(bufferedTool.value?.type, "tool.started")
+  if (bufferedTool.value) events.push(bufferedTool.value)
+  await host.cancel(cancelRequest.runId)
+  for (;;) {
+    const next = await iterator.next()
+    if (next.done) break
+    events.push(next.value)
+  }
+  const cancelTerminal = events.at(-1)
+  assert.equal(cancelTerminal?.type, "run.failed")
+  assert.equal(
+    cancelTerminal?.type === "run.failed" && cancelTerminal.error.code,
+    "qoder_run_cancelled",
+  )
+  assert.equal(events.some((event) => event.type === "assistant.delta"), false)
+  assert.equal(terminalEvents(events).length, 1)
+})
+
 test("Qoder preflight rejects write and missing service-token policies without a model run", async () => {
   const parent = await mkdtemp(path.join(os.tmpdir(), "qoder-preflight-"))
   const request = await employeeRequest(parent)
   request.policy.filesystem.write = ["./knowledge/out.md"]
   request.policy.tools.allow.push({ name: "filesystem.write", mode: "write" })
-
   const noToken = createQoderAgentHostAdapter({
     command: process.execPath,
     commandPrefixArgs: [fixture],
@@ -637,13 +724,86 @@ test("Qoder preflight rejects write and missing service-token policies without a
   const probe = await noToken.preflight(request)
   assert.equal(probe.status, "not_ready")
   assert.equal(
-    probe.issues.some((entry) => entry.code === "qoder_service_token_not_configured"),
+    probe.issues.some(
+      (entry) => entry.code === "qoder_service_token_not_configured",
+    ),
     true,
   )
+
   assert.equal(
-    probe.issues.some((entry) => entry.code === "qoder_tool_policy_unsupported"),
+    probe.issues.some(
+      (entry) => entry.code === "qoder_tool_policy_unsupported",
+    ),
     true,
   )
+})
+
+test("Qoder rejects invalid, oversized, and async Schema before any Qoder process", async () => {
+  for (const [name, schema, expectedCode] of [
+    [
+      "invalid",
+      { type: "definitely-not-a-json-schema-type" },
+      "qoder_output_schema_invalid",
+    ],
+    [
+      "oversized",
+      { type: "object", $comment: "x".repeat(16 * 1024) },
+      "qoder_output_schema_too_large",
+    ],
+    [
+      "async",
+      { $async: true, type: "object" },
+      "qoder_output_schema_invalid",
+    ],
+  ] as const) {
+    const parent = await mkdtemp(path.join(os.tmpdir(), `qoder-schema-${name}-`))
+    const launchLog = path.join(parent, "launch.jsonl")
+    const request = await employeeRequest(parent, `run-schema-${name}`)
+    request.outputSchema = schema
+    let beforeSpawnCalls = 0
+    let beforeProjectionOpenCalls = 0
+    let versionProbeCalls = 0
+    const host = adapter(parent, "success", undefined, 10_000, {
+      fixtureArgs: ["--launch-log", launchLog],
+      versionExecutor: async () => {
+        versionProbeCalls += 1
+        return { status: "installed", output: "1.1.12" }
+      },
+      beforeSpawn: async () => {
+        beforeSpawnCalls += 1
+      },
+      beforeProjectionOpen: async () => {
+        beforeProjectionOpenCalls += 1
+      },
+    })
+
+    const preflight = await host.preflight(request)
+    assert.equal(preflight.status, "not_ready", name)
+    assert.equal(
+      preflight.issues.some((entry) => entry.code === expectedCode),
+      true,
+      name,
+    )
+    const events = await collect(host.run(request))
+    const terminal = events.at(-1)
+    assert.equal(terminal?.type, "run.failed", name)
+    assert.equal(
+      terminal?.type === "run.failed" && terminal.error.code,
+      expectedCode,
+      name,
+    )
+    assert.equal(beforeSpawnCalls, 0, name)
+    assert.equal(beforeProjectionOpenCalls, 0, name)
+    assert.equal(versionProbeCalls, 0, name)
+    await assert.rejects(access(launchLog))
+    assert.equal(
+      (await readdir(parent)).some((entry) =>
+        entry.startsWith("digital-employee-qoder-"),
+      ),
+      false,
+      name,
+    )
+  }
 })
 
 test("Qoder reserves a run id before asynchronous preflight work", async () => {

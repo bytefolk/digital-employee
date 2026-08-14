@@ -380,6 +380,30 @@ test("Qwen fails closed without emitting the API key from hostile output", async
   await rm(parent, { recursive: true, force: true })
 })
 
+test("Qwen validates structured output before redaction can manufacture conformance", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "qwen-redaction-order-"))
+  const request = await employeeRequest(parent, "run-redaction-order")
+  request.outputSchema = {
+    type: "object",
+    required: ["answer"],
+    properties: { answer: { const: "token=[REDACTED]" } },
+    additionalProperties: true,
+  }
+  const events = await collect(
+    adapter(parent, "generic-redaction-output").run(request),
+  )
+  const terminal = events.at(-1)
+
+  assert.equal(terminal?.type, "run.failed")
+  assert.equal(
+    terminal?.type === "run.failed" && terminal.error.code,
+    "qwen_output_schema_mismatch",
+  )
+  assert.equal(events.some((event) => event.type === "run.completed"), false)
+  assert.equal(JSON.stringify(events).includes("fixture-public-nonsecret"), false)
+  await rm(parent, { recursive: true, force: true })
+})
+
 test("Qwen fails closed when a hostile result uses the API key as an object key", async () => {
   const parent = await mkdtemp(path.join(os.tmpdir(), "qwen-secret-key-"))
   const request = await employeeRequest(parent, "run-secret-key")
@@ -497,23 +521,48 @@ test("Qwen rejects credentials, model, write, network and approval gaps before l
   await rm(parent, { recursive: true, force: true })
 })
 
-test("Qwen validates JSON Schema locally before launching", async () => {
-  const parent = await mkdtemp(path.join(os.tmpdir(), "qwen-schema-"))
-  const launchLog = path.join(parent, "launch.jsonl")
-  const request = await employeeRequest(parent, "run-schema")
-  request.outputSchema = { type: "definitely-not-a-json-schema-type" }
+test("Qwen validates synchronous JSON Schema locally before launching", async () => {
+  for (const [name, outputSchema] of [
+    ["invalid", { type: "definitely-not-a-json-schema-type" }],
+    ["async", { $async: true, type: "object" }],
+  ] as const) {
+    const parent = await mkdtemp(path.join(os.tmpdir(), `qwen-schema-${name}-`))
+    const launchLog = path.join(parent, "launch.jsonl")
+    const request = await employeeRequest(parent, `run-schema-${name}`)
+    request.outputSchema = outputSchema as SafeValue
+    const host = adapter(parent, "success", undefined, 10_000, {
+      fixtureArgs: ["--launch-log", launchLog],
+    })
+
+    const events = await collect(host.run(request))
+    const failed = events.at(-1)
+    assert.equal(failed?.type, "run.failed")
+    assert.equal(
+      failed?.type === "run.failed" && failed.error.code,
+      "qwen_output_schema_invalid",
+    )
+    await assert.rejects(access(launchLog))
+    await rm(parent, { recursive: true, force: true })
+  }
+})
+
+test("Qwen keeps the prepared Schema when the request mutates before spawn", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "qwen-late-schema-"))
+  const request = await employeeRequest(parent, "run-late-schema")
   const host = adapter(parent, "success", undefined, 10_000, {
-    fixtureArgs: ["--launch-log", launchLog],
+    beforeSpawn: async () => {
+      request.outputSchema = { $async: true, type: "object" }
+    },
   })
 
   const events = await collect(host.run(request))
-  const failed = events.at(-1)
-  assert.equal(failed?.type, "run.failed")
+  const completed = events.at(-1)
+  assert.equal(completed?.type, "run.completed")
   assert.equal(
-    failed?.type === "run.failed" && failed.error.code,
-    "qwen_output_schema_invalid",
+    completed?.type === "run.completed" &&
+      (completed.output as { answer?: string }).answer,
+    "fixture answer",
   )
-  await assert.rejects(access(launchLog))
   await rm(parent, { recursive: true, force: true })
 })
 

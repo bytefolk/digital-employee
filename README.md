@@ -132,7 +132,17 @@ empty MCP/Skill/plugin sets. Qoder assistant text is held until process and
 credential cleanup succeeds, then scrubbed as one value with the exact service
 credential. Tool values are scrubbed before truncation, credential-bearing tool
 identifiers and keys are rejected, and schema-bound structured output that
-would require credential or pattern redaction fails closed.
+would require credential or pattern redaction fails closed. Across all
+built-in Adapters, `structured_output` means Adapter-enforced terminal validity
+against one bounded, immutable, synchronous Schema snapshot, not Host-native
+constrained generation. Every Adapter validates the unchanged terminal JSON:
+repair, coercion, defaults, field removal, or redaction cannot manufacture a
+passing value, and any post-validation safety scrub that would mutate a
+schema-bound value fails closed. Qoder additionally accepts only synchronous
+Schemas of at most 16 KiB and compiles them before projection or any Qoder
+subprocess. An invalid, oversized, or asynchronous Schema therefore
+short-circuits before even the bounded, credential-free `--version` readiness
+probe.
 
 These paths are local/single-tenant technical previews, not a marketplace-ready
 online employee service. All four reject MCP, attachments, session resume,

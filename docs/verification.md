@@ -1,6 +1,6 @@
 # Verification ledger
 
-Last updated: 2026-08-04
+Last updated: 2026-08-14
 
 This file distinguishes shipped code from the environments in which it has
 actually been exercised. A passing fixture test is not presented as a live
@@ -9,11 +9,11 @@ provider integration.
 | Path | Evidence | Result |
 | --- | --- | --- |
 | Local answer and escalation | Public example files, extractive model, real CLI process | Verified |
-| Automated suite | `npm run check` | 343/343 tests plus strict TypeScript, build and the repository security scan passed on 2026-08-04; provider fixtures do not make live model requests |
+| Automated suite | `npm run check` | 858/858 tests plus strict TypeScript, build and the repository security scan passed on 2026-08-14; provider fixtures do not make live model requests |
 | Coverage gate | `npm run test:coverage` on Node.js 22.23.2 | 343/343 tests; 91.97% line, 73.48% branch and 90.44% function coverage |
 | Strict TypeScript | `npm run typecheck` | 0 errors across shipped runtime sources |
-| Agent-host install probes | Real local version/init probes plus bounded fixture processes | Qoder CLI 1.1.12, Codex CLI 0.146.0, Qwen Code 0.17.1 and CodeBuddy Code 2.106.4 found locally; Claude Code 2.1.209 is below the verified range and its probe failed; live authentication/model access not tested |
-| Qoder run adapter | Adapter-specific deterministic child-process fixtures; not a reusable third-party certification harness | Qoder CLI 1.1.x SDK process-mode initialize/user/EOF transport, private auth payload, argument isolation, minimum read-only projection, filtered environment, exact read/search tool plus empty MCP/plugin/Skill attestation, package-aware preflight, atomic event publication, cross-delta exact-credential scrubbing, pre-truncation tool-value scrubbing, credential-bearing tool identifier/key rejection, schema-bound output redaction rejection, cancellation, file-identity checks, cleanup and terminal invariants verified; no live model request made |
+| Agent-host install probes | Real local version/init probes plus bounded fixture processes | Qoder CLI 1.1.17, Codex CLI 0.146.0, Qwen Code 0.17.1 and CodeBuddy Code 2.106.4 found locally; Claude Code 2.1.209 is below the verified range and its probe failed; live authentication/model access not tested |
+| Qoder run adapter | Adapter-specific deterministic child-process fixtures plus checked-in `structured-action.v1` package negotiation; not a reusable third-party certification harness | Qoder CLI 1.1.x SDK process-mode initialize/user/EOF transport, private auth payload, argument isolation, minimum read-only projection, filtered environment, exact read/search tool plus empty MCP/plugin/Skill attestation, package-aware preflight, atomic event publication, cross-delta exact-credential scrubbing, pre-truncation tool-value scrubbing, credential-bearing tool identifier/key rejection, and cancellation/cleanup invariants verified. `structured_output` additionally covers strict matching, prose/fence/truncated/malformed JSON, mismatch/extra fields, `false` Schema, absent Schema, credential mutation, buffered cancellation, independent deadline handling, and invalid/oversized/async Schema rejection before any Qoder process. A real model-free Qoder 1.1.17 probe made the public `senior-architect-pass-coach@0.3.0` employee compatible through ordinary package validation; unverified versions fail closed. This is Adapter-specific fixture evidence (`capabilitySource: conformance_test`), no Qoder qualification record was generated, `liveQualified` remains false, and no live model request was made. |
 | Claude Code run adapter | Adapter-specific deterministic version-locked child-process fixtures only | Claude Code `>=2.1.214 <2.2.0`, explicit `ANTHROPIC_API_KEY`, `--bare --tools ""`, strict empty MCP, disabled commands/session persistence, sealed UTF-8 stdin assets, empty isolated workspace, home, configuration and temp directories, runtime empty tool/MCP/plugin/Skill attestation, strict unknown-event rejection, process-group descendant cleanup, cancellation and terminal invariants verified on POSIX; no live model request made |
 | Qwen Code run adapter | Exact-version child-process fixtures plus real local init against an unreachable loopback endpoint | Qwen Code `0.17.1`, explicit `OPENAI_API_KEY` and `OPENAI_MODEL`, sealed UTF-8 stdin assets, disposable empty workspace, home, configuration and temp directories, empty tool/MCP/slash-command surface and exact non-callable built-in Agent catalog, secret-safe structured output, cancellation, process-group cleanup and terminal invariants verified on POSIX; no model request reached a provider |
 | CodeBuddy Code run adapter | Exact-version child-process fixtures plus real local init against an unreachable loopback endpoint | CodeBuddy Code `2.106.4`, explicit `CODEBUDDY_API_KEY` and `CODEBUDDY_MODEL`, sealed UTF-8 stdin assets, disposable empty workspace/config/session/temp state, exhaustive built-in deny list and final empty tool/MCP attestation, strict status/snapshot/unknown-event checks, secret-safe structured output, cancellation, process-group cleanup and terminal invariants verified on POSIX; no model request reached a provider |
@@ -49,7 +49,7 @@ npm run test:coverage
 npm audit --audit-level=high
 ```
 
-Node.js 24.13.0 completed all 343 tests through `npm run check`, and Node 24 is
+Node.js 24.13.0 completed all 858 tests through `npm run check`, and Node 24 is
 part of the regular CI matrix. Its experimental full-suite coverage reporter
 can end with `Unexpected end of JSON input` while aggregating child-process
 coverage, including three consecutive reproductions after every test passed on

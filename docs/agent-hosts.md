@@ -1,6 +1,6 @@
 # Agent Host 状态与接入策略
 
-- 状态日期：2026-08-04
+- 状态日期：2026-08-14
 - 适用范围：当前源码树中的 `employee-package.v1alpha1`、`agent-host.v1`
 - 相关文档：[架构说明](architecture.md)、[员工包规范](employee-package.md)、[ADR 0001](decisions/0001-agent-host-boundary.md)
 
@@ -14,7 +14,9 @@
 
 这里的 **probe-only** 不是“不启动任何进程”，而是“没有可启动模型或 Agent loop 的 runnable Adapter”。`doctor` 只会用过滤后的环境、固定 `--version` 参数和 10 秒超时执行受限版本探测；它不会验证登录、发起模型调用或执行工具。
 
-当前 `capabilitySource: conformance_test` 指仓库内针对特定 Adapter 和锁定 Host 版本的确定性子进程 fixture。它不是可供第三方 Adapter 复用的认证 harness，也不是厂商认证或真实模型额度验证。
+当前 `capabilitySource: conformance_test` 指仓库内针对特定 Adapter 和锁定 Host 版本的确定性子进程 fixture。它不是可供第三方 Adapter 复用的认证 harness，也不是厂商认证或真实模型额度验证。Qoder 的 capability 声明来自 Adapter 专用确定性 fixture；本轮没有生成通用 qualification record，`liveQualified` 为 false。
+
+`structured_output` 统一表示 **Adapter 保证终态有效**，而不是 Host 原生约束生成：有 `outputSchema` 时，`run.completed` 必须携带原值通过调用方同步 Schema 的终态 JSON；修复、强制转换、默认值、删字段或脱敏都不得制造一个合格值，校验后的安全检查若需要改写 schema-bound 值也必须 fail closed。无效 JSON、异步 Schema、Schema 不匹配、取消、超时或清理失败同样必须 fail closed。事件流本身是 JSON 不构成该能力。Qoder 额外把 Schema 限制在 16 KiB，并在受限版本探针或任何投影、模型进程前完成编译。
 
 ## 名词边界
 
@@ -29,7 +31,7 @@
 
 | 产品 | 当前源码状态 | 官方接口证据 | 本项目结论 |
 | --- | --- | --- | --- |
-| Qoder CLI 1.1.x | `runnable`；内置、版本锁定、只读 one-shot Adapter | 当前实现与测试见 [`qoder-agent-host.ts`](../apps/cli/qoder-agent-host.ts) 和 [验证账本](verification.md) | 最小只读文件投影，运行时校验精确的读/搜索工具集；仍不是多租户在线服务 |
+| Qoder CLI 1.1.x | `runnable`；内置、版本锁定、只读 one-shot Adapter | 当前实现与测试见 [`qoder-agent-host.ts`](../apps/cli/qoder-agent-host.ts) 和 [验证账本](verification.md) | 最小只读文件投影，运行时校验精确的读/搜索工具集；`structured_output` 由 Adapter 严格终态校验，Schema 限 16 KiB 且必须同步；无效、超限或异步 Schema 在运行工作区投影、受限 `--version` 探针和模型进程前即拒绝；仍不是多租户在线服务 |
 | Claude Code `>=2.1.214 <2.2.0` | `runnable`；内置、版本锁定、context-only one-shot Adapter | 官方提供 [`claude -p` 与 `--bare`](https://code.claude.com/docs/en/headless)、JSON/stream-json、[权限](https://code.claude.com/docs/en/permissions)、[沙箱](https://code.claude.com/docs/en/sandboxing)、[MCP](https://code.claude.com/docs/en/mcp)、[Skills](https://code.claude.com/docs/en/skills) 和 [Agent SDK](https://code.claude.com/docs/en/agent-sdk/typescript) | `--bare --tools "" --strict-mcp-config --disable-slash-commands --no-session-persistence`，资产经 stdin 内联；只支持显式 `ANTHROPIC_API_KEY` |
 | Codex CLI | `probe-only`；仅检查本机命令和版本 | 官方提供 [`codex exec`](https://learn.chatgpt.com/docs/non-interactive-mode)、[JSONL 与输出 Schema](https://learn.chatgpt.com/docs/developer-commands?surface=cli#cli-codex-exec)、[MCP](https://learn.chatgpt.com/docs/extend/mcp)、[Skills](https://learn.chatgpt.com/docs/build-skills)；[App Server](https://learn.chatgpt.com/docs/app-server) 另有事件与 `turn/interrupt` | 已审计 0.146.0；即使禁用 shell/unified exec，`apply_patch` 等模型可见内建工具仍无法可靠全部移除，所以 `tool_allowlist` 保持 `unknown` |
 | Qwen Code `0.17.1` | `runnable`；内置、精确版本锁定、context-only one-shot Adapter | 官方提供 [headless JSON/stream-json](https://qwenlm.github.io/qwen-code-docs/en/users/features/headless/)、[权限与沙箱](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/)、[MCP](https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/)、[Skills](https://qwenlm.github.io/qwen-code-docs/en/users/features/skills) 和 [TypeScript SDK](https://github.com/QwenLM/qwen-code/blob/main/packages/sdk-typescript/README.md) | 密封 UTF-8 资产经 stdin 内联，工具/MCP/slash-command 集为空；锁定 0.17.1 的不可调用内建 Agent 目录；要求显式 `OPENAI_API_KEY` 与 `OPENAI_MODEL`，可选 `OPENAI_BASE_URL` |

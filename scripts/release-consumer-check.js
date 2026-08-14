@@ -269,6 +269,7 @@ export async function verifyRootPackageConsumer({ archivePath, qoderFixturePath 
   const fixtureBin = path.join(temporary, "fixture-bin");
   const workspace = path.join(temporary, "workspace");
   const installationTemporary = path.join(temporary, "install-tmp");
+  const installationCache = path.join(temporary, "install-cache");
   const runtimeTemporary = path.join(temporary, "runtime-tmp");
   const employee = path.join(workspace, "my-employee");
   const statePath = path.join(home, ".digital-employee", "config.json");
@@ -288,6 +289,7 @@ export async function verifyRootPackageConsumer({ archivePath, qoderFixturePath 
       mkdir(fixtureBin),
       mkdir(workspace),
       mkdir(installationTemporary),
+      mkdir(installationCache),
       mkdir(runtimeTemporary)
     ]);
     const fixtureCommand = path.join(fixtureBin, "qodercli");
@@ -298,13 +300,14 @@ export async function verifyRootPackageConsumer({ archivePath, qoderFixturePath 
       ...process.env,
       TMPDIR: installationTemporary,
       TEMP: installationTemporary,
-      TMP: installationTemporary
+      TMP: installationTemporary,
+      npm_config_cache: installationCache
     };
     runObserved(
       process.env.npm_execpath ? process.execPath : "npm",
       process.env.npm_execpath
-        ? [process.env.npm_execpath, "install", "--prefix", consumer, "--ignore-scripts", "--no-audit", "--no-fund", "--offline", archivePath]
-        : ["install", "--prefix", consumer, "--ignore-scripts", "--no-audit", "--no-fund", "--offline", archivePath],
+        ? [process.env.npm_execpath, "install", "--prefix", consumer, "--ignore-scripts", "--no-audit", "--no-fund", archivePath]
+        : ["install", "--prefix", consumer, "--ignore-scripts", "--no-audit", "--no-fund", archivePath],
       { environment: installationEnvironment, timeout: 120_000 }
     );
 
@@ -336,9 +339,18 @@ export async function verifyRootPackageConsumer({ archivePath, qoderFixturePath 
         }
       }
     );
-    await scanTreeForSecret(installationTemporary, SECRET_SENTINEL);
-    await rm(installationTemporary, { recursive: true });
-    await assertPathAbsent(installationTemporary);
+    await Promise.all([
+      scanTreeForSecret(installationTemporary, SECRET_SENTINEL),
+      scanTreeForSecret(installationCache, SECRET_SENTINEL)
+    ]);
+    await Promise.all([
+      rm(installationTemporary, { recursive: true }),
+      rm(installationCache, { recursive: true })
+    ]);
+    await Promise.all([
+      assertPathAbsent(installationTemporary),
+      assertPathAbsent(installationCache)
+    ]);
 
     const cliCommand = path.join(
       consumer,
@@ -533,7 +545,7 @@ export async function verifyRootPackageConsumer({ archivePath, qoderFixturePath 
       secretSentinel: SECRET_SENTINEL,
       scanRoots: [home, workspace, consumer],
       emptyRuntimeDirectory: runtimeTemporary,
-      absentTemporaryDirectories: [installationTemporary]
+      absentTemporaryDirectories: [installationTemporary, installationCache]
     });
   } finally {
     await stopRuntimeAndRemoveConsumerTree({

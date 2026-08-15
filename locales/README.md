@@ -22,3 +22,18 @@ Use BCP 47 codes: `en`, `zh-CN`, `ja`, `pt-BR`, `ko`, `es`, etc.
 
 If a key is missing from a locale file, the English (`en.json`) value is used automatically.
 The application will never crash due to a missing translation key.
+
+## Validation
+
+The `validateCatalog()` function checks each locale against the English reference:
+
+- All keys from `en.json` must be present
+- All values must be non-empty strings
+
+Validation runs automatically when `setLocale()` loads a file. The first 3
+validation errors are logged to stderr as warnings — they don't block loading
+since missing keys fall back to English. Add `"locale.display_name"` and all
+keys present in `en.json` to keep validation clean.
+
+To validate all locale files at once during CI, use `npm run check` which
+exercises the test suite including the AC-002 validation tests.

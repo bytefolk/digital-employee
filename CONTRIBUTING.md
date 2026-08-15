@@ -55,6 +55,19 @@ observable evidence. Marketplace accounts, pricing, Quote/Credit, billing,
 settlement and server-side device/task/usage services belong in the separate
 private platform, not this repository.
 
+## Translation contributions
+
+Locale files live in `locales/` as flat key-value JSON. To add a new language:
+
+1. Copy `en.json` to `{locale-code}.json` and translate all values.
+2. Set `"locale.display_name"` to the language's native name.
+3. Add the same set of keys as `en.json` — missing keys fall back to English
+   but produce validation warnings shown on stderr.
+
+Run `npx tsx --test tests/apps/deploy-i18n.test.ts` to validate that your
+locale passes the AC-002 catalog checks. See `locales/README.md` for the
+file format and fallback behavior details.
+
 ## Connector rules
 
 Every connector must:

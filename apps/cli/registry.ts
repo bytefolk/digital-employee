@@ -14,6 +14,7 @@ import { ExtractiveModel } from "../../connectors/models/extractive/index.js"
 import { OpenAICompatibleModel } from "../../connectors/models/openai-compatible/index.js"
 import { FileSystemSource } from "../../connectors/sources/filesystem/index.js"
 import { GitSource } from "../../connectors/sources/git/index.js"
+import type { GitSourcePolicy } from "../../connectors/sources/git/index.js"
 import { createAnswerAgentProfile } from "../../profiles/answer-agent/index.js"
 
 type ConfigObject = Record<string, unknown>
@@ -110,6 +111,8 @@ function registerBuiltInSources(registry: RuntimeComponentRegistry): void {
         typeof config.publicBaseUrl === "string" ? config.publicBaseUrl : undefined,
       timeoutMs:
         typeof config.timeoutMs === "number" ? config.timeoutMs : undefined,
+      policy: config.policy as GitSourcePolicy | undefined,
+      maxStaleMs: config.maxStaleMs as number | undefined,
     })
   })
   registry.register("source", "dws", async ({ config = {} }) => {

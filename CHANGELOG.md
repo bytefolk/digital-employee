@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Git source refresh is fail closed by default and can serve a validated
+  last-known-good generation when the remote is unreachable (#103). With
+  `policy: "prefer_last_known_good"` and an integer `maxStaleMs` in
+  [1000, 604800000], every degraded read revalidates the pinned commit,
+  manifest provenance, selected-content digest, path safety, and age;
+  `legacy sync` reports `degraded` and exits 2, and runtime/HTTP health
+  report per-source status. A failed refresh never touches the active
+  generation, and the cache remains disposable.
 - Qoder CLI 1.1.x now advertises `structured_output` from Adapter-specific
   deterministic conformance fixtures under the common Adapter-enforced
   terminal-validity contract. A checked-in employee package

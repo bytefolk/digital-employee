@@ -168,18 +168,25 @@ async function ask(values: CommandValues, positionals: string[]) {
 async function sync(values: CommandValues) {
   const { createRuntime } = await import("./runtime.js");
   const runtime = await createRuntime(values.config);
+  const degraded = runtime.sourceStatuses.some(
+    (entry) => entry.status === "degraded"
+  );
   const result = {
-    status: "ready",
+    status: degraded ? "degraded" : "ready",
     employee: runtime.profile.id,
     sourceCount: runtime.sources.length,
-    documentCount: runtime.documents.length
+    documentCount: runtime.documents.length,
+    sources: runtime.sourceStatuses
   };
-  if (values.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-  else {
+  if (values.json) {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  } else {
     process.stdout.write(
-      `Ready: ${result.documentCount} approved chunks from ${result.sourceCount} source(s).\n`
+      `${degraded ? "Degraded" : "Ready"}: ${result.documentCount} approved chunks ` +
+        `from ${result.sourceCount} source(s).\n`
     );
   }
+  if (degraded) process.exitCode = 2;
 }
 
 async function start(values: CommandValues) {
@@ -214,7 +221,7 @@ async function start(values: CommandValues) {
 }
 
 async function serve(values: CommandValues) {
-  const [{ createHttpServer }, { assertProfileCapability, createRuntime }] =
+  const [{ createHttpServer }, { assertProfileCapability, createRuntime, runtimeHealth }] =
     await Promise.all([
       import("../server/server.js"),
       import("./runtime.js"),
@@ -229,11 +236,7 @@ async function serve(values: CommandValues) {
   const server = createHttpServer({
     employee: runtime.employee,
     token,
-    health: () => ({
-      status: "ok",
-      employee: runtime.profile.id,
-      documents: runtime.documents.length
-    })
+    health: () => runtimeHealth(runtime)
   });
   server.listen(port, values.host, () => {
     process.stdout.write(`Digital employee listening on http://${values.host}:${port}\n`);

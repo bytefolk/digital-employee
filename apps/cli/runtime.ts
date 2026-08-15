@@ -39,6 +39,12 @@ interface SourceConfig extends ConfigObject {
   type: string
 }
 
+export interface SourceStatusEntry {
+  id: string
+  type: string
+  status: "fresh" | "degraded" | "unavailable"
+}
+
 interface RuntimeConfig extends ConfigObject {
   employee?: EmployeeConfig
   runtime?: {
@@ -202,15 +208,36 @@ export async function createRuntime(
       if (!profileManifest.permissions.read.sourceTypes.includes(type)) {
         throw new TypeError(`profile_source_read_not_allowed:${type}`)
       }
-      return registry.create("source", type, {
+      const instance = await registry.create("source", type, {
         config: source,
         configDirectory,
         environment,
       })
+      return { instance, type }
     }),
   )
-  const documentGroups = await Promise.all(sources.map((source) => source.load()))
+  const documentGroups = await Promise.all(sources.map(({ instance }) => instance.load()))
   const documents = documentGroups.flat()
+  const sourceStatuses: SourceStatusEntry[] = sources.map(({ instance, type }) => {
+    const record = instance as { id?: unknown; status?: unknown }
+    const status =
+      record.status === "degraded" || record.status === "unavailable"
+        ? record.status
+        : "fresh"
+    return {
+      id: typeof record.id === "string" ? record.id : "source",
+      type,
+      status,
+    }
+  })
+  for (const entry of sourceStatuses) {
+    if (entry.status === "degraded") {
+      process.stderr.write(
+        `digital-employee: warning: source ${entry.id} (${entry.type}) is degraded; ` +
+          "serving a revalidated last-known-good generation\n",
+      )
+    }
+  }
   const modelConfig = assertObject(
     config.model ?? { provider: "extractive" },
     "model",
@@ -258,7 +285,24 @@ export async function createRuntime(
     profileReference: reference,
     registry,
     retriever,
-    sources,
+    sources: sources.map(({ instance }) => instance),
+    sourceStatuses,
     documents,
+  }
+}
+
+export type CreatedRuntime = Awaited<ReturnType<typeof createRuntime>>
+
+/**
+ * Truthful HTTP health payload: the server itself stays `ok` while per-source
+ * status distinguishes fresh, degraded, and unavailable. Public fields never
+ * include paths, credentials, or raw Git output.
+ */
+export function runtimeHealth(runtime: CreatedRuntime): Record<string, unknown> {
+  return {
+    status: "ok",
+    employee: runtime.profile.id,
+    documents: runtime.documents.length,
+    sources: runtime.sourceStatuses,
   }
 }

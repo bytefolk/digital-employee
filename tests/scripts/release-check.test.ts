@@ -611,3 +611,11 @@ test("root pack spec requires every deploy runtime artifact", () => {
     "required files must not contain duplicates"
   );
 });
+
+test("core pack spec admits the bundled documentation files", () => {
+  const [, coreSpec] = PACKAGE_SPECS;
+  for (const bundled of ["README.md", "LICENSE", "NOTICE"]) {
+    assert.ok(coreSpec.requiredFiles.includes(bundled), `missing required ${bundled}`);
+    assert.ok(coreSpec.allowedFiles.includes(bundled), `not allowed ${bundled}`);
+  }
+});

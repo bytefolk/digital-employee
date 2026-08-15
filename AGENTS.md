@@ -1,11 +1,11 @@
 # Contributor guide for coding agents
 
-## Quick start (public npm 0.3.0)
+## Quick start (public npm 0.4.0)
 
 To install and set up this framework as a dependency (no source checkout):
 
 ```bash
-npm install @fullstack-ai-infra/digital-employee@0.3.0
+npm install @fullstack-ai-infra/digital-employee@0.4.0
 npx digital-employee doctor --json
 npx digital-employee init ./my-employee \
   --recipe minimal-answer.v1 \
@@ -14,12 +14,10 @@ npx digital-employee validate ./my-employee --json
 npx digital-employee eval ./my-employee --json
 ```
 
-The current public npm version is `0.3.0`; the public quick path uses its
-`init`, `doctor`, `validate`, `eval`, and `run` commands. It does not contain
-the newer `setup` or package-bound `deploy` commands. Treat both as
-source-only, unreleased previews until a later public release explicitly
-includes them. For source evaluation, run `npm ci && npm run build` and invoke
-the desired preview command from that exact checkout.
+The current public npm version is `0.4.0`; the public quick path uses its
+`init`, `doctor`, `validate`, `eval`, `run`, `setup`, and package-bound
+`deploy` commands. For source evaluation, run `npm ci && npm run build` and
+invoke the desired command from that exact checkout.
 
 See [INSTALL.md](./INSTALL.md) for the full Agent-readable install path.
 

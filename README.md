@@ -14,11 +14,10 @@ evidence.
 > Digital Employee is under active development. Interfaces and package formats
 > may change before a stable release.
 
-The public npm release is `0.3.0`. It includes `init`, `doctor`, `validate`,
-`eval`, and one-shot `run`. The convenience `setup` command and package-bound
-`deploy` command are newer than `0.3.0`; both are unreleased previews available
-only from a reviewed source checkout until a later release publishes them. See
-the [install guide](INSTALL.md) for the exact published-versus-source boundary.
+The public npm release is `0.4.0`. It includes `init`, `doctor`, `validate`,
+`eval`, one-shot `run`, the convenience `setup` command, and the package-bound
+`deploy` command. See the [install guide](INSTALL.md) for the exact published
+boundary.
 
 ## Run
 
@@ -32,7 +31,7 @@ Start with the exact public release:
 mkdir digital-employee-workspace
 cd digital-employee-workspace
 npm init -y
-npm install @fullstack-ai-infra/digital-employee@0.3.0
+npm install @fullstack-ai-infra/digital-employee@0.4.0
 npx digital-employee doctor --json
 npx digital-employee init ./my-employee \
   --recipe minimal-answer.v1 \
@@ -65,23 +64,21 @@ node ./dist/apps/cli/bin.js validate ./my-employee
 node ./dist/apps/cli/bin.js eval ./my-employee --json
 ```
 
-### Try the source setup preview
+### Try the setup command
 
-`setup` is not part of npm `0.3.0`. The current source preview combines the
-model-free host probe and package scaffolding steps. After building an exact,
-reviewed checkout, invoke its CLI from the empty workspace you want it to
-scaffold:
+`setup` combines the model-free host probe and package scaffolding steps.
+From a clean workspace:
 
 ```bash
 cd /path/to/empty/workspace
 node /path/to/reviewed/digital-employee/dist/apps/cli/bin.js setup --json
 ```
 
-### Try the source deploy preview
+### Try the deploy command
 
-The source CLI can bind a validated package to a truthful local deployment
-outcome. This HTTP example requires both the selected Agent Host credential and
-an explicit HTTP bearer token. It also requires Qoder CLI 1.1.x to be installed:
+`deploy` binds a validated package to a truthful local deployment outcome.
+This HTTP example requires both the selected Agent Host credential and an
+explicit HTTP bearer token. It also requires Qoder CLI 1.1.x to be installed:
 
 ```bash
 export QODER_PERSONAL_ACCESS_TOKEN='...'
@@ -173,21 +170,21 @@ be terminated and verified before a terminal event is published.
 
 ## Release status
 
-The tagged `0.3.0` release is public through the root and core npm packages,
+The tagged `0.4.0` release is public through the root and core npm packages,
 GHCR, and GitHub Releases:
 
 | Channel | Command or download |
 | --- | --- |
-| npm (CLI) | `npm install --global @fullstack-ai-infra/digital-employee@0.3.0` |
-| npm (core) | `npm install @fullstack-ai-infra/digital-employee-core@0.3.0` |
-| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.3.0` |
-| GitHub Release | Download the root/core packages and checksums from [`v0.3.0`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.3.0) |
+| npm (CLI) | `npm install --global @fullstack-ai-infra/digital-employee@0.4.0` |
+| npm (core) | `npm install @fullstack-ai-infra/digital-employee-core@0.4.0` |
+| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.4.0` |
+| GitHub Release | Download the root/core packages and checksums from [`v0.4.0`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.4.0) |
 
-The standalone `@fullstack-ai-infra/digital-employee-core@0.3.0` package is
+The standalone `@fullstack-ai-infra/digital-employee-core@0.4.0` package is
 public. Its one-time registry bootstrap is complete, and subsequent versions
 publish from `release.yml` through npm Trusted Publishing. The current `main`
 branch contains changes made after the tag and is not itself a published
-release. Do not retag or overwrite `0.3.0` or `0.1.0`.
+release. Do not retag or overwrite `0.4.0`, `0.3.0` or `0.1.0`.
 
 The frozen `0.1.0` compatibility release is distributed through three public
 channels:

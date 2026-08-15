@@ -94,16 +94,16 @@ V0.3 源码已经提供可嵌入的 one-shot Runner 执行内核和签名续租�
 
 ## 版本状态
 
-标签版本 `0.3.0` 已通过 root/core npm 包、GHCR 和 GitHub Releases 公开发布：
+标签版本 `0.4.0` 已通过 root/core npm 包、GHCR 和 GitHub Releases 公开发布：
 
 | 渠道 | 安装或下载方式 |
 | --- | --- |
-| npm（CLI） | `npm install --global @fullstack-ai-infra/digital-employee@0.3.0` |
-| npm（core） | `npm install @fullstack-ai-infra/digital-employee-core@0.3.0` |
-| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.3.0` |
-| GitHub Release | 从 [`v0.3.0`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.3.0) 下载 root/core 包和校验文件 |
+| npm（CLI） | `npm install --global @fullstack-ai-infra/digital-employee@0.4.0` |
+| npm（core） | `npm install @fullstack-ai-infra/digital-employee-core@0.4.0` |
+| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.4.0` |
+| GitHub Release | 从 [`v0.4.0`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.4.0) 下载 root/core 包和校验文件 |
 
-独立的 `@fullstack-ai-infra/digital-employee-core@0.3.0` npm 包已经公开。一次性 registry bootstrap 已完成，后续版本由 `release.yml` 通过 npm Trusted Publishing 发布。当前 `main` 已包含标签之后的改动，本身不代表一个已发布版本。不要覆盖或重新标记 `0.3.0` 或 `0.1.0`。
+独立的 `@fullstack-ai-infra/digital-employee-core@0.4.0` npm 包已经公开。一次性 registry bootstrap 已完成，后续版本由 `release.yml` 通过 npm Trusted Publishing 发布。当前 `main` 已包含标签之后的改动，本身不代表一个已发布版本。不要覆盖或重新标记 `0.4.0`、`0.3.0` 或 `0.1.0`。
 
 冻结的 `0.1.0` 兼容版本通过三个公开渠道分发：
 

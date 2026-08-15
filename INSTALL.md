@@ -6,13 +6,9 @@ and ask it to set up the framework.
 
 ## Published-versus-source boundary
 
-The current public npm release is `0.3.0`. It contains the Agent-native `init`,
-`doctor`, `validate`, `eval`, and `run` paths. It does not contain the newer
-`setup` convenience command or package-bound `deploy` command. Both commands
-on the current source branch are unreleased previews. Do not present
-`npx digital-employee setup` or `npx digital-employee deploy` as an
-installed-package capability until a later public release explicitly includes
-them.
+The current public npm release is `0.4.0`. It contains the Agent-native `init`,
+`doctor`, `validate`, `eval`, and one-shot `run` paths, the convenience
+`setup` command, and the package-bound `deploy` command.
 
 ## Prerequisites
 
@@ -24,12 +20,12 @@ them.
 ```bash
 # 1. Install the published package as a dependency
 npm init -y 2>/dev/null || true
-npm install @fullstack-ai-infra/digital-employee@0.3.0
+npm install @fullstack-ai-infra/digital-employee@0.4.0
 
 # 2. Diagnose the installed Agent Hosts without invoking a model
 npx digital-employee doctor --json
 
-# 3. Scaffold an employee package with a command shipped in 0.3.0
+# 3. Scaffold an employee package with a command shipped in 0.4.0
 npx digital-employee init ./my-employee \
   --recipe minimal-answer.v1 \
   --author your-team
@@ -71,21 +67,6 @@ After initialization and verification complete:
 
 Credentials are never needed during `doctor`, `init`, `validate`, or `eval`.
 They are requested only when executing a live `run`.
-
-## Current-source previews (unreleased)
-
-To evaluate `setup` or package-bound `deploy`, use a reviewed source checkout
-and run `npm ci && npm run build`. From the empty workspace you want to
-scaffold, invoke the built `setup` command by its checkout path:
-
-```bash
-cd /path/to/empty/workspace
-node /path/to/reviewed/digital-employee/dist/apps/cli/bin.js setup --json
-```
-
-Invoke `node ./dist/apps/cli/bin.js deploy ...` from the exact checkout when
-evaluating deploy. These commands prove only the source commit you built; they
-are not evidence that npm `0.3.0` contains `setup` or `deploy`.
 
 ## Failure semantics
 

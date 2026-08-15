@@ -1,0 +1,257 @@
+{
+  "schemaVersion": "agent-host-vectors.v1",
+  "family": "run_request",
+  "vectors": [
+    {
+      "id": "run-request-valid-minimal",
+      "family": "run_request",
+      "input": {
+        "runId": "run-1",
+        "employeeId": "employee-1",
+        "workingDirectory": "/tmp/fixture",
+        "prompt": "answer the question",
+        "policy": {
+          "tools": {
+            "default": "deny",
+            "allow": [
+              {
+                "name": "faq.lookup",
+                "mode": "read"
+              }
+            ]
+          },
+          "filesystem": {
+            "read": [
+              "/tmp/fixture"
+            ],
+            "write": []
+          },
+          "network": {
+            "mode": "deny"
+          },
+          "approval": {
+            "mode": "never"
+          }
+        }
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "run-request-valid-full",
+      "family": "run_request",
+      "input": {
+        "runId": "run-1",
+        "employeeId": "employee-1",
+        "workingDirectory": "/tmp/fixture",
+        "prompt": "answer the question",
+        "policy": {
+          "tools": {
+            "default": "deny",
+            "allow": [
+              {
+                "name": "faq.lookup",
+                "mode": "read"
+              }
+            ]
+          },
+          "filesystem": {
+            "read": [
+              "/tmp/fixture"
+            ],
+            "write": []
+          },
+          "network": {
+            "mode": "deny"
+          },
+          "approval": {
+            "mode": "never"
+          }
+        },
+        "workspaceFiles": [
+          "skill.md"
+        ],
+        "instructions": "stay neutral",
+        "session": {
+          "mode": "resume",
+          "ref": "session-9"
+        },
+        "attachments": [
+          {
+            "source": "path",
+            "path": "/tmp/fixture/note.txt",
+            "mediaType": "text/plain",
+            "name": "note"
+          },
+          {
+            "source": "uri",
+            "uri": "https://example.test/doc"
+          }
+        ],
+        "mcpServers": [
+          {
+            "name": "mem",
+            "transport": "stdio",
+            "command": "mem",
+            "args": [
+              "serve"
+            ],
+            "environment": [
+              "MEM_HOME"
+            ]
+          },
+          {
+            "name": "doc",
+            "transport": "http",
+            "url": "https://doc.example.test/mcp",
+            "headers": [
+              {
+                "name": "authorization",
+                "valueFromEnv": "DOC_TOKEN"
+              }
+            ]
+          }
+        ],
+        "outputSchema": {
+          "type": "object"
+        },
+        "metadata": {
+          "attempt": 1
+        },
+        "deadline": "2026-08-06T01:00:00.000Z"
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "run-request-reject-missing-policy",
+      "family": "run_request",
+      "input": {
+        "runId": "run-1",
+        "employeeId": "employee-1",
+        "workingDirectory": "/tmp/fixture",
+        "prompt": "answer the question"
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_preflight_invalid"
+      }
+    },
+    {
+      "id": "run-request-reject-bad-network-mode",
+      "family": "run_request",
+      "input": {
+        "runId": "run-1",
+        "employeeId": "employee-1",
+        "workingDirectory": "/tmp/fixture",
+        "prompt": "answer the question",
+        "policy": {
+          "tools": {
+            "default": "deny",
+            "allow": [
+              {
+                "name": "faq.lookup",
+                "mode": "read"
+              }
+            ]
+          },
+          "filesystem": {
+            "read": [
+              "/tmp/fixture"
+            ],
+            "write": []
+          },
+          "network": {
+            "mode": "open"
+          },
+          "approval": {
+            "mode": "never"
+          }
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_preflight_invalid"
+      }
+    },
+    {
+      "id": "run-request-reject-bad-tool-mode",
+      "family": "run_request",
+      "input": {
+        "runId": "run-1",
+        "employeeId": "employee-1",
+        "workingDirectory": "/tmp/fixture",
+        "prompt": "answer the question",
+        "policy": {
+          "tools": {
+            "default": "deny",
+            "allow": [
+              {
+                "name": "faq.lookup",
+                "mode": "execute"
+              }
+            ]
+          },
+          "filesystem": {
+            "read": [
+              "/tmp/fixture"
+            ],
+            "write": []
+          },
+          "network": {
+            "mode": "deny"
+          },
+          "approval": {
+            "mode": "never"
+          }
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_preflight_invalid"
+      }
+    },
+    {
+      "id": "run-request-reject-signal-wire-field",
+      "family": "run_request",
+      "input": {
+        "runId": "run-1",
+        "employeeId": "employee-1",
+        "workingDirectory": "/tmp/fixture",
+        "prompt": "answer the question",
+        "policy": {
+          "tools": {
+            "default": "deny",
+            "allow": [
+              {
+                "name": "faq.lookup",
+                "mode": "read"
+              }
+            ]
+          },
+          "filesystem": {
+            "read": [
+              "/tmp/fixture"
+            ],
+            "write": []
+          },
+          "network": {
+            "mode": "deny"
+          },
+          "approval": {
+            "mode": "never"
+          }
+        },
+        "signal": {
+          "aborted": false
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_preflight_invalid"
+      }
+    }
+  ]
+}

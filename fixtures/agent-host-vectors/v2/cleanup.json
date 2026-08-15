@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "agent-host-vectors.v1",
+  "family": "cleanup",
+  "vectors": [
+    {
+      "id": "cleanup-order-valid",
+      "family": "cleanup",
+      "input": {
+        "markers": [
+          "run_started",
+          "terminal",
+          "process_cleanup"
+        ]
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "cleanup-reject-before-terminal",
+      "family": "cleanup",
+      "input": {
+        "markers": [
+          "run_started",
+          "process_cleanup",
+          "terminal"
+        ]
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_terminal_contract_violated"
+      }
+    },
+    {
+      "id": "cleanup-reject-missing-terminal",
+      "family": "cleanup",
+      "input": {
+        "markers": [
+          "run_started",
+          "process_cleanup"
+        ]
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_terminal_contract_violated"
+      }
+    }
+  ]
+}

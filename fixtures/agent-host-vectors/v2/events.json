@@ -1,0 +1,159 @@
+{
+  "schemaVersion": "agent-host-vectors.v1",
+  "family": "event",
+  "vectors": [
+    {
+      "id": "event-run-started",
+      "family": "event",
+      "input": {
+        "runId": "run-1",
+        "timestamp": "2026-08-06T00:00:00.000Z",
+        "type": "run.started",
+        "sessionRef": "session-1"
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "event-assistant-delta",
+      "family": "event",
+      "input": {
+        "runId": "run-1",
+        "timestamp": "2026-08-06T00:00:00.000Z",
+        "type": "assistant.delta",
+        "text": "hello"
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "event-tool-started",
+      "family": "event",
+      "input": {
+        "runId": "run-1",
+        "timestamp": "2026-08-06T00:00:00.000Z",
+        "type": "tool.started",
+        "toolCallId": "call-1",
+        "toolName": "faq.lookup",
+        "input": {
+          "q": "x"
+        }
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "event-tool-completed",
+      "family": "event",
+      "input": {
+        "runId": "run-1",
+        "timestamp": "2026-08-06T00:00:00.000Z",
+        "type": "tool.completed",
+        "toolCallId": "call-1",
+        "toolName": "faq.lookup",
+        "output": {
+          "a": "y"
+        },
+        "isError": false
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "event-approval-required",
+      "family": "event",
+      "input": {
+        "runId": "run-1",
+        "timestamp": "2026-08-06T00:00:00.000Z",
+        "type": "approval.required",
+        "approvalId": "approval-1",
+        "toolName": "faq.lookup"
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "event-usage",
+      "family": "event",
+      "input": {
+        "runId": "run-1",
+        "timestamp": "2026-08-06T00:00:00.000Z",
+        "type": "usage",
+        "inputTokens": 10,
+        "outputTokens": 5,
+        "totalTokens": 15
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "event-run-completed",
+      "family": "event",
+      "input": {
+        "runId": "run-1",
+        "timestamp": "2026-08-06T00:00:00.000Z",
+        "type": "run.completed",
+        "output": {
+          "answer": "done"
+        },
+        "sessionRef": "session-1"
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "event-run-failed",
+      "family": "event",
+      "input": {
+        "runId": "run-1",
+        "timestamp": "2026-08-06T00:00:00.000Z",
+        "type": "run.failed",
+        "error": {
+          "code": "agent_host_stream_failed",
+          "message": "boom",
+          "retryable": true
+        }
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "event-reject-missing-is-error",
+      "family": "event",
+      "input": {
+        "runId": "run-1",
+        "timestamp": "2026-08-06T00:00:00.000Z",
+        "type": "tool.completed",
+        "toolCallId": "call-1",
+        "toolName": "faq.lookup"
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_stream_failed"
+      }
+    },
+    {
+      "id": "event-reject-unknown-field",
+      "family": "event",
+      "input": {
+        "runId": "run-1",
+        "timestamp": "2026-08-06T00:00:00.000Z",
+        "type": "assistant.delta",
+        "text": "hello",
+        "thought": "hidden"
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_stream_failed"
+      }
+    }
+  ]
+}

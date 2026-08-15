@@ -1,0 +1,329 @@
+{
+  "schemaVersion": "agent-host-vectors.v1",
+  "family": "migration",
+  "vectors": [
+    {
+      "id": "migration-v1-compatible",
+      "family": "migration",
+      "context": {
+        "expectedHostId": "fixture"
+      },
+      "input": {
+        "probe": {
+          "protocolVersion": "agent-host.v1",
+          "hostId": "fixture",
+          "displayName": "Fixture Host",
+          "status": "ready",
+          "available": true,
+          "adapterStatus": "runnable",
+          "capabilities": {
+            "non_interactive_run": "supported",
+            "event_stream": "supported",
+            "session_resume": "supported",
+            "attachments": "supported",
+            "mcp": "supported",
+            "skills": "supported",
+            "structured_output": "supported",
+            "tool_allowlist": "supported",
+            "filesystem_scope": "supported",
+            "network_policy": "supported",
+            "sandbox": "supported",
+            "approval_callback": "supported",
+            "cancellation": "supported",
+            "usage_events": "supported"
+          },
+          "capabilitySource": "conformance_test",
+          "issues": []
+        },
+        "requiredCapabilities": [
+          "event_stream"
+        ]
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "migration-v2-rejected",
+      "family": "migration",
+      "context": {
+        "expectedHostId": "fixture"
+      },
+      "input": {
+        "probe": {
+          "protocolVersion": "agent-host.v2",
+          "hostId": "fixture",
+          "displayName": "Fixture Host",
+          "status": "ready",
+          "available": true,
+          "adapterStatus": "runnable",
+          "capabilities": {
+            "non_interactive_run": "supported",
+            "event_stream": "supported",
+            "session_resume": "supported",
+            "attachments": "supported",
+            "mcp": "supported",
+            "skills": "supported",
+            "structured_output": "supported",
+            "tool_allowlist": "supported",
+            "filesystem_scope": "supported",
+            "network_policy": "supported",
+            "sandbox": "supported",
+            "approval_callback": "supported",
+            "cancellation": "supported",
+            "usage_events": "supported"
+          },
+          "capabilitySource": "conformance_test",
+          "issues": []
+        },
+        "requiredCapabilities": []
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_incompatible"
+      }
+    },
+    {
+      "id": "migration-v0-rejected",
+      "family": "migration",
+      "context": {
+        "expectedHostId": "fixture"
+      },
+      "input": {
+        "probe": {
+          "protocolVersion": "agent-host.v0",
+          "hostId": "fixture",
+          "displayName": "Fixture Host",
+          "status": "ready",
+          "available": true,
+          "adapterStatus": "runnable",
+          "capabilities": {
+            "non_interactive_run": "supported",
+            "event_stream": "supported",
+            "session_resume": "supported",
+            "attachments": "supported",
+            "mcp": "supported",
+            "skills": "supported",
+            "structured_output": "supported",
+            "tool_allowlist": "supported",
+            "filesystem_scope": "supported",
+            "network_policy": "supported",
+            "sandbox": "supported",
+            "approval_callback": "supported",
+            "cancellation": "supported",
+            "usage_events": "supported"
+          },
+          "capabilitySource": "conformance_test",
+          "issues": []
+        },
+        "requiredCapabilities": []
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_incompatible"
+      }
+    },
+    {
+      "id": "migration-reject-missing-required-capability",
+      "family": "migration",
+      "context": {
+        "expectedHostId": "fixture"
+      },
+      "input": {
+        "probe": {
+          "protocolVersion": "agent-host.v1",
+          "hostId": "fixture",
+          "displayName": "Fixture Host",
+          "status": "ready",
+          "available": true,
+          "adapterStatus": "runnable",
+          "capabilities": {
+            "non_interactive_run": "supported",
+            "event_stream": "supported",
+            "session_resume": "supported",
+            "attachments": "supported",
+            "mcp": "supported",
+            "skills": "supported",
+            "structured_output": "supported",
+            "tool_allowlist": "supported",
+            "filesystem_scope": "supported",
+            "network_policy": "supported",
+            "sandbox": "unsupported",
+            "approval_callback": "supported",
+            "cancellation": "supported",
+            "usage_events": "supported"
+          },
+          "capabilitySource": "conformance_test",
+          "issues": []
+        },
+        "requiredCapabilities": [
+          "sandbox"
+        ]
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_incompatible"
+      }
+    },
+    {
+      "id": "migration-reject-not-ready",
+      "family": "migration",
+      "context": {
+        "expectedHostId": "fixture"
+      },
+      "input": {
+        "probe": {
+          "protocolVersion": "agent-host.v1",
+          "hostId": "fixture",
+          "displayName": "Fixture Host",
+          "status": "not_ready",
+          "available": true,
+          "adapterStatus": "runnable",
+          "capabilities": {
+            "non_interactive_run": "supported",
+            "event_stream": "supported",
+            "session_resume": "supported",
+            "attachments": "supported",
+            "mcp": "supported",
+            "skills": "supported",
+            "structured_output": "supported",
+            "tool_allowlist": "supported",
+            "filesystem_scope": "supported",
+            "network_policy": "supported",
+            "sandbox": "supported",
+            "approval_callback": "supported",
+            "cancellation": "supported",
+            "usage_events": "supported"
+          },
+          "capabilitySource": "conformance_test",
+          "issues": []
+        },
+        "requiredCapabilities": []
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_incompatible"
+      }
+    },
+    {
+      "id": "migration-reject-adapter-declaration",
+      "family": "migration",
+      "context": {
+        "expectedHostId": "fixture"
+      },
+      "input": {
+        "probe": {
+          "protocolVersion": "agent-host.v1",
+          "hostId": "fixture",
+          "displayName": "Fixture Host",
+          "status": "ready",
+          "available": true,
+          "adapterStatus": "runnable",
+          "capabilities": {
+            "non_interactive_run": "supported",
+            "event_stream": "supported",
+            "session_resume": "supported",
+            "attachments": "supported",
+            "mcp": "supported",
+            "skills": "supported",
+            "structured_output": "supported",
+            "tool_allowlist": "supported",
+            "filesystem_scope": "supported",
+            "network_policy": "supported",
+            "sandbox": "supported",
+            "approval_callback": "supported",
+            "cancellation": "supported",
+            "usage_events": "supported"
+          },
+          "capabilitySource": "adapter_declaration",
+          "issues": []
+        },
+        "requiredCapabilities": []
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_incompatible"
+      }
+    },
+    {
+      "id": "migration-reject-probe-only",
+      "family": "migration",
+      "context": {
+        "expectedHostId": "fixture"
+      },
+      "input": {
+        "probe": {
+          "protocolVersion": "agent-host.v1",
+          "hostId": "fixture",
+          "displayName": "Fixture Host",
+          "status": "ready",
+          "available": true,
+          "adapterStatus": "probe_only",
+          "capabilities": {
+            "non_interactive_run": "supported",
+            "event_stream": "supported",
+            "session_resume": "supported",
+            "attachments": "supported",
+            "mcp": "supported",
+            "skills": "supported",
+            "structured_output": "supported",
+            "tool_allowlist": "supported",
+            "filesystem_scope": "supported",
+            "network_policy": "supported",
+            "sandbox": "supported",
+            "approval_callback": "supported",
+            "cancellation": "supported",
+            "usage_events": "supported"
+          },
+          "capabilitySource": "conformance_test",
+          "issues": []
+        },
+        "requiredCapabilities": []
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_incompatible"
+      }
+    },
+    {
+      "id": "migration-reject-unavailable",
+      "family": "migration",
+      "context": {
+        "expectedHostId": "fixture"
+      },
+      "input": {
+        "probe": {
+          "protocolVersion": "agent-host.v1",
+          "hostId": "fixture",
+          "displayName": "Fixture Host",
+          "status": "ready",
+          "available": false,
+          "adapterStatus": "runnable",
+          "capabilities": {
+            "non_interactive_run": "supported",
+            "event_stream": "supported",
+            "session_resume": "supported",
+            "attachments": "supported",
+            "mcp": "supported",
+            "skills": "supported",
+            "structured_output": "supported",
+            "tool_allowlist": "supported",
+            "filesystem_scope": "supported",
+            "network_policy": "supported",
+            "sandbox": "supported",
+            "approval_callback": "supported",
+            "cancellation": "supported",
+            "usage_events": "supported"
+          },
+          "capabilitySource": "conformance_test",
+          "issues": []
+        },
+        "requiredCapabilities": []
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_incompatible"
+      }
+    }
+  ]
+}

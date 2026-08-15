@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "agent-host-vectors.v1",
+  "protocolVersion": "agent-host.v1",
+  "corpusDigest": "74c13ac0d3036e11dae0e248e9950a9799e7181dfe0582167e44c7aa869a6864",
+  "families": [
+    "probe",
+    "preflight",
+    "run_request",
+    "event",
+    "terminal_ordering",
+    "cancel_deadline",
+    "cleanup",
+    "migration",
+    "malformed"
+  ],
+  "files": [
+    {
+      "file": "cancel_deadline.json",
+      "sha256": "ed00bdf80779dfd42650bb5cd8fba41d84bfa7491dc4fdb391143d2ab6d916c1",
+      "vectorCount": 3
+    },
+    {
+      "file": "cleanup.json",
+      "sha256": "678ea6f48d6f562245c0a7e69589742e8a969ffffd573a02acee77cd3805e707",
+      "vectorCount": 3
+    },
+    {
+      "file": "events.json",
+      "sha256": "35e5e87c8fe044a83cc62b7e9c382db483d64f5ad3d2cc4d667214ac9db86901",
+      "vectorCount": 10
+    },
+    {
+      "file": "malformed.json",
+      "sha256": "b0a8822fc043d8c4e768da0dae2b5223599f6c68bf73f8ac85cbcdd4cb8ed658",
+      "vectorCount": 5
+    },
+    {
+      "file": "migration.json",
+      "sha256": "3a1c1555587a8ac628ae29f0ee3a103d9d01043739960862fc4ea3952a800796",
+      "vectorCount": 8
+    },
+    {
+      "file": "preflight.json",
+      "sha256": "0e390b9f23b04d4efa5734c4e7faee71ac5595f0ff4a08256489c4ed772667e1",
+      "vectorCount": 3
+    },
+    {
+      "file": "probe.json",
+      "sha256": "dd2897f360498c500a4884b953bc89ebb5cf0b0f449c9af427714ed796ff0ce0",
+      "vectorCount": 7
+    },
+    {
+      "file": "run_request.json",
+      "sha256": "d93b3eb291bd4deeae9c143de2d3487661d8a7a6aef8bfb72b7900a9e0bc0ff6",
+      "vectorCount": 6
+    },
+    {
+      "file": "terminal_ordering.json",
+      "sha256": "e34a177357f239375bc1bdd7570969f6d827cbca48bc9070ffe3dbeb311bf57a",
+      "vectorCount": 5
+    }
+  ]
+}

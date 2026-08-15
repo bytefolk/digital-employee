@@ -1,0 +1,165 @@
+{
+  "schemaVersion": "agent-host-vectors.v1",
+  "family": "malformed",
+  "vectors": [
+    {
+      "id": "malformed-probe-unknown-field",
+      "family": "malformed",
+      "context": {
+        "expectedHostId": "fixture"
+      },
+      "input": {
+        "target": "probe",
+        "payload": {
+          "protocolVersion": "agent-host.v1",
+          "hostId": "fixture",
+          "displayName": "Fixture Host",
+          "status": "ready",
+          "available": true,
+          "adapterStatus": "runnable",
+          "capabilities": {
+            "non_interactive_run": "supported",
+            "event_stream": "supported",
+            "session_resume": "supported",
+            "attachments": "supported",
+            "mcp": "supported",
+            "skills": "supported",
+            "structured_output": "supported",
+            "tool_allowlist": "supported",
+            "filesystem_scope": "supported",
+            "network_policy": "supported",
+            "sandbox": "supported",
+            "approval_callback": "supported",
+            "cancellation": "supported",
+            "usage_events": "supported"
+          },
+          "capabilitySource": "conformance_test",
+          "issues": [],
+          "extra": true
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "AGENT_HOST_PROBE_INVALID"
+      }
+    },
+    {
+      "id": "malformed-event-unknown-security-field",
+      "family": "malformed",
+      "input": {
+        "target": "event",
+        "payload": {
+          "runId": "run-1",
+          "timestamp": "2026-08-06T00:00:00.000Z",
+          "type": "assistant.delta",
+          "text": "hello",
+          "systemPrompt": "hidden"
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_stream_failed"
+      }
+    },
+    {
+      "id": "malformed-request-unknown-field",
+      "family": "malformed",
+      "input": {
+        "target": "run_request",
+        "payload": {
+          "runId": "run-1",
+          "employeeId": "employee-1",
+          "workingDirectory": "/tmp/fixture",
+          "prompt": "answer the question",
+          "policy": {
+            "tools": {
+              "default": "deny",
+              "allow": [
+                {
+                  "name": "faq.lookup",
+                  "mode": "read"
+                }
+              ]
+            },
+            "filesystem": {
+              "read": [
+                "/tmp/fixture"
+              ],
+              "write": []
+            },
+            "network": {
+              "mode": "deny"
+            },
+            "approval": {
+              "mode": "never"
+            }
+          },
+          "signal": {
+            "aborted": false
+          }
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_preflight_invalid"
+      }
+    },
+    {
+      "id": "malformed-event-control-character",
+      "family": "malformed",
+      "input": {
+        "target": "event",
+        "payload": {
+          "runId": "run-1",
+          "timestamp": "2026-08-06T00:00:00.000Z",
+          "type": "assistant.delta",
+          "text": "bad\u0007text"
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_stream_failed"
+      }
+    },
+    {
+      "id": "malformed-probe-oversize-display-name",
+      "family": "malformed",
+      "context": {
+        "expectedHostId": "fixture"
+      },
+      "input": {
+        "target": "probe",
+        "payload": {
+          "protocolVersion": "agent-host.v1",
+          "hostId": "fixture",
+          "displayName": "ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "status": "ready",
+          "available": true,
+          "adapterStatus": "runnable",
+          "capabilities": {
+            "non_interactive_run": "supported",
+            "event_stream": "supported",
+            "session_resume": "supported",
+            "attachments": "supported",
+            "mcp": "supported",
+            "skills": "supported",
+            "structured_output": "supported",
+            "tool_allowlist": "supported",
+            "filesystem_scope": "supported",
+            "network_policy": "supported",
+            "sandbox": "supported",
+            "approval_callback": "supported",
+            "cancellation": "supported",
+            "usage_events": "supported"
+          },
+          "capabilitySource": "conformance_test",
+          "issues": []
+        }
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "AGENT_HOST_PROBE_INVALID"
+      }
+    }
+  ]
+}

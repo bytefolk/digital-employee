@@ -1,0 +1,246 @@
+{
+  "schemaVersion": "agent-host-vectors.v1",
+  "family": "probe",
+  "vectors": [
+    {
+      "id": "probe-valid-ready-conformance",
+      "family": "probe",
+      "input": {
+        "protocolVersion": "agent-host.v1",
+        "hostId": "fixture",
+        "displayName": "Fixture Host",
+        "status": "ready",
+        "available": true,
+        "adapterStatus": "runnable",
+        "capabilities": {
+          "non_interactive_run": "supported",
+          "event_stream": "supported",
+          "session_resume": "supported",
+          "attachments": "supported",
+          "mcp": "supported",
+          "skills": "supported",
+          "structured_output": "supported",
+          "tool_allowlist": "supported",
+          "filesystem_scope": "supported",
+          "network_policy": "supported",
+          "sandbox": "supported",
+          "approval_callback": "supported",
+          "cancellation": "supported",
+          "usage_events": "supported"
+        },
+        "capabilitySource": "conformance_test",
+        "issues": []
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "probe-reject-host-id-mismatch",
+      "family": "probe",
+      "input": {
+        "protocolVersion": "agent-host.v1",
+        "hostId": "other",
+        "displayName": "Fixture Host",
+        "status": "ready",
+        "available": true,
+        "adapterStatus": "runnable",
+        "capabilities": {
+          "non_interactive_run": "supported",
+          "event_stream": "supported",
+          "session_resume": "supported",
+          "attachments": "supported",
+          "mcp": "supported",
+          "skills": "supported",
+          "structured_output": "supported",
+          "tool_allowlist": "supported",
+          "filesystem_scope": "supported",
+          "network_policy": "supported",
+          "sandbox": "supported",
+          "approval_callback": "supported",
+          "cancellation": "supported",
+          "usage_events": "supported"
+        },
+        "capabilitySource": "conformance_test",
+        "issues": []
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "AGENT_HOST_PROBE_INVALID"
+      }
+    },
+    {
+      "id": "probe-reject-unknown-status",
+      "family": "probe",
+      "context": {
+        "expectedHostId": "fixture"
+      },
+      "input": {
+        "protocolVersion": "agent-host.v1",
+        "hostId": "fixture",
+        "displayName": "Fixture Host",
+        "status": "warm",
+        "available": true,
+        "adapterStatus": "runnable",
+        "capabilities": {
+          "non_interactive_run": "supported",
+          "event_stream": "supported",
+          "session_resume": "supported",
+          "attachments": "supported",
+          "mcp": "supported",
+          "skills": "supported",
+          "structured_output": "supported",
+          "tool_allowlist": "supported",
+          "filesystem_scope": "supported",
+          "network_policy": "supported",
+          "sandbox": "supported",
+          "approval_callback": "supported",
+          "cancellation": "supported",
+          "usage_events": "supported"
+        },
+        "capabilitySource": "conformance_test",
+        "issues": []
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "AGENT_HOST_PROBE_INVALID"
+      }
+    },
+    {
+      "id": "probe-reject-bad-capability-support",
+      "family": "probe",
+      "input": {
+        "protocolVersion": "agent-host.v1",
+        "hostId": "fixture",
+        "displayName": "Fixture Host",
+        "status": "ready",
+        "available": true,
+        "adapterStatus": "runnable",
+        "capabilities": {
+          "non_interactive_run": "supported",
+          "event_stream": "sometimes",
+          "session_resume": "supported",
+          "attachments": "supported",
+          "mcp": "supported",
+          "skills": "supported",
+          "structured_output": "supported",
+          "tool_allowlist": "supported",
+          "filesystem_scope": "supported",
+          "network_policy": "supported",
+          "sandbox": "supported",
+          "approval_callback": "supported",
+          "cancellation": "supported",
+          "usage_events": "supported"
+        },
+        "capabilitySource": "conformance_test",
+        "issues": []
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "AGENT_HOST_PROBE_INVALID"
+      }
+    },
+    {
+      "id": "probe-reject-missing-capability-key",
+      "family": "probe",
+      "input": {
+        "protocolVersion": "agent-host.v1",
+        "hostId": "fixture",
+        "displayName": "Fixture Host",
+        "status": "ready",
+        "available": true,
+        "adapterStatus": "runnable",
+        "capabilities": {
+          "non_interactive_run": "supported",
+          "event_stream": "supported",
+          "session_resume": "supported",
+          "attachments": "supported",
+          "skills": "supported",
+          "structured_output": "supported",
+          "tool_allowlist": "supported",
+          "filesystem_scope": "supported",
+          "network_policy": "supported",
+          "sandbox": "supported",
+          "approval_callback": "supported",
+          "cancellation": "supported",
+          "usage_events": "supported"
+        },
+        "capabilitySource": "conformance_test",
+        "issues": []
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "AGENT_HOST_PROBE_INVALID"
+      }
+    },
+    {
+      "id": "probe-reject-control-character-display-name",
+      "family": "probe",
+      "input": {
+        "protocolVersion": "agent-host.v1",
+        "hostId": "fixture",
+        "displayName": "Fixture\u0007Host",
+        "status": "ready",
+        "available": true,
+        "adapterStatus": "runnable",
+        "capabilities": {
+          "non_interactive_run": "supported",
+          "event_stream": "supported",
+          "session_resume": "supported",
+          "attachments": "supported",
+          "mcp": "supported",
+          "skills": "supported",
+          "structured_output": "supported",
+          "tool_allowlist": "supported",
+          "filesystem_scope": "supported",
+          "network_policy": "supported",
+          "sandbox": "supported",
+          "approval_callback": "supported",
+          "cancellation": "supported",
+          "usage_events": "supported"
+        },
+        "capabilitySource": "conformance_test",
+        "issues": []
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "AGENT_HOST_PROBE_INVALID"
+      }
+    },
+    {
+      "id": "probe-reject-unknown-capability-key",
+      "family": "probe",
+      "input": {
+        "protocolVersion": "agent-host.v1",
+        "hostId": "fixture",
+        "displayName": "Fixture Host",
+        "status": "ready",
+        "available": true,
+        "adapterStatus": "runnable",
+        "capabilities": {
+          "non_interactive_run": "supported",
+          "event_stream": "supported",
+          "session_resume": "supported",
+          "attachments": "supported",
+          "mcp": "supported",
+          "skills": "supported",
+          "structured_output": "supported",
+          "tool_allowlist": "supported",
+          "filesystem_scope": "supported",
+          "network_policy": "supported",
+          "sandbox": "supported",
+          "approval_callback": "supported",
+          "cancellation": "supported",
+          "usage_events": "supported",
+          "vendor_extension": "supported"
+        },
+        "capabilitySource": "conformance_test",
+        "issues": []
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "AGENT_HOST_PROBE_INVALID"
+      }
+    }
+  ]
+}

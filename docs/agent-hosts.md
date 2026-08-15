@@ -27,6 +27,34 @@
 
 本文中的 WorkBuddy 指 **腾讯 WorkBuddy**；它与互联网上其他同名 `work-buddy` 项目无关。
 
+## `agent-host.v1` 兼容性语料修订
+
+[`fixtures/agent-host-vectors/v1`](../fixtures/agent-host-vectors/v1) 是最初合入的
+44-vector 基线。它保持冻结，aggregate `corpusDigest` 固定为
+`2ac92b971c5131b9b3076d0052809592fc9f3d05716c2dfceb8dd27fe745ecf0`；不能为补测试而
+原地改写其行为 fixture。
+
+[`fixtures/agent-host-vectors/v2`](../fixtures/agent-host-vectors/v2) 是当前完整修订，仍使用
+`agent-host-vectors.v1` JSON schema 和 `agent-host.v1` 协议。它继承 44 个 v1 向量并新增
+6 个稳定 ID：unknown capability key、`not_ready`、`adapter_declaration`、
+`probe_only`、unavailable，以及 completed+failed 双终态歧义。其 aggregate
+`corpusDigest` 为
+`74c13ac0d3036e11dae0e248e9950a9799e7181dfe0582167e44c7aa869a6864`。
+
+| 冻结规则 | 验证行为 |
+| --- | --- |
+| 协议版本 | 只接受精确的 `agent-host.v1`；不降级、不推断迁移 |
+| 能力对象 | key 必须精确来自 `AGENT_HOST_CAPABILITIES`，缺失或额外 key 都拒绝 |
+| Probe 形状 | 顶层与 `issues[]` 只接受冻结 key；wire 和进程内 result validator 都 fail closed |
+| Migration | not-ready、仅声明未验证、probe-only 或 unavailable Host 都不兼容 |
+| 终态 | 每次运行只有一个最终 `run.completed` 或 `run.failed`；两者同时出现仍是协议违例 |
+
+语言中立 consumer 应选择一个完整 revision，逐项校验 manifest 的 file digest 和
+vector count，再按文件名排序的 `file:sha256` 列表计算
+`sha256(entries.join("\n"))` 并与 `corpusDigest` 比较。不得把 v1/v2 文件混装成第三套
+未声明语料。仓库集成测试在同一次运行中验证两套 revision、两个 probe validator 和
+v2 的全部 50 个向量；这些 fixture 不启动真实 Agent Host，也不构成 Host 认证。
+
 ## 当前支持矩阵
 
 | 产品 | 当前源码状态 | 官方接口证据 | 本项目结论 |

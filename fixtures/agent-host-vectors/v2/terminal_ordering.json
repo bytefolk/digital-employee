@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "agent-host-vectors.v1",
+  "family": "terminal_ordering",
+  "vectors": [
+    {
+      "id": "terminal-single-completed",
+      "family": "terminal_ordering",
+      "input": {
+        "events": [
+          {
+            "runId": "run-1",
+            "timestamp": "2026-08-06T00:00:00.000Z",
+            "type": "run.started"
+          },
+          {
+            "runId": "run-1",
+            "timestamp": "2026-08-06T00:00:00.000Z",
+            "type": "assistant.delta",
+            "text": "x"
+          },
+          {
+            "runId": "run-1",
+            "timestamp": "2026-08-06T00:00:00.000Z",
+            "type": "run.completed",
+            "output": {
+              "ok": true
+            }
+          }
+        ]
+      },
+      "expect": {
+        "kind": "accept"
+      }
+    },
+    {
+      "id": "terminal-reject-duplicate-terminal",
+      "family": "terminal_ordering",
+      "input": {
+        "events": [
+          {
+            "runId": "run-1",
+            "timestamp": "2026-08-06T00:00:00.000Z",
+            "type": "run.started"
+          },
+          {
+            "runId": "run-1",
+            "timestamp": "2026-08-06T00:00:00.000Z",
+            "type": "run.completed",
+            "output": {}
+          },
+          {
+            "runId": "run-1",
+            "timestamp": "2026-08-06T00:00:00.000Z",
+            "type": "run.completed",
+            "output": {}
+          }
+        ]
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_terminal_contract_violated"
+      }
+    },
+    {
+      "id": "terminal-reject-post-terminal-event",
+      "family": "terminal_ordering",
+      "input": {
+        "events": [
+          {
+            "runId": "run-1",
+            "timestamp": "2026-08-06T00:00:00.000Z",
+            "type": "run.started"
+          },
+          {
+            "runId": "run-1",
+            "timestamp": "2026-08-06T00:00:00.000Z",
+            "type": "run.completed",
+            "output": {}
+          },
+          {
+            "runId": "run-1",
+            "timestamp": "2026-08-06T00:00:00.000Z",
+            "type": "assistant.delta",
+            "text": "late"
+          }
+        ]
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_terminal_contract_violated"
+      }
+    },
+    {
+      "id": "terminal-reject-missing-terminal",
+      "family": "terminal_ordering",
+      "input": {
+        "events": [
+          {
+            "runId": "run-1",
+            "timestamp": "2026-08-06T00:00:00.000Z",
+            "type": "run.started"
+          },
+          {
+            "runId": "run-1",
+            "timestamp": "2026-08-06T00:00:00.000Z",
+            "type": "assistant.delta",
+            "text": "x"
+          }
+        ]
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_terminal_contract_violated"
+      }
+    },
+    {
+      "id": "terminal-reject-completed-and-failed",
+      "family": "terminal_ordering",
+      "input": {
+        "events": [
+          {
+            "runId": "run-1",
+            "timestamp": "2026-08-06T00:00:00.000Z",
+            "type": "run.started"
+          },
+          {
+            "runId": "run-1",
+            "timestamp": "2026-08-06T00:00:00.000Z",
+            "type": "run.completed",
+            "output": {}
+          },
+          {
+            "runId": "run-1",
+            "timestamp": "2026-08-06T00:00:00.000Z",
+            "type": "run.failed",
+            "error": {
+              "code": "agent_host_stream_failed",
+              "message": "ambiguous terminal",
+              "retryable": false
+            }
+          }
+        ]
+      },
+      "expect": {
+        "kind": "reject",
+        "code": "agent_host_terminal_contract_violated"
+      }
+    }
+  ]
+}

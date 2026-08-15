@@ -1758,6 +1758,12 @@ test("built deploy rejects an available Agent host that is incompatible with the
     name: "structured-action",
     recipe: "structured-action.v1",
   })
+  // Qoder 1.1.x now advertises structured_output (host conformance #117), so
+  // require an additional capability the Qoder adapter still does not support.
+  const manifestPath = path.join(packageDirectory, "employee.json")
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+  manifest.host.requiredCapabilities = ["structured_output", "sandbox"]
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
 
   const result = runBuiltCli(
     [

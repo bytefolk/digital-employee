@@ -35,7 +35,11 @@ const manifest = {
   bin: { "digital-employee": "./dist/apps/cli/bin.js" },
   types: "./dist/packages/core/index.d.ts",
   exports: {
-    ".": { import: "./dist/packages/core/index.js" }
+    ".": { import: "./dist/packages/core/index.js" },
+    "./core": {
+      types: "./dist/packages/core/index.d.ts",
+      import: "./dist/packages/core/index.js"
+    }
   },
   files: ["dist", "README.md", "LICENSE"]
 };
@@ -536,9 +540,14 @@ test("release workflow has independently scoped jobs for all channels", async ()
 
   const rootPublish = npmRoot.steps.at(-1).run;
   const corePublish = npmCore.steps.at(-1).run;
-  assert.match(rootPublish, /npm publish --access public/);
+  assert.match(rootPublish, /npm-publish-resilient\.js/);
+  assert.match(rootPublish, /--pack-json.*root-pack\.json/);
+  assert.match(rootPublish, /--missing-package fail/);
   assert.doesNotMatch(rootPublish, /packages\/core/);
-  assert.match(corePublish, /npm publish \.\/packages\/core --access public/);
+  assert.match(corePublish, /npm-publish-resilient\.js/);
+  assert.match(corePublish, /--pack-json.*core-pack\.json/);
+  assert.match(corePublish, /--missing-package bootstrap-soft/);
+  assert.match(corePublish, /--bootstrap-marker/);
   assert.doesNotMatch(workflowText, /NPM_TOKEN|NODE_AUTH_TOKEN/);
   assert.match(workflowText, /mkdir -p "\$pack_destination"/);
   assert.match(

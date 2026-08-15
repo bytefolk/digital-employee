@@ -1,84 +1,184 @@
-name: Roadmap item
-description: Propose a milestone outcome, cross-cutting contract, or roadmap dependency.
-title: "[Roadmap] "
+name: Revisioned requirement
+description: Propose a roadmap, feature, or maintenance requirement with an auditable revision and acceptance path.
+title: "[Requirement] "
 labels: ["status:needs-design"]
 body:
   - type: markdown
     attributes:
       value: |
-        Read the [product strategy](https://github.com/fullstack-ai-infra/digital-employee/blob/main/docs/strategy.md) and [roadmap](https://github.com/fullstack-ai-infra/digital-employee/blob/main/docs/roadmap.md) first.
-        Keep marketplace business and private control-plane implementation outside this public repository.
+        Read the [product strategy](https://github.com/fullstack-ai-infra/digital-employee/blob/main/docs/strategy.md), [roadmap](https://github.com/fullstack-ai-infra/digital-employee/blob/main/docs/roadmap.md), and [requirement governance guide](https://github.com/fullstack-ai-infra/digital-employee/blob/main/docs/requirement-governance.md) first.
 
-  - type: textarea
-    id: why
+        This form is the canonical requirement record for roadmap, feature, and maintenance work. Replace every example value. Do not include credentials, private messages, personal identifiers, internal URLs, or unannounced product plans.
+
+  - type: dropdown
+    id: issue_type
     attributes:
-      label: WHY — user problem and outcome
-      description: Identify the direct user, current problem, and observable outcome. A product name alone is not a requirement.
+      label: Requirement type
+      description: Choose the narrowest type that owns the user outcome.
+      options:
+        - Roadmap
+        - Feature
+        - Maintenance
     validations:
       required: true
 
   - type: textarea
-    id: what
+    id: current_record
     attributes:
-      label: WHAT — deliverable and contract
-      description: Define the smallest coherent behavior, interface, version range, and compatibility promise.
+      label: Current requirement record
+      description: Keep this record aligned with the sections below. Start at R1; semantic changes require an append-only decision comment before this body advances.
+      value: |
+        <!-- requirement-record:v1 -->
+        ```yaml
+        schemaVersion: requirement-record.v1
+        revision: R1
+        status: needs-design
+        priority: P2
+        productOwner: "@product-owner"
+        technicalOwner: "unassigned"
+        userOutcome: "A named user can observe one bounded outcome."
+        requirements:
+          - REQ-001
+        acceptanceCriteria:
+          - AC-001
+        parent: null
+        dependencies: []
+        supersedes: []
+        lastDecisionAt: null
+        ```
     validations:
       required: true
 
   - type: textarea
-    id: where
+    id: user_problem
     attributes:
-      label: WHERE — ownership boundary
-      description: Name the public packages, CLI surfaces, protocols, or documents affected, and what stays private or host-owned.
+      label: User problem and outcome
+      description: Name the direct user, current problem, impact, and observable outcome. A product name alone is not a requirement.
+      value: |
+        User:
+        Current problem:
+        Impact:
+        Observable outcome:
     validations:
       required: true
 
   - type: textarea
-    id: how_much
+    id: route_boundary
     attributes:
-      label: HOW MUCH — scope and budget
-      description: Bound the variants, fixtures, platforms, migrations, and review or testing effort included in this item.
+      label: Route and ownership boundary
+      description: Name the public packages, CLI surfaces, protocols, documents, and owner. State what remains host-owned, private, or out of repository scope.
+      value: |
+        Public route:
+        Owning team:
+        Boundary:
     validations:
       required: true
 
   - type: textarea
-    id: done
+    id: requirements
     attributes:
-      label: DONE — acceptance gate
-      description: List externally observable, testable conditions and the evidence maturity term they establish.
-    validations:
-      required: true
-
-  - type: textarea
-    id: dont
-    attributes:
-      label: DON'T — non-goals and forbidden shortcuts
-      description: State what must not be built or claimed, including security, privacy, hosting, or marketplace boundaries.
+      label: Requirements
+      description: Use stable REQ-NNN identifiers and testable statements. Do not renumber an identifier after publication.
+      value: |
+        ### REQ-001 - Short name
+        The system MUST provide one bounded, externally reviewable behavior.
     validations:
       required: true
 
   - type: textarea
     id: dependencies
     attributes:
-      label: Dependencies
-      description: Link parent Epic, blocking issues, downstream consumers, and the roadmap gate this changes.
+      label: Dependencies and compatibility
+      description: Use full canonical Issue URLs and exact consumed revisions. Include the parent, blockers, downstream consumers, compatibility promise, and roadmap gate.
+      value: |
+        - Parent: https://github.com/fullstack-ai-infra/digital-employee/issues/NNN at R1
+        - Blocking: none
+        - Downstream: none
+        - Compatibility:
+        - Roadmap gate:
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Use stable AC-NNN identifiers. Each criterion must name observable evidence and its verification boundary.
+      value: |
+        ### AC-001 - Observable result
+        Given <public fixture>, when <exact action>, then <observable result>. Evidence: test+manual+independent-review.
+    validations:
+      required: true
+
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals and forbidden shortcuts
+      description: State what must not be built, claimed, auto-accepted, or exposed.
+      value: |
+        - No product runtime behavior outside the named route.
+        - No automatic acceptance from a merge, release, label, test, or model judgment.
+        - No sensitive data in public evidence.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: lifecycle
+    attributes:
+      label: Lifecycle status
+      description: New Issues have one authoritative initial state. Later lifecycle values require an append-only decision comment and body revision.
+      options:
+        - needs-design
+    validations:
+      required: true
+
+  - type: textarea
+    id: status_decisions
+    attributes:
+      label: Status, priority, and open decisions
+      description: Record the current priority, schedule boundary, named blockers, and decisions still requiring an approver.
+      value: |
+        - Priority: P2
+        - Schedule:
+        - Blockers: none
+        - Open decisions: none
     validations:
       required: true
 
   - type: textarea
     id: evidence
     attributes:
-      label: Evidence
-      description: Name the tests, golden vectors, clean-machine commands, fixtures, telemetry, or review artifacts that will prove DONE.
+      label: Evidence plan and latest accepted evidence
+      description: Map every AC to exact commands, fixtures, check links, manual review, artifact digests, or an explicit NOT VERIFIED boundary.
+      value: |
+        | AC | Planned evidence | Current result | Evidence URL or command |
+        |---|---|---|---|
+        | AC-001 | Deterministic fixture + independent review | NOT VERIFIED | `npm run check` |
+    validations:
+      required: true
+
+  - type: textarea
+    id: history
+    attributes:
+      label: Change history
+      description: Add one row only after the matching requirement-decision:v1 comment exists. Never rewrite an old decision comment or history row.
+      value: |
+        | Revision | Effective time | Decision comment | Summary |
+        |---|---|---|---|
+        | R1 | YYYY-MM-DDTHH:MM:SSZ | Initial record | Establish the initial user outcome, requirements, and acceptance criteria |
     validations:
       required: true
 
   - type: checkboxes
     id: readiness
     attributes:
-      label: Proposal readiness
+      label: Record integrity
       options:
-        - label: This request is not based only on a product name or a request to “support all Agents”; it names an enforceable interface, version boundary, and evidence.
+        - label: The machine-readable record, lifecycle selection, and prose sections describe the same current revision.
           required: true
-        - label: Any private marketplace or control-plane work has been split at the public protocol boundary.
+        - label: Every dependency is a full canonical URL with an exact revision, or is explicitly `none`.
+          required: true
+        - label: Future semantic changes will follow the append-only policy by adding a `requirement-decision:v1` comment before replacing this body; corrections use a new comment and revision.
+          required: true
+        - label: Merge, release, product acceptance, and owner milestone acceptance remain separate evidence events.
           required: true

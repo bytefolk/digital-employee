@@ -32,11 +32,21 @@ and acceptance gates before proposing cross-cutting work.
 
 Choose the narrowest issue type:
 
-- use the roadmap-item form for a milestone outcome, architectural contract,
-  cross-package change or work that changes a roadmap dependency or gate;
+- use the revisioned-requirement form for roadmap, feature, and maintenance
+  outcomes, including architectural contracts, cross-package changes, or work
+  that changes a roadmap dependency or gate;
 - use the bug form for a reproducible regression against current behavior;
 - use the connector form for an isolated channel, knowledge source, model or
   tool connector whose permissions and data boundary can be reviewed alone.
+
+The canonical Issue and PR trace follow the
+[requirement governance guide](docs/requirement-governance.md). Semantic
+changes append a decision comment before advancing the Issue revision; PRs do
+not use automatic close keywords in the body or source commit messages, and
+merge, product review, release, and milestone owner acceptance remain separate
+evidence events. Run
+`npm run governance:check` to validate the repository templates and bounded
+examples.
 
 Do not request “support all Agents” or claim Agent support from a product name
 alone. A ready proposal identifies the user outcome, exact interface and

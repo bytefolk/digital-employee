@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Added revisioned roadmap/feature/maintenance Issue requirements, an
+  append-only decision policy, PR-to-REQ/AC traces, append-only merge
+  verification ledgers, explicit product review, and frozen milestone packets
+  requiring a named owner's ACCEPT/REJECT decision. These are review policies,
+  not technical tamper prevention. A bounded checker validates templates,
+  fixtures, the actual PR body, and every source commit message in the exact
+  event base-to-head range from a safe event file and local Git history in CI.
 - Real-local Phase A path (#42): a `component-matrix.v1` contract that pins
   the exact `mem` and `doc` service commits as the sole version authority, a
   deterministic `real-local-stdio-host` Agent Host fixture that resumes

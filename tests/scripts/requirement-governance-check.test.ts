@@ -816,7 +816,7 @@ test("CI contract preserves push main, full history, and the Node 22-only gate",
     )
   );
   assert.ok(
-    validateCiWorkflow(ci.replace("          fetch-depth: 0", "          fetch-depth: 1")).includes(
+    validateCiWorkflow(ci.replaceAll("          fetch-depth: 0", "          fetch-depth: 1")).includes(
       "CI test checkout must use actions/checkout@v6 with fetch-depth 0"
     )
   );

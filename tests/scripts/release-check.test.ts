@@ -13,6 +13,7 @@ import {
   validateCandidateFileSet
 } from "../../scripts/distribution-policy.js";
 import {
+  PACKAGE_SPECS,
   validateDistributionManifest,
   validateArchiveIntegrity,
   validatePackOutput
@@ -587,4 +588,26 @@ test("pull request CI rejects internal commit email metadata", async () => {
   assert.match(metadataRun, /alibaba-inc\\\.com\|alibaba\\\.com/);
   assert.match(metadataRun, /disallowed internal email domain/);
   assert.doesNotMatch(metadataRun, /grep[^\n]*(?:--line-number|-n\b)/);
+});
+
+test("root pack spec requires every deploy runtime artifact", () => {
+  const [rootSpec] = PACKAGE_SPECS;
+  for (const required of [
+    "dist/apps/cli/deploy/channels.js",
+    "dist/apps/cli/deploy/config.js",
+    "dist/apps/cli/deploy/dingtalk-provider.js",
+    "dist/apps/cli/deploy/dws-supervisor.js",
+    "dist/apps/cli/deploy/engines.js",
+    "dist/apps/cli/deploy/http-runtime.js",
+    "dist/apps/cli/deploy/i18n.js",
+    "dist/apps/cli/deploy/index.js",
+    "dist/apps/cli/deploy/prompts.js"
+  ]) {
+    assert.ok(rootSpec.requiredFiles.includes(required), `missing required ${required}`);
+  }
+  assert.equal(
+    new Set(rootSpec.requiredFiles).size,
+    rootSpec.requiredFiles.length,
+    "required files must not contain duplicates"
+  );
 });

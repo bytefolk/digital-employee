@@ -16,7 +16,7 @@ import {
 
 const execFileAsync = promisify(execFile);
 
-const PACKAGE_SPECS = [
+export const PACKAGE_SPECS = [
   {
     label: "root",
     manifestPath: "package.json",
@@ -49,22 +49,7 @@ const PACKAGE_SPECS = [
       "dist/locales/zh-CN.json",
       "dist/packages/core/index.js",
       "dist/packages/core/index.d.ts",
-      DISTRIBUTION_MANIFEST_PATH,
-      "dist/examples/recipes/minimal-answer.v1/minimal-answer/employee.json",
-      "dist/examples/recipes/minimal-answer.v1/minimal-answer/SKILL.md",
-      "dist/examples/recipes/minimal-answer.v1/minimal-answer/evals/cases.json",
-      "dist/examples/recipes/minimal-answer.v1/minimal-answer/knowledge/README.md",
-      "dist/examples/recipes/minimal-answer.v1/minimal-answer/schemas/input.schema.json",
-      "dist/examples/recipes/minimal-answer.v1/minimal-answer/schemas/output.schema.json",
-      "dist/examples/recipes/structured-action.v1/structured-action/employee.json",
-      "dist/examples/recipes/structured-action.v1/structured-action/SKILL.md",
-      "dist/examples/recipes/structured-action.v1/structured-action/evals/cases.json",
-      "dist/examples/recipes/structured-action.v1/structured-action/knowledge/README.md",
-      "dist/examples/recipes/structured-action.v1/structured-action/schemas/input.schema.json",
-      "dist/examples/recipes/structured-action.v1/structured-action/schemas/output.schema.json",
-      "dist/locales/en.json",
-      "dist/locales/ja.json",
-      "dist/locales/zh-CN.json"
+      DISTRIBUTION_MANIFEST_PATH
     ],
     allowedFiles: ["package.json", "LICENSE", "NOTICE"],
     allowedPrefixes: ["dist/"],

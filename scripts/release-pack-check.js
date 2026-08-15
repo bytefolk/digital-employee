@@ -58,8 +58,15 @@ export const PACKAGE_SPECS = [
   {
     label: "core",
     manifestPath: "packages/core/package.json",
-    requiredFiles: ["package.json", "dist/index.js", "dist/index.d.ts"],
-    allowedFiles: ["package.json"],
+    requiredFiles: [
+      "package.json",
+      "README.md",
+      "LICENSE",
+      "NOTICE",
+      "dist/index.js",
+      "dist/index.d.ts"
+    ],
+    allowedFiles: ["package.json", "README.md", "LICENSE", "NOTICE"],
     allowedPrefixes: ["dist/"],
     allowedPatterns: []
   }

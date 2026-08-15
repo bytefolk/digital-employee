@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "requirement-governance-fixtures.v1",
+  "limits": {
+    "maxFixtures": 8,
+    "maxFixtureBytes": 65536
+  },
+  "prExamples": [
+    {
+      "file": "pr/complete.md",
+      "expectedValid": true,
+      "expectedErrors": []
+    },
+    {
+      "file": "pr/missing-known-limitations.md",
+      "expectedValid": false,
+      "expectedErrors": [
+        "missing required heading: Known limitations"
+      ]
+    },
+    {
+      "file": "pr/automatic-close.md",
+      "expectedValid": false,
+      "expectedErrors": [
+        "automatic close keyword is forbidden: Fixes: #95"
+      ]
+    },
+    {
+      "file": "pr/automatic-close-full-url.md",
+      "expectedValid": false,
+      "expectedErrors": [
+        "automatic close keyword is forbidden: CLOSES: https://github.com/fullstack-ai-infra/digital-employee/issues/95"
+      ]
+    },
+    {
+      "file": "pr/automatic-close-cross-repo.md",
+      "expectedValid": false,
+      "expectedErrors": [
+        "automatic close keyword is forbidden: Resolves fullstack-ai-infra/digital-employee#95"
+      ]
+    },
+    {
+      "file": "pr/hollow.md",
+      "expectedValid": false,
+      "expectedErrors": [
+        "section is hollow or placeholder-only: Requirement trace",
+        "section is hollow or placeholder-only: File domains",
+        "section is hollow or placeholder-only: Scope and non-goals",
+        "section is hollow or placeholder-only: Validation",
+        "section is hollow or placeholder-only: Security and compatibility",
+        "section is hollow or placeholder-only: Known limitations",
+        "section is hollow or placeholder-only: Risk and rollback",
+        "requirement trace row 1 needs REQ/AC IDs, a substantive domain, and substantive evidence",
+        "exact commands need copyable inline code or NOT VERIFIED: <reason>",
+        "observed counts/results need PASS|FAIL plus N/N, or NOT VERIFIED: <reason>",
+        "check URLs need a full GitHub URL or NOT VERIFIED: <reason>",
+        "validation ledger needs one complete 8-cell row with an allowed status",
+        "product handoff needs an exact merge ledger owner handle",
+        "product handoff needs an exact product reviewer handle",
+        "product handoff needs a full packet URL or N/A: <reason>",
+        "product handoff acknowledgement is missing"
+      ]
+    },
+    {
+      "file": "pr/partial-trace-row.md",
+      "expectedValid": false,
+      "expectedErrors": [
+        "requirement trace row 2 needs REQ/AC IDs, a substantive domain, and substantive evidence"
+      ]
+    }
+  ]
+}

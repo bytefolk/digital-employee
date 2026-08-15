@@ -82,7 +82,9 @@ function normalizeOutputValue(
     throw new ClaudeStreamProtocolError("claude_output_too_complex")
   }
   if (value === null) return null
-  if (typeof value === "string") return redactText(value)
+  // Structured output must be validated exactly as produced. Redaction happens
+  // after Schema validation and rejects any mutation on schema-bound output.
+  if (typeof value === "string") return value
   if (typeof value === "boolean") return value
   if (typeof value === "number") {
     if (!Number.isFinite(value)) {
@@ -123,7 +125,10 @@ function validateStructuredOutput(
       validateSchema: true,
     })
     const validate = ajv.compile(schema as object)
-    if (!validate(normalized)) {
+    if ("$async" in validate && validate.$async === true) {
+      throw new ClaudeStreamProtocolError("claude_output_schema_invalid")
+    }
+    if (validate(normalized) !== true) {
       throw new ClaudeStreamProtocolError("claude_output_schema_mismatch")
     }
   } catch (error) {

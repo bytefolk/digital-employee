@@ -132,6 +132,14 @@ sample and fixture describe a proposal only; it never performs the proposed
 action or claims that an action completed. A separate authorized system would
 need to review and execute any proposal.
 
+The recipe deliberately retains `requiredCapabilities: ["structured_output"]`.
+Compatibility is decided by the normal package-aware Host registry and
+preflight; applications must not delete that requirement or special-case a
+provider. For built-in Adapters, the capability means strict Adapter-enforced
+terminal Schema validity, not provider-native constrained generation. Input and
+output Schemas must be synchronous; package inspection rejects Ajv `$async`
+Schemas before compatibility checks, evaluation, or Host execution.
+
 ## Offline contract eval
 
 The fixed eval asset is `./evals/cases.json`, and it must be explicitly listed

@@ -194,6 +194,8 @@ const eventSession = mode === "session-mismatch" ? "different-session" : session
 const answer =
   mode === "secret-output"
     ? `credential=${process.env.OPENAI_API_KEY}`
+    : mode === "generic-redaction-output"
+    ? "token=fixture-public-nonsecret"
     : "fixture answer"
 const structuredOutput =
   mode === "secret-key-output"

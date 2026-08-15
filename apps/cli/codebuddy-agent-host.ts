@@ -142,7 +142,12 @@ interface ActiveRun {
 
 interface PreparedRun {
   assets: InlineAgentAsset[]
-  schemaJson?: string
+  outputSchema?: PreparedOutputSchema
+}
+
+interface PreparedOutputSchema {
+  json: string
+  value: SafeValue
 }
 
 interface ValidatedConfiguration {
@@ -261,7 +266,9 @@ function validateIdentifier(value: string, code: string): void {
   }
 }
 
-function serializeAndValidateSchema(schema: SafeValue | undefined): string | undefined {
+function serializeAndValidateSchema(
+  schema: SafeValue | undefined,
+): PreparedOutputSchema | undefined {
   if (schema === undefined) return undefined
   let serialized: string | undefined
   try {
@@ -275,15 +282,21 @@ function serializeAndValidateSchema(schema: SafeValue | undefined): string | und
       strict: false,
       validateSchema: true,
     })
-    ajv.compile(schema as object)
+    const value = JSON.parse(serialized) as SafeValue
+    const validate = ajv.compile(value as object)
+    if ("$async" in validate && validate.$async === true) {
+      throw new CodeBuddyAdapterError("codebuddy_output_schema_invalid")
+    }
+    return { json: serialized, value }
   } catch (error) {
     if (error instanceof CodeBuddyAdapterError) throw error
     throw new CodeBuddyAdapterError("codebuddy_output_schema_invalid")
   }
-  return serialized
 }
 
-function validateRequestShape(request: AgentHostRunRequest): string | undefined {
+function validateRequestShape(
+  request: AgentHostRunRequest,
+): PreparedOutputSchema | undefined {
   validateIdentifier(request.runId, "codebuddy_invalid_run_id")
   validateIdentifier(request.employeeId, "codebuddy_invalid_employee_id")
   if (!request.prompt.trim() || byteLength(request.prompt) > MAX_PROMPT_BYTES) {
@@ -295,7 +308,7 @@ function validateRequestShape(request: AgentHostRunRequest): string | undefined 
   ) {
     throw new CodeBuddyAdapterError("codebuddy_instructions_too_large")
   }
-  const schemaJson = serializeAndValidateSchema(request.outputSchema)
+  const outputSchema = serializeAndValidateSchema(request.outputSchema)
   if (request.policy.tools.default !== "deny") {
     throw new CodeBuddyAdapterError("codebuddy_tool_policy_must_default_deny")
   }
@@ -350,7 +363,7 @@ function validateRequestShape(request: AgentHostRunRequest): string | undefined 
       throw new CodeBuddyAdapterError("codebuddy_deadline_elapsed")
     }
   }
-  return schemaJson
+  return outputSchema
 }
 
 function configurationIssues(source: NodeJS.ProcessEnv): AgentHostIssue[] {
@@ -451,10 +464,10 @@ async function prepareRun(
   request: AgentHostRunRequest,
   beforeOpen?: (sourcePath: string) => Promise<void>,
 ): Promise<PreparedRun> {
-  const schemaJson = validateRequestShape(request)
+  const outputSchema = validateRequestShape(request)
   try {
     const assets = await readInlineAgentAssets(request, beforeOpen)
-    return { assets, ...(schemaJson ? { schemaJson } : {}) }
+    return { assets, ...(outputSchema ? { outputSchema } : {}) }
   } catch (error) {
     if (error instanceof InlineAgentProjectionError) {
       throw new CodeBuddyAdapterError(`codebuddy_${error.code}`)
@@ -682,14 +695,15 @@ function escapeFileMentionSyntax(value: string): string {
 function createTaskInput(
   request: AgentHostRunRequest,
   assets: InlineAgentAsset[],
+  outputSchema: PreparedOutputSchema | undefined,
 ): string {
   const envelope = {
     schemaVersion: "digital-employee-context.v1",
     employeeInstructions: request.instructions ?? "",
     task: request.prompt,
     assets,
-    ...(request.outputSchema !== undefined
-      ? { outputSchema: request.outputSchema }
+    ...(outputSchema !== undefined
+      ? { outputSchema: outputSchema.value }
       : {}),
   }
   const input = escapeFileMentionSyntax(
@@ -719,7 +733,9 @@ function normalizeOutputValue(
     throw new CodeBuddyProtocolError("codebuddy_output_too_complex")
   }
   if (value === null) return null
-  if (typeof value === "string") return redactText(value)
+  // Preserve the model value for Schema validation. The terminal scrubber
+  // rejects any redaction that would mutate schema-bound output.
+  if (typeof value === "string") return value
   if (typeof value === "boolean") return value
   if (typeof value === "number") {
     if (!Number.isFinite(value)) {
@@ -806,7 +822,10 @@ function parseAndValidateOutput(text: string, schema: SafeValue | undefined): Sa
       validateSchema: true,
     })
     const validate = ajv.compile(schema as object)
-    if (!validate(normalized)) {
+    if ("$async" in validate && validate.$async === true) {
+      throw new CodeBuddyProtocolError("codebuddy_output_schema_invalid")
+    }
+    if (validate(normalized) !== true) {
       throw new CodeBuddyProtocolError("codebuddy_output_schema_mismatch")
     }
   } catch (error) {
@@ -1401,7 +1420,11 @@ export class CodeBuddyAgentHostAdapter implements AgentHostAdapter {
           mode: 0o600,
         }),
       ])
-      const taskInput = createTaskInput(request, prepared.assets)
+      const taskInput = createTaskInput(
+        request,
+        prepared.assets,
+        prepared.outputSchema,
+      )
       const expectedCwd = await realpath(directories.workspace)
       const expectedSessionId = randomUUID()
       const args = [
@@ -1588,7 +1611,7 @@ export class CodeBuddyAgentHostAdapter implements AgentHostAdapter {
       }
       let completion
       try {
-        completion = normalizer.finish(request.outputSchema)
+        completion = normalizer.finish(prepared.outputSchema?.value)
       } catch (error) {
         if (error instanceof CodeBuddyProtocolError) {
           throw new CodeBuddyAdapterError(error.code, error.retryable)
@@ -1603,7 +1626,7 @@ export class CodeBuddyAgentHostAdapter implements AgentHostAdapter {
         output: scrubOutput(
           completion.output,
           credential,
-          request.outputSchema !== undefined,
+          prepared.outputSchema !== undefined,
         ),
       }
     } catch (error) {

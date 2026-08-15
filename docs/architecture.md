@@ -176,6 +176,19 @@ The runnable preview is POSIX-only: a terminal event is withheld until the
 detached process group has exited. Windows remains not-ready until equivalent
 Job Object process-tree cleanup is implemented and covered by deterministic
 Adapter fixtures.
+
+Across all built-in Adapters, `structured_output` has one meaning:
+**Adapter-enforced terminal validity**. When `outputSchema` is present, the
+Adapter prepares one bounded, immutable, synchronous Schema snapshot for both
+projection and terminal validation. The terminal JSON value in `run.completed`
+must be accepted unchanged by that snapshot. Repair, coercion, defaults, field
+removal, or redaction cannot manufacture conformance; if post-validation safety
+scrubbing would mutate a schema-bound value, the run fails closed. Invalid JSON,
+asynchronous Schema, Schema mismatch, cancellation, deadline, or cleanup failure
+also fails closed. This capability does not claim Host-native constrained
+generation; JSONL or another machine-readable event format alone is
+insufficient. Qoder additionally limits Schema snapshots to 16 KiB and compiles
+them before its version probe, projection, or model process.
 Each native message is validated before normalized events are published; a
 protocol failure discards buffered output. Run IDs are reserved before staging,
 and the terminal event is held until process, credential, temporary-root and

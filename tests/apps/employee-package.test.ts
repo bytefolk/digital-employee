@@ -227,6 +227,26 @@ test("static validation rejects a mismatched Skill identity", async () => {
   )
 })
 
+test("static validation rejects asynchronous input and output Schemas", async () => {
+  for (const schemaName of ["input.schema.json", "output.schema.json"]) {
+    const parent = await mkdtemp(path.join(os.tmpdir(), "employee-async-schema-"))
+    const target = path.join(parent, `team-${schemaName.split(".")[0]}`)
+    await createEmployeePackage(target)
+    await writeFile(
+      path.join(target, "schemas", schemaName),
+      `${JSON.stringify({ $async: true, type: "object" })}\n`,
+    )
+
+    await assert.rejects(
+      () => inspectEmployeePackage(target),
+      (error: unknown) =>
+        error instanceof TypeError &&
+        error.message ===
+          `employee_package_invalid_json_schema:./schemas/${schemaName}`,
+    )
+  }
+})
+
 test("static validation refuses symlinked package artifacts", async () => {
   const parent = await mkdtemp(path.join(os.tmpdir(), "employee-link-"))
   const target = path.join(parent, "team-answer")

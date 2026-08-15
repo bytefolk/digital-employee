@@ -6,6 +6,21 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Qoder CLI 1.1.x now advertises `structured_output` from Adapter-specific
+  deterministic conformance fixtures under the common Adapter-enforced
+  terminal-validity contract. A checked-in employee package
+  that keeps `requiredCapabilities: ["structured_output"]` can pass the normal
+  package-aware Qoder preflight; unverified Qoder versions remain fail closed.
+  Deterministic fixtures cover matching JSON, malformed/fenced/prose/truncated
+  output, Schema mismatch and additional properties, unstructured output,
+  buffered cancellation, and the independent deadline path.
+- Added revisioned roadmap/feature/maintenance Issue requirements, an
+  append-only decision policy, PR-to-REQ/AC traces, append-only merge
+  verification ledgers, explicit product review, and frozen milestone packets
+  requiring a named owner's ACCEPT/REJECT decision. These are review policies,
+  not technical tamper prevention. A bounded checker validates templates,
+  fixtures, the actual PR body, and every source commit message in the exact
+  event base-to-head range from a safe event file and local Git history in CI.
 - Real-local Phase A path (#42): a `component-matrix.v1` contract that pins
   the exact `mem` and `doc` service commits as the sole version authority, a
   deterministic `real-local-stdio-host` Agent Host fixture that resumes
@@ -28,6 +43,20 @@ All notable changes to this project will be documented in this file.
   config/probe/version fingerprint, and verified child-to-grandchild lineage.
   The v1 record validator retains the original 1.0.0 nine-case contract while
   deriving all domain counts and axes exactly for both supported kit versions.
+- Employee-package inspection and the generic run/eval boundaries now reject
+  asynchronous JSON Schemas. Claude, Qwen, and CodeBuddy also prepare one
+  immutable Schema snapshot per run, reject `$async` before Host execution,
+  and require synchronous validators to return exactly `true`; this closes the
+  Ajv Promise-truthiness path across every built-in structured-output Adapter.
+  All built-ins validate the unchanged terminal JSON before safety scrubbing;
+  repair, coercion, defaults, field removal, or redaction cannot manufacture a
+  passing value, and a required post-validation mutation fails closed.
+
+- Qoder JSON Schemas are serialized, capped at 16 KiB, and compiled before
+  any run-workspace projection or Qoder subprocess, including the bounded
+  version probe; invalid, oversized, or asynchronous Schemas therefore cannot
+  reach a paid model invocation. Invalid, oversized, or asynchronous Schema and
+  unsafe terminal output produce typed failures.
 - Qoder assistant text is now buffered until successful process and cleanup
   completion, then scrubbed as one value with the exact service credential.
   This prevents secrets split across native stream chunks from escaping in

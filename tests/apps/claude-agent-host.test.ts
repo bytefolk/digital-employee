@@ -328,6 +328,29 @@ test("Claude fails closed without emitting the API key from hostile output", asy
   )
 })
 
+test("Claude validates structured output before redaction can manufacture conformance", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "claude-redaction-order-"))
+  const request = await employeeRequest(parent, "run-redaction-order")
+  request.outputSchema = {
+    type: "object",
+    required: ["answer"],
+    properties: { answer: { const: "token=[REDACTED]" } },
+    additionalProperties: true,
+  }
+  const events = await collect(
+    adapter(parent, "generic-redaction-output").run(request),
+  )
+  const terminal = events.at(-1)
+
+  assert.equal(terminal?.type, "run.failed")
+  assert.equal(
+    terminal?.type === "run.failed" && terminal.error.code,
+    "claude_output_schema_mismatch",
+  )
+  assert.equal(events.some((event) => event.type === "run.completed"), false)
+  assert.equal(JSON.stringify(events).includes("fixture-public-nonsecret"), false)
+})
+
 test("Claude fails closed when a hostile result uses the API key as an object key", async () => {
   const parent = await mkdtemp(path.join(os.tmpdir(), "claude-secret-key-"))
   const request = await employeeRequest(parent, "run-secret-key")
@@ -396,23 +419,47 @@ test("Claude rejects unsupported versions, missing API keys and write policies b
   await assert.rejects(access(launchLog))
 })
 
-test("Claude validates JSON Schema locally before launching", async () => {
-  const parent = await mkdtemp(path.join(os.tmpdir(), "claude-schema-"))
-  const launchLog = path.join(parent, "launch.jsonl")
-  const request = await employeeRequest(parent, "run-schema")
-  request.outputSchema = { type: "definitely-not-a-json-schema-type" }
+test("Claude validates synchronous JSON Schema locally before launching", async () => {
+  for (const [name, outputSchema] of [
+    ["invalid", { type: "definitely-not-a-json-schema-type" }],
+    ["async", { $async: true, type: "object" }],
+  ] as const) {
+    const parent = await mkdtemp(path.join(os.tmpdir(), `claude-schema-${name}-`))
+    const launchLog = path.join(parent, "launch.jsonl")
+    const request = await employeeRequest(parent, `run-schema-${name}`)
+    request.outputSchema = outputSchema as SafeValue
+    const host = adapter(parent, "success", undefined, 10_000, {
+      fixtureArgs: ["--launch-log", launchLog],
+    })
+
+    const events = await collect(host.run(request))
+    const failed = events.at(-1)
+    assert.equal(failed?.type, "run.failed")
+    assert.equal(
+      failed?.type === "run.failed" && failed.error.code,
+      "claude_output_schema_invalid",
+    )
+    await assert.rejects(access(launchLog))
+  }
+})
+
+test("Claude keeps the prepared Schema when the request mutates before spawn", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "claude-late-schema-"))
+  const request = await employeeRequest(parent, "run-late-schema")
   const host = adapter(parent, "success", undefined, 10_000, {
-    fixtureArgs: ["--launch-log", launchLog],
+    beforeSpawn: async () => {
+      request.outputSchema = { $async: true, type: "object" }
+    },
   })
 
   const events = await collect(host.run(request))
-  const failed = events.at(-1)
-  assert.equal(failed?.type, "run.failed")
+  const completed = events.at(-1)
+  assert.equal(completed?.type, "run.completed")
   assert.equal(
-    failed?.type === "run.failed" && failed.error.code,
-    "claude_output_schema_invalid",
+    completed?.type === "run.completed" &&
+      (completed.output as { answer?: string }).answer,
+    "fixture answer",
   )
-  await assert.rejects(access(launchLog))
 })
 
 test("Claude deadline and explicit cancellation terminate a hanging run", async () => {

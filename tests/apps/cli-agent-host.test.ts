@@ -42,6 +42,20 @@ async function installFakeQoder(directory: string): Promise<void> {
   await chmod(executable, 0o755)
 }
 
+async function installVersionOnlyQoder(
+  directory: string,
+  version: string,
+): Promise<void> {
+  const executable = path.join(directory, "qodercli")
+  const output = JSON.stringify(`${version}\n`)
+  await writeFile(
+    executable,
+    `#!/usr/bin/env node\nif (!process.argv.includes("--version")) process.exit(2)\nprocess.stdout.write(${output})\n`,
+    { mode: 0o755 },
+  )
+  await chmod(executable, 0o755)
+}
+
 async function installFakeHost(
   directory: string,
   command: string,
@@ -183,6 +197,68 @@ test("static validation succeeds while Qoder without a service token fails close
   assert.equal(
     packageAwareOutput.compatibility.issues.some(
       (issue: { code: string }) => issue.code === "qoder_invalid_workspace_file",
+    ),
+    true,
+  )
+})
+
+test("public structured-action package negotiates Qoder structured_output by exact version", async (t) => {
+  if (process.platform === "win32") return t.skip("fixture executable is POSIX-only")
+  const directory = await mkdtemp(path.join(os.tmpdir(), "employee-structured-"))
+  const executableDirectory = path.join(directory, "bin")
+  const unverifiedExecutableDirectory = path.join(directory, "unverified-bin")
+  const packageDirectory = path.join(
+    root,
+    "examples",
+    "recipes",
+    "structured-action.v1",
+    "structured-action",
+  )
+  await mkdir(executableDirectory)
+  await mkdir(unverifiedExecutableDirectory)
+  await installVersionOnlyQoder(executableDirectory, "1.1.12")
+  await installVersionOnlyQoder(unverifiedExecutableDirectory, "1.2.0")
+  const manifest = JSON.parse(
+    await readFile(path.join(packageDirectory, "employee.json"), "utf8"),
+  )
+  assert.deepEqual(manifest.host.requiredCapabilities, ["structured_output"])
+  const baseEnvironment = {
+    ...process.env,
+    PATH: `${executableDirectory}${path.delimiter}${process.env.PATH}`,
+    QODER_PERSONAL_ACCESS_TOKEN: "fixture-service-token",
+  }
+
+  const qualified = runCli(
+    ["validate", packageDirectory, "--engine", "qoder", "--json"],
+    baseEnvironment,
+  )
+  assert.equal(qualified.status, 0, qualified.stderr)
+  const qualifiedOutput = JSON.parse(qualified.stdout)
+  assert.equal(qualifiedOutput.status, "valid")
+  assert.equal(qualifiedOutput.compatibility.compatible, true)
+  assert.deepEqual(qualifiedOutput.compatibility.missing, [])
+  assert.deepEqual(qualifiedOutput.compatibility.unknown, [])
+  assert.equal(
+    qualifiedOutput.host.capabilities.structured_output,
+    "supported",
+  )
+  assert.equal(qualifiedOutput.host.capabilitySource, "conformance_test")
+
+  const unverified = runCli(
+    ["validate", packageDirectory, "--engine", "qoder", "--json"],
+    {
+      ...baseEnvironment,
+      PATH: `${unverifiedExecutableDirectory}${path.delimiter}${process.env.PATH}`,
+    },
+  )
+  assert.equal(unverified.status, 1, unverified.stderr)
+  const unverifiedOutput = JSON.parse(unverified.stdout)
+  assert.equal(unverifiedOutput.status, "incompatible")
+  assert.equal(unverifiedOutput.compatibility.compatible, false)
+  assert.equal(
+    unverifiedOutput.host.issues.some(
+      (entry: { code: string }) =>
+        entry.code === "qoder_version_not_conformance_verified",
     ),
     true,
   )

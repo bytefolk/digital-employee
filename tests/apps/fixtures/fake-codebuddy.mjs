@@ -248,6 +248,8 @@ if (mode === "unknown-event") {
 const answer =
   mode === "secret-output"
     ? `credential=${process.env.CODEBUDDY_API_KEY}`
+    : mode === "generic-redaction-output"
+    ? "token=fixture-public-nonsecret"
     : "fixture answer"
 const structuredOutput =
   mode === "secret-key-output"

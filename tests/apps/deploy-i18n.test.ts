@@ -127,7 +127,10 @@ test("AC-001: synthetic locale discovered without TypeScript registration", () =
 
 test("AC-001: synthetic locale loads and is usable via setLocale/t", () => {
   setLocale("en")
-  assert.equal(t("deploy.channel_http"), "HTTP API")
+  assert.equal(
+    t("deploy.channel_http"),
+    "HTTP API — available; ready after authenticated readback"
+  )
   // zh-CN and ja also verified in earlier tests
   // A new locale file is not written during tests to avoid side effects;
   // the discovery + load path is exercised by the en/zh-CN/ja fixtures.
@@ -162,7 +165,10 @@ test("AC-002: validateCatalog rejects empty string values", () => {
 test("AC-002: setLocale falls back to English for explicitly unsupported locale", () => {
   setLocale("xx-YY")
   assert.equal(getLocale(), "en")
-  assert.equal(t("deploy.channel_dingtalk"), "DingTalk")
+  assert.equal(
+    t("deploy.channel_dingtalk"),
+    "DingTalk — preview; pending_external_action"
+  )
 })
 
 test("AC-002: existing zh-CN and ja catalogs pass validation", () => {

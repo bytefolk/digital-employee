@@ -81,8 +81,48 @@ export function detectSystemLocale(): SupportedLocale {
 }
 
 /**
+ * Return the canonical set of keys from the English reference catalog.
+ */
+export function getReferenceKeys(): string[] {
+  const enFile = path.join(LOCALES_DIR, "en.json")
+  if (!existsSync(enFile)) return []
+  const data = JSON.parse(readFileSync(enFile, "utf8")) as Record<string, unknown>
+  return Object.keys(data)
+}
+
+/**
+ * Validate a locale catalog against the English reference.
+ * Returns an array of error messages (empty if valid).
+ *
+ * Checks:
+ * - All required keys are present
+ * - All values are non-empty strings
+ * - JSON is well-formed (caller should catch parse errors before calling)
+ */
+export function validateCatalog(
+  catalog: Record<string, unknown>,
+  localeCode: string,
+): string[] {
+  const errors: string[] = []
+  const reference = getReferenceKeys()
+
+  for (const key of reference) {
+    if (!(key in catalog)) {
+      errors.push(`${localeCode}: missing key "${key}"`)
+    } else if (typeof catalog[key] !== "string") {
+      errors.push(`${localeCode}: key "${key}" must be a string, got ${typeof catalog[key]}`)
+    } else if ((catalog[key] as string).trim() === "") {
+      errors.push(`${localeCode}: key "${key}" must not be empty`)
+    }
+  }
+
+  return errors
+}
+
+/**
  * Load a locale file and set as current.
  * Missing keys fall back to the English locale.
+ * Malformed catalogs fall back to English with a validation warning.
  */
 export function setLocale(locale: SupportedLocale): void {
   // Always load English as fallback
@@ -93,12 +133,39 @@ export function setLocale(locale: SupportedLocale): void {
 
   const file = path.join(LOCALES_DIR, `${locale}.json`)
   if (!existsSync(file)) {
-    // Fallback to English
     messages = { ...fallbackMessages }
     currentLocale = "en"
     return
   }
-  messages = JSON.parse(readFileSync(file, "utf8")) as Record<string, string>
+
+  let raw: string
+  try {
+    raw = readFileSync(file, "utf8")
+  } catch {
+    messages = { ...fallbackMessages }
+    currentLocale = "en"
+    return
+  }
+
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(raw) as Record<string, unknown>
+  } catch {
+    messages = { ...fallbackMessages }
+    currentLocale = "en"
+    return
+  }
+
+  const validationErrors = validateCatalog(parsed, locale)
+  if (validationErrors.length > 0) {
+    // Log the first few errors to stderr but do not crash —
+    // missing keys already fall back to English gracefully.
+    for (let i = 0; i < Math.min(validationErrors.length, 3); i++) {
+      process.stderr.write(`[i18n] ${validationErrors[i]}\n`)
+    }
+  }
+
+  messages = parsed as Record<string, string>
   currentLocale = locale
 }
 

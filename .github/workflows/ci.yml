@@ -2,6 +2,11 @@ name: CI
 
 on:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
   push:
     branches:
       - main
@@ -10,8 +15,34 @@ permissions:
   contents: read
 
 jobs:
+  commit-metadata:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Reject internal email metadata
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if ! git cat-file -e "$BASE_SHA^{commit}" || ! git cat-file -e "$HEAD_SHA^{commit}"; then
+            echo "::error::Pull request commit metadata could not be inspected safely."
+            exit 1
+          fi
+          if git log --format='%ae%n%ce' "$BASE_SHA..$HEAD_SHA" |
+            grep --extended-regexp --ignore-case --quiet '@(alibaba-inc\.com|alibaba\.com)$'
+          then
+            echo "::error::Pull request commit metadata contains a disallowed internal email domain."
+            exit 1
+          fi
+
   test:
     strategy:
+      fail-fast: false
       matrix:
         node-version:
           - 20
@@ -20,12 +51,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
           package-manager-cache: false
       - run: npm ci
       - run: npm run check
+      - name: Validate actual pull request requirement trace
+        if: github.event_name == 'pull_request' && matrix.node-version == 22
+        run: npm run governance:check -- --github-event-file "$GITHUB_EVENT_PATH"
       - run: npm audit --omit=dev --audit-level=high
 
   coverage:

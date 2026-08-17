@@ -133,6 +133,11 @@ test("Qoder probe reports only the fixture-verified stateless capabilities", asy
   assert.equal(probe.capabilities.structured_output, "supported")
   assert.equal(probe.capabilities.mcp, "unsupported")
   assert.equal(probe.capabilities.usage_events, "unknown")
+  const disclosure = probe.issues.find(
+    (entry) => entry.code === "qoder_handshake_verified_by_conformance_only",
+  )
+  assert.equal(typeof disclosure?.message, "string")
+  assert.equal(disclosure?.blocking, false)
 })
 
 test("Qoder probe accepts only stable three-segment 1.1.x versions", async () => {
@@ -542,6 +547,9 @@ for (const [mode, expectedCode] of [
   ["schema-extra-field", "qoder_output_schema_mismatch"],
   ["stdout-oversize", "qoder_stdout_limit_exceeded"],
   ["stderr-oversize", "qoder_stderr_limit_exceeded"],
+  ["auth-invalid", "qoder_access_token_invalid"],
+  ["auth-payload-missing", "qoder_auth_payload_missing"],
+  ["silent-exit", "qoder_no_response"],
 ] as const) {
   test(`Qoder ${mode} fixture fails closed with one terminal event`, async () => {
     const parent = await mkdtemp(path.join(os.tmpdir(), `qoder-${mode}-`))
@@ -612,6 +620,28 @@ for (const [mode, expectedCode] of [
     )
   })
 }
+
+test("Qoder completes a late-init handshake after the grace window submits the prompt", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "qoder-deferred-init-"))
+  const request = await employeeRequest(parent, "run-deferred-init")
+  const events = await collect(
+    adapter(parent, "deferred-init", undefined, 30_000, {
+      handshakeGraceMs: 100,
+    }).run(request),
+  )
+
+  assert.deepEqual(
+    events.map((event) => event.type),
+    [
+      "run.started",
+      "tool.started",
+      "tool.completed",
+      "assistant.delta",
+      "run.completed",
+    ],
+  )
+  assert.equal(events.at(-1)?.type, "run.completed")
+})
 
 test("Qoder releases credentials and the run reservation before its terminal event", async () => {
   const parent = await mkdtemp(path.join(os.tmpdir(), "qoder-terminal-cleanup-"))

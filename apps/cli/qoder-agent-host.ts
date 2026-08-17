@@ -51,7 +51,15 @@ const QODER_PROTOCOL_MAJOR = 1
 // compatibility version when it enables SDK mode in qodercli 1.1.x.
 const QODER_SDK_TRANSPORT_VERSION = "1.0.16"
 const DEFAULT_TIMEOUT_MS = 240_000
+// Some qodercli 1.1.x builds only complete the init handshake after the first
+// user message. If no handshake response arrives within this window the adapter
+// submits the prompt anyway and keeps validating init strictly on arrival.
+const DEFAULT_HANDSHAKE_GRACE_MS = 5_000
 const TERMINATION_GRACE_MS = 2_000
+const QODER_TERMINAL_REASON_CODES: Record<string, string> = {
+  access_token_invalid: "qoder_access_token_invalid",
+  auth_payload_missing: "qoder_auth_payload_missing",
+}
 const CLEANUP_ATTEMPTS = 2
 const CLEANUP_ATTEMPT_TIMEOUT_MS = 2_000
 const MAX_PROMPT_BYTES = 256 * 1024
@@ -65,6 +73,15 @@ const MAX_PROJECTED_FILE_BYTES = 5 * 1024 * 1024
 const MAX_PROJECTED_TOTAL_BYTES = 20 * 1024 * 1024
 const MAX_EVENTS = 10_000
 const PORTABLE_EXACT_PATH = /^\.\/(?!.*\\)[^\u0000-\u001f\u007f*?[\]{}!]+$/
+
+function terminalReasonCode(
+  result: Record<string, unknown> | undefined,
+): string | undefined {
+  const reason = result?.terminal_reason
+  return typeof reason === "string"
+    ? QODER_TERMINAL_REASON_CODES[reason]
+    : undefined
+}
 
 type RunStopReason =
   | "aborted"
@@ -100,6 +117,7 @@ export interface QoderAgentHostAdapterOptions {
   versionExecutor?: VersionCommandExecutor
   temporaryRoot?: string
   timeoutMs?: number
+  handshakeGraceMs?: number
   now?: () => Date
   /** Lifecycle hooks are primarily useful to deterministic embedders/tests. */
   beforeSpawn?: () => Promise<void>
@@ -696,6 +714,7 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
   private readonly versionExecutor: VersionCommandExecutor
   private readonly temporaryRoot?: string
   private readonly timeoutMs: number
+  private readonly handshakeGraceMs: number
   private readonly now: () => Date
   private readonly beforeSpawn?: () => Promise<void>
   private readonly beforeProjectionOpen?: (sourcePath: string) => Promise<void>
@@ -710,6 +729,10 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
     this.versionExecutor = options.versionExecutor ?? executeVersionCommand
     this.temporaryRoot = options.temporaryRoot
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+    this.handshakeGraceMs = Math.max(
+      0,
+      options.handshakeGraceMs ?? DEFAULT_HANDSHAKE_GRACE_MS,
+    )
     this.now = options.now ?? (() => new Date())
     this.beforeSpawn = options.beforeSpawn
     this.beforeProjectionOpen = options.beforeProjectionOpen
@@ -773,6 +796,13 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
         issue(
           "authentication_not_verified",
           "A service token is configured; model access is verified only by a run",
+          false,
+        ),
+      )
+      issues.push(
+        issue(
+          "qoder_handshake_verified_by_conformance_only",
+          "Capabilities are verified by the bundled conformance fixture; late-init 1.1.x builds are tolerated at runtime",
           false,
         ),
       )
@@ -863,6 +893,7 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
     let pendingAssistantText = ""
     let abortListener: (() => void) | undefined
     let deadlineTimer: NodeJS.Timeout | undefined
+    let handshakeGraceTimer: NodeJS.Timeout | undefined
     let terminalEvent:
       | Extract<AgentHostEvent, { type: "run.completed" | "run.failed" }>
       | undefined
@@ -1133,18 +1164,20 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
         stop("protocol")
       }
 
-      const maybeSubmitPrompt = () => {
-        if (
-          !initSeen ||
-          !initializeResponseSeen ||
-          promptSubmitted ||
-          active.reason
-        ) {
-          return
-        }
+      const submitPrompt = () => {
+        if (promptSubmitted || stdinError || active.reason) return
         promptSubmitted = true
         child.stdin.end(promptLine)
       }
+      const maybeSubmitPrompt = () => {
+        if (!initSeen || !initializeResponseSeen) return
+        submitPrompt()
+      }
+      handshakeGraceTimer = setTimeout(
+        submitPrompt,
+        Math.min(this.handshakeGraceMs, deadlineMs),
+      )
+      handshakeGraceTimer.unref()
       child.stdin.once("error", () => {
         stdinError = true
         protocolFailure("qoder_stdin_failed")
@@ -1273,7 +1306,14 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
           continue
         }
 
-        if (["assistant", "user", "stream_event", "result"].includes(event.type) && !initSeen) {
+        if (event.type === "result" && !initSeen) {
+          resultEvent = event
+          protocolFailure(
+            terminalReasonCode(event) ?? "qoder_result_before_init",
+          )
+          continue
+        }
+        if (["assistant", "user", "stream_event"].includes(event.type) && !initSeen) {
           protocolFailure("qoder_init_required")
           continue
         }
@@ -1434,6 +1474,7 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
       }
 
       const close = await closed
+      clearTimeout(handshakeGraceTimer)
       if (active.forceTimer) clearTimeout(active.forceTimer)
 
       let terminalCode: string | undefined
@@ -1453,7 +1494,8 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
       else if (close.code !== 0) {
         terminalCode = "qoder_process_failed"
         retryable = true
-      } else if (!initSeen) terminalCode = "qoder_init_missing"
+      } else if (eventCount === 0) terminalCode = "qoder_no_response"
+      else if (!initSeen) terminalCode = "qoder_init_missing"
       else if (!initializeResponseSeen) {
         terminalCode = "qoder_initialize_response_missing"
       } else if (!promptSubmitted) terminalCode = "qoder_prompt_not_submitted"
@@ -1465,7 +1507,7 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
         terminalCode =
           resultEvent.subtype === "error_max_turns"
             ? "qoder_max_turns_exceeded"
-            : "qoder_execution_failed"
+            : terminalReasonCode(resultEvent) ?? "qoder_execution_failed"
       } else if (toolNames.size !== completedTools.size) {
         terminalCode = "qoder_tool_result_missing"
       }
@@ -1511,6 +1553,7 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
     } finally {
       let cleanupSucceeded = true
       if (deadlineTimer) clearTimeout(deadlineTimer)
+      if (handshakeGraceTimer) clearTimeout(handshakeGraceTimer)
       if (abortListener) request.signal?.removeEventListener("abort", abortListener)
       if (active.forceTimer) clearTimeout(active.forceTimer)
       if (active.child) {

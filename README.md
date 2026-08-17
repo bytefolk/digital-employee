@@ -133,6 +133,12 @@ printf '%s\n' '{"message":"What does the approved handbook say?"}' | \
   node ./dist/apps/cli/bin.js run ../team-answer --engine qoder --stdin
 ```
 
+Generate `QODER_PERSONAL_ACCESS_TOKEN` as a Personal Access Token in your
+Qoder account settings; it is a deployment service credential, not a personal
+CLI login. If the token is missing, invalid or expired, `run` fails closed
+with `qoder_service_token_not_configured` or `qoder_access_token_invalid`
+before any trusted output is produced.
+
 Select `claude-code`, `qwen-code` or `codebuddy` in the same commands after
 configuring that adapter's service API key. `--stdin`/`--input-file` keep task
 data out of the outer process arguments. Claude Code, Qwen Code and CodeBuddy

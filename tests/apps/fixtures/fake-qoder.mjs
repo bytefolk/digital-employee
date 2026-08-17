@@ -308,6 +308,7 @@ async function executeRun() {
 
 const lines = createInterface({ input: process.stdin, crlfDelay: Infinity })
 let initialized = false
+let deferredInitPending = false
 for await (const line of lines) {
   if (!line.trim()) continue
   inputLines.push(line)
@@ -319,12 +320,35 @@ for await (const line of lines) {
   }
 
   if (!initialized) {
+    if (deferredInitPending) {
+      if (message.type !== "user") process.exit(2)
+      emit(init)
+      initialized = true
+      await executeRun()
+      continue
+    }
     if (
       message.type !== "control_request" ||
       message.request?.type !== "initialize" ||
       typeof message.request_id !== "string"
     ) {
       process.exit(2)
+    }
+    if (mode === "auth-invalid" || mode === "auth-payload-missing") {
+      emit({
+        type: "result",
+        session_id: sessionId,
+        subtype: "error_during_execution",
+        is_error: true,
+        terminal_reason:
+          mode === "auth-invalid"
+            ? "access_token_invalid"
+            : "auth_payload_missing",
+      })
+      process.exit(0)
+    }
+    if (mode === "silent-exit") {
+      process.exit(0)
     }
     if (mode === "malformed") {
       process.stdout.write("not-json\n")
@@ -374,6 +398,10 @@ for await (const line of lines) {
         },
       },
     })
+    if (mode === "deferred-init") {
+      deferredInitPending = true
+      continue
+    }
     emit(init)
     initialized = true
     if (

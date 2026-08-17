@@ -21,29 +21,31 @@ export interface DeployConfig {
   deployedAt?: string
 }
 
-const CONFIG_DIR = path.join(homedir(), ".digital-employee")
-const CONFIG_FILE = path.join(CONFIG_DIR, "config.json")
+const CONFIG_FILE_NAME = "config.json"
 
 export function getConfigDir(): string {
-  return CONFIG_DIR
+  const override = process.env.DIGITAL_EMPLOYEE_CONFIG_DIR?.trim()
+  return override || path.join(homedir(), ".digital-employee")
 }
 
 export function getConfigPath(): string {
-  return CONFIG_FILE
+  return path.join(getConfigDir(), CONFIG_FILE_NAME)
 }
 
 export function loadConfig(): DeployConfig {
-  if (!existsSync(CONFIG_FILE)) return {}
+  const configFile = getConfigPath()
+  if (!existsSync(configFile)) return {}
   try {
-    return JSON.parse(readFileSync(CONFIG_FILE, "utf8")) as DeployConfig
+    return JSON.parse(readFileSync(configFile, "utf8")) as DeployConfig
   } catch {
     return {}
   }
 }
 
 export function saveConfig(config: DeployConfig): void {
-  mkdirSync(CONFIG_DIR, { recursive: true })
-  writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2) + "\n", "utf8")
+  const configDir = getConfigDir()
+  mkdirSync(configDir, { recursive: true })
+  writeFileSync(path.join(configDir, CONFIG_FILE_NAME), JSON.stringify(config, null, 2) + "\n", "utf8")
 }
 
 export function hasExistingDeployment(): boolean {

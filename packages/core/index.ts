@@ -517,4 +517,16 @@ export type {
   RunnerDoctorOptions,
   RunnerStartOptions,
   RunnerProcess,
+  RunnerLocalPackageRequest,
+  RunnerTaskExecution,
+  RunnerTaskResult,
 } from "./src/runner-lifecycle.js"
+export {
+  FileDeviceKeyStore,
+  createDeviceKeyPair,
+} from "./src/runner-file-device-key-store.js"
+export { SqliteDurableStore } from "./src/runner-sqlite-store.js"
+export { HttpRunnerTransport } from "./src/runner-http-transport.js"
+export type {
+  HttpRunnerTransportOptions,
+} from "./src/runner-http-transport.js"

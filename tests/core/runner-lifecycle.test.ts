@@ -19,6 +19,7 @@ import type {
   RunnerDeviceKeyStorePort,
   DeviceKeyRecord,
   RunnerTransportPort,
+  RunnerStartOptions,
 } from "../../packages/core/index.js"
 
 // ---------------------------------------------------------------------------
@@ -78,6 +79,28 @@ function fakeTransport(): RunnerTransportPort {
     async rotateKey() { throw new Error("not implemented") },
     async revokeKey() { throw new Error("not implemented") },
   } as unknown as RunnerTransportPort
+}
+
+function makeStartOptions(overrides?: Partial<RunnerStartOptions>): RunnerStartOptions {
+  return {
+    config: makeConfig(),
+    deviceKeyStore: fakeDeviceKeyStore(),
+    durableStore: new InMemoryDurableStore(),
+    transport: fakeTransport(),
+    resolvePlatformPublicKey: async () => {
+      throw new Error("no platform key")
+    },
+    resolveLocalPackage: async () => {
+      throw new Error("no local package")
+    },
+    hostRegistry: {} as RunnerStartOptions["hostRegistry"],
+    receiptKeyId: "device:test",
+    receiptPrivateKey: null as unknown as KeyObject,
+    executeTask: async () => {
+      throw new Error("not implemented")
+    },
+    ...overrides,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -314,13 +337,7 @@ test("runnerDoctor skips transport connectivity without transport", async () => 
 // ---------------------------------------------------------------------------
 
 test("runnerStart returns a process that can be stopped gracefully", async () => {
-  const proc = runnerStart({
-    config: makeConfig(),
-    deviceKeyStore: fakeDeviceKeyStore(),
-    durableStore: new InMemoryDurableStore(),
-    transport: fakeTransport(),
-    clock: fakeClock(),
-  })
+  const proc = runnerStart(makeStartOptions())
 
   assert.ok(proc.status)
   assert.ok(proc.stop)
@@ -337,14 +354,10 @@ test("runnerStart returns a process that can be stopped gracefully", async () =>
 
 test("runnerStart respects external abort signal", async () => {
   const controller = new AbortController()
-  const proc = runnerStart({
-    config: makeConfig(),
-    deviceKeyStore: fakeDeviceKeyStore(),
-    durableStore: new InMemoryDurableStore(),
-    transport: fakeTransport(),
+  const proc = runnerStart(makeStartOptions({
     signal: controller.signal,
     clock: fakeClock(),
-  })
+  }))
 
   // Abort externally (simulates SIGTERM)
   controller.abort(new Error("SIGTERM"))
@@ -358,14 +371,10 @@ test("runnerStart with pre-aborted signal stops immediately", async () => {
   const controller = new AbortController()
   controller.abort(new Error("already aborted"))
 
-  const proc = runnerStart({
-    config: makeConfig(),
-    deviceKeyStore: fakeDeviceKeyStore(),
-    durableStore: new InMemoryDurableStore(),
-    transport: fakeTransport(),
+  const proc = runnerStart(makeStartOptions({
     signal: controller.signal,
     clock: fakeClock(),
-  })
+  }))
 
   await proc.done
   assert.equal(proc.status().processStatus, "stopped")
@@ -375,15 +384,11 @@ test("runnerStart reports status changes via callback", async () => {
   const changes: string[] = []
   const controller = new AbortController()
 
-  const proc = runnerStart({
-    config: makeConfig(),
-    deviceKeyStore: fakeDeviceKeyStore(),
-    durableStore: new InMemoryDurableStore(),
-    transport: fakeTransport(),
+  const proc = runnerStart(makeStartOptions({
     signal: controller.signal,
     clock: fakeClock(),
     onStatusChange: (s) => changes.push(s.processStatus),
-  })
+  }))
 
   // Give the loop a chance to transition to idle
   await new Promise((r) => setTimeout(r, 50))
@@ -396,13 +401,9 @@ test("runnerStart reports status changes via callback", async () => {
 })
 
 test("runnerStart stop is idempotent", async () => {
-  const proc = runnerStart({
-    config: makeConfig(),
-    deviceKeyStore: fakeDeviceKeyStore(),
-    durableStore: new InMemoryDurableStore(),
-    transport: fakeTransport(),
+  const proc = runnerStart(makeStartOptions({
     clock: fakeClock(),
-  })
+  }))
 
   await proc.stop()
   // Calling stop again should not throw
@@ -443,13 +444,9 @@ test("runnerStatus returns stopped status when no process running", async () => 
 })
 
 test("runnerStatus reports running process status", async () => {
-  const proc = runnerStart({
-    config: makeConfig(),
-    deviceKeyStore: fakeDeviceKeyStore(),
-    durableStore: new InMemoryDurableStore(),
-    transport: fakeTransport(),
+  const proc = runnerStart(makeStartOptions({
     clock: fakeClock(),
-  })
+  }))
 
   // Let it transition
   await new Promise((r) => setTimeout(r, 20))
@@ -523,18 +520,13 @@ test("runnerStatus with null config", async () => {
 // ---------------------------------------------------------------------------
 
 test("runnerStart enters degraded state after consecutive failures", async () => {
-  // We cannot easily simulate transport failures in the poll loop since
-  // the current implementation only drains outbox, but we verify the
-  // degraded threshold constant and the status field exist.
+  // The poll loop counts transport failures and degrades after the
+  // threshold; verify the constant and that failure counting starts at zero.
   assert.equal(RUNNER_MAX_CONSECUTIVE_FAILURES, 10)
 
-  const proc = runnerStart({
-    config: makeConfig(),
-    deviceKeyStore: fakeDeviceKeyStore(),
-    durableStore: new InMemoryDurableStore(),
-    transport: fakeTransport(),
+  const proc = runnerStart(makeStartOptions({
     clock: fakeClock(),
-  })
+  }))
 
   const status = proc.status()
   assert.equal(status.consecutiveFailures, 0)

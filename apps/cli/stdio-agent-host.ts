@@ -273,26 +273,20 @@ export class ExternalStdioAgentHostAdapter implements AgentHostAdapter {
   ): Promise<AgentHostStdioMessage> {
     await this.ensureChild()
     const id = this.nextId()
-    const waiter: { resolve: (message: AgentHostStdioMessage) => void } = {
-      resolve: () => {},
-    }
-    const received = new Promise<AgentHostStdioMessage>((resolve) => {
+    const waiter: {
+      resolve: (message: AgentHostStdioMessage) => void
+      reject: (error: CoreError) => void
+    } = { resolve: () => {}, reject: () => {} }
+    const received = new Promise<AgentHostStdioMessage>((resolve, reject) => {
       waiter.resolve = resolve
+      waiter.reject = reject
     })
     this.pending.set(id, waiter)
     const timer = setTimeout(() => {
       if (this.pending.delete(id)) {
-        waiter.resolve({
-          protocol: AGENT_HOST_STDIO_PROTOCOL_VERSION,
-          id,
-          kind: "response",
-          ok: false,
-          error: {
-            code: STDIO_CODES.timeout,
-            message: "stdio exchange timed out",
-            retryable: false,
-          },
-        })
+        waiter.reject(
+          stdioError(STDIO_CODES.timeout, "stdio exchange timed out"),
+        )
       }
     }, this.config.timeoutMs)
     timer.unref?.()

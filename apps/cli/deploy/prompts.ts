@@ -1,12 +1,91 @@
 /**
- * Interactive terminal prompts using Node's built-in readline.
- * No external dependencies (inquirer/prompts not needed).
+ * Interactive terminal prompts. No external dependencies.
+ *
+ * Uses a single shared stdin reader that works both with a TTY
+ * (canonical-mode line editing) and with piped input: readline's
+ * per-question interfaces drop already-buffered lines, which makes
+ * multi-prompt flows hang on non-TTY stdin, so we read directly.
  */
 
-import { createInterface } from "node:readline"
+let lineQueue: string[] = []
+let lineWaiters: ((line: string) => void)[] = []
+let chunk = ""
+let secretActive = false
+let secretBytes: number[] = []
+let secretResolve: ((value: string) => void) | null = null
+let stdinAttached = false
 
-const rl = () =>
-  createInterface({ input: process.stdin, output: process.stdout })
+function onInput(data: Buffer): void {
+  if (secretActive) {
+    handleSecretBytes(data)
+    return
+  }
+  chunk += data.toString("utf8")
+  let nl: number
+  while ((nl = chunk.indexOf("\n")) !== -1) {
+    const line = chunk.slice(0, nl)
+    chunk = chunk.slice(nl + 1)
+    const waiter = lineWaiters.shift()
+    if (waiter) waiter(line)
+    else lineQueue.push(line)
+  }
+}
+
+function onEnd(): void {
+  // Deliver a trailing partial line when piped input lacks a final newline.
+  if (chunk !== "") {
+    const line = chunk
+    chunk = ""
+    const waiter = lineWaiters.shift()
+    if (waiter) waiter(line)
+    else lineQueue.push(line)
+  }
+}
+
+function ensureStdinListener(): void {
+  if (stdinAttached) return
+  stdinAttached = true
+  process.stdin.on("data", onInput)
+  process.stdin.on("end", onEnd)
+}
+
+/**
+ * Release stdin so an interactive process can exit naturally after the
+ * last prompt. Prompts still work afterwards — the listener re-attaches
+ * on the next use.
+ */
+export function closePrompts(): void {
+  if (!stdinAttached) return
+  stdinAttached = false
+  process.stdin.removeListener("data", onInput)
+  process.stdin.removeListener("end", onEnd)
+  lineQueue = []
+  lineWaiters = []
+  secretBytes = []
+  secretResolve = null
+  secretActive = false
+}
+
+function handleSecretBytes(data: Buffer): void {
+  for (const byte of data) {
+    if (byte === 13 || byte === 10) {
+      // Enter
+      const value = Buffer.from(secretBytes).toString("utf8").trim()
+      secretBytes = []
+      process.stdout.write("\n")
+      const resolve = secretResolve
+      secretActive = false
+      secretResolve = null
+      resolve?.(value)
+    } else if (byte === 127 || byte === 8) {
+      // Backspace
+      secretBytes.pop()
+    } else {
+      secretBytes.push(byte)
+      process.stdout.write("*")
+    }
+  }
+}
 
 /**
  * Ask user to select from a list of options (arrow-key style).
@@ -65,47 +144,26 @@ export async function confirmPrompt(
  * Display a secret input prompt (masks input).
  */
 export async function secretPrompt(message: string): Promise<string> {
-  const iface = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  })
-  // Mute output for secret
+  ensureStdinListener()
+  process.stdout.write(message + " ")
+  const stdin = process.stdin
+  const wasRaw = stdin.isRaw
+  if (stdin.isTTY) stdin.setRawMode(true)
+  secretActive = true
   return new Promise<string>((resolve) => {
-    process.stdout.write(message + " ")
-    const stdin = process.stdin
-    const wasRaw = stdin.isRaw
-    if (stdin.isTTY) stdin.setRawMode(true)
-    const chunks: Buffer[] = []
-    const onData = (data: Buffer) => {
-      for (const byte of data) {
-        if (byte === 13 || byte === 10) {
-          // Enter
-          stdin.removeListener("data", onData)
-          if (stdin.isTTY && wasRaw !== undefined) stdin.setRawMode(wasRaw)
-          process.stdout.write("\n")
-          iface.close()
-          resolve(Buffer.concat(chunks).toString("utf8").trim())
-          return
-        }
-        if (byte === 127 || byte === 8) {
-          // Backspace
-          chunks.pop()
-        } else {
-          chunks.push(Buffer.from([byte]))
-          process.stdout.write("*")
-        }
-      }
+    secretResolve = (value) => {
+      if (stdin.isTTY && wasRaw !== undefined) stdin.setRawMode(wasRaw)
+      resolve(value)
     }
-    stdin.on("data", onData)
   })
 }
 
 function question(prompt: string): Promise<string> {
-  const iface = rl()
-  return new Promise<string>((resolve) => {
-    iface.question(prompt, (answer) => {
-      iface.close()
-      resolve(answer)
-    })
+  ensureStdinListener()
+  process.stdout.write(prompt)
+  const queued = lineQueue.shift()
+  if (queued !== undefined) return Promise.resolve(queued)
+  return new Promise((resolve) => {
+    lineWaiters.push(resolve)
   })
 }

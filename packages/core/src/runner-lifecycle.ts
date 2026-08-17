@@ -12,22 +12,47 @@
  * - Platform-supplied paths are never transmitted outbound.
  */
 
-import type { KeyObject } from "node:crypto"
+import {
+  generateKeyPairSync,
+  randomUUID,
+  type KeyLike,
+  type KeyObject,
+} from "node:crypto"
 
 import { CoreError } from "./contracts.js"
-import type { RunnerTransportPort } from "./runner-transport.js"
+import type {
+  ClaimResponse,
+  NextTaskRequest,
+  NextTaskResponse,
+  RunnerTransportPort,
+  TransportRequestMeta,
+} from "./runner-transport.js"
 import {
   RUNNER_TRANSPORT_VERSION,
   RUNNER_TRANSPORT_BASE_BACKOFF_MS,
-  RUNNER_TRANSPORT_MAX_BACKOFF_MS,
-  RUNNER_TRANSPORT_MAX_RETRIES,
   RunnerTransportError,
-  computeTransportBackoff,
 } from "./runner-transport.js"
 import type { RunnerDurableStorePort, RunnerDeploymentRecord } from "./runner-durable-store.js"
-import { DURABLE_STORE_SCHEMA_VERSION } from "./runner-durable-store.js"
-import type { RunnerDeviceKeyStorePort, DeviceKeyRecord } from "./runner-device.js"
-import { RUNNER_DEVICE_VERSION } from "./runner-device.js"
+import {
+  DURABLE_OUTBOX_COMPACTION_THRESHOLD,
+  DURABLE_STORE_SCHEMA_VERSION,
+  DurableRunnerReplayGuard,
+} from "./runner-durable-store.js"
+import type {
+  DeviceEnrollment,
+  DeviceKeyRecord,
+  RunnerDeviceKeyStorePort,
+} from "./runner-device.js"
+import { RUNNER_DEVICE_VERSION, deriveDeviceKeyId } from "./runner-device.js"
+import type { AgentHostRegistryPort } from "./agent-host-registry.js"
+import type { RunnerReplayGuardPort } from "./runner-replay-guard.js"
+import { RUNNER_LEASE_SAFETY_MARGIN_MS, RunnerLeaseState } from "./runner-lease.js"
+import type {
+  RunnerEvent,
+  RunnerReceiptPayload,
+  RunnerTaskPayload,
+  SignedEnvelope,
+} from "./runner-protocol.js"
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -186,11 +211,55 @@ export interface RunnerDoctorOptions {
 // Start/Stop options
 // ---------------------------------------------------------------------------
 
+export interface RunnerLocalPackageRequest {
+  sellerId: string
+  employeeId: string
+  employeeVersion: string
+  packageDigest: string
+}
+
+export interface RunnerTaskExecution {
+  taskEnvelope: SignedEnvelope
+  resolvePlatformPublicKey(keyId: string): KeyLike | Promise<KeyLike>
+  runnerId: string
+  sellerId: string
+  resolveLocalPackage(request: RunnerLocalPackageRequest): string | Promise<string>
+  hostRegistry: AgentHostRegistryPort
+  replayGuard: RunnerReplayGuardPort
+  receiptKeyId: string
+  receiptPrivateKey: KeyLike
+  clock?: () => Date
+  onEvent?: (event: RunnerEvent) => void | Promise<void>
+  leaseState?: RunnerLeaseState
+}
+
+export interface RunnerTaskResult {
+  task: RunnerTaskPayload
+  leaseEnvelope: SignedEnvelope
+  events: RunnerEvent[]
+  receipt: RunnerReceiptPayload
+  signedReceipt: SignedEnvelope
+}
+
 export interface RunnerStartOptions {
   config: RunnerConfig
   deviceKeyStore: RunnerDeviceKeyStorePort
   durableStore: RunnerDurableStorePort
   transport: RunnerTransportPort
+  /** Resolves the platform public key used to verify signed task envelopes. */
+  resolvePlatformPublicKey(keyId: string): KeyLike | Promise<KeyLike>
+  /** Resolves an employee package identity to a local package reference. */
+  resolveLocalPackage(request: RunnerLocalPackageRequest): string | Promise<string>
+  /** Local trusted Agent Host registry; credentials stay in this process. */
+  hostRegistry: AgentHostRegistryPort
+  /** KeyId of the receipt-signing key. */
+  receiptKeyId: string
+  /** Private key used to sign receipts. */
+  receiptPrivateKey: KeyLike
+  /** Executes one claimed task and returns events plus the signed receipt. */
+  executeTask(execution: RunnerTaskExecution): Promise<RunnerTaskResult>
+  /** When true, the runner executes one task then stops. */
+  once?: boolean
   signal?: AbortSignal
   clock?: () => Date
   onStatusChange?: (status: RunnerStatus) => void
@@ -520,45 +589,104 @@ export function runnerStart(options: RunnerStartOptions): RunnerProcess {
     })
   }
 
-  async function drainOutbox(): Promise<void> {
+  function buildMeta(deviceKeyId: string, requestNonce?: string): TransportRequestMeta {
+    return {
+      deviceKeyId,
+      requestNonce: requestNonce ?? `req-${randomUUID()}`,
+      requestedAt: clock().toISOString(),
+      runnerId: options.config.runnerId,
+    }
+  }
+
+  function markTransportSuccess(): void {
+    consecutiveFailures = 0
+    lastSuccessAt = clock().toISOString()
+    platformReachable = true
+    if (processStatus === "degraded") setStatus("idle")
+  }
+
+  function recordTransportFailure(): void {
+    consecutiveFailures += 1
+    platformReachable = false
+    if (consecutiveFailures >= RUNNER_MAX_CONSECUTIVE_FAILURES) setStatus("degraded")
+  }
+
+  /**
+   * Returns the current device key, enrolling a fresh key pair when missing,
+   * expired, or rotated out. A revoked key is a hard stop: re-enrolling under
+   * the same runner identity would defeat the revocation.
+   */
+  async function ensureDeviceEnrolled(): Promise<DeviceKeyRecord> {
+    const active = await options.deviceKeyStore.loadActiveKey()
+    if (active && (active.status === "active" || active.status === "rotating")) {
+      return active
+    }
+    if (active?.status === "revoked") {
+      throw new RunnerLifecycleError(
+        "RUNNER_DEVICE_NOT_ENROLLED",
+        "device key revoked; enroll a fresh runner",
+      )
+    }
+    const { privateKey, publicKey } = generateKeyPairSync("ed25519")
+    const keyId = deriveDeviceKeyId(publicKey)
+    const enrollment: DeviceEnrollment = {
+      version: RUNNER_DEVICE_VERSION,
+      runnerId: options.config.runnerId,
+      sellerId: options.config.sellerId,
+      keyId,
+      publicKeySpki: publicKey.export({ type: "spki", format: "pem" }).toString(),
+      enrolledAt: clock().toISOString(),
+    }
+    const response = await options.transport.enrollDevice({
+      version: RUNNER_TRANSPORT_VERSION,
+      enrollment,
+    })
+    if (!response.accepted) {
+      throw new RunnerLifecycleError(
+        "RUNNER_DEVICE_NOT_ENROLLED",
+        "platform rejected device enrollment",
+      )
+    }
+    await options.deviceKeyStore.saveKeyPair(keyId, privateKey, publicKey)
+    const record: DeviceKeyRecord = {
+      keyId,
+      status: "active",
+      activeSince: enrollment.enrolledAt,
+    }
+    await options.deviceKeyStore.saveKey(record)
+    return record
+  }
+
+  async function drainOutbox(deviceKey: DeviceKeyRecord): Promise<void> {
     const outbox = options.durableStore.outbox()
     const pending = await outbox.pending(32)
     for (const entry of pending) {
       if (abortController.signal.aborted) break
       await outbox.markInflight(entry.sequence)
+      const payload = JSON.parse(
+        Buffer.from(entry.payload, "base64url").toString("utf8"),
+      )
       try {
         if (entry.kind === "receipt") {
-          const payload = JSON.parse(Buffer.from(entry.payload, "base64url").toString("utf8"))
           await options.transport.submitReceipt({
             version: RUNNER_TRANSPORT_VERSION,
-            meta: {
-              deviceKeyId: "pending",
-              requestNonce: `outbox-${entry.sequence}`,
-              requestedAt: clock().toISOString(),
-              runnerId: options.config.runnerId,
-            },
+            meta: buildMeta(deviceKey.keyId, `outbox-${entry.sequence}`),
             leaseId: entry.taskId,
-            signedReceipt: payload,
+            signedReceipt: payload as SignedEnvelope,
           })
         } else {
-          const payload = JSON.parse(Buffer.from(entry.payload, "base64url").toString("utf8"))
           await options.transport.appendEvents({
             version: RUNNER_TRANSPORT_VERSION,
-            meta: {
-              deviceKeyId: "pending",
-              requestNonce: `outbox-${entry.sequence}`,
-              requestedAt: clock().toISOString(),
-              runnerId: options.config.runnerId,
-            },
+            meta: buildMeta(deviceKey.keyId, `outbox-${entry.sequence}`),
             leaseId: entry.taskId,
             taskId: entry.taskId,
-            events: Array.isArray(payload) ? payload : [payload],
+            events: Array.isArray(payload)
+              ? (payload as RunnerEvent[])
+              : [payload as RunnerEvent],
           })
         }
         await outbox.ack(entry.sequence)
-        consecutiveFailures = 0
-        lastSuccessAt = clock().toISOString()
-        platformReachable = true
+        markTransportSuccess()
       } catch {
         const nextRetry = new Date(
           clock().getTime() + RUNNER_TRANSPORT_BASE_BACKOFF_MS * Math.pow(2, entry.retryCount),
@@ -566,28 +694,243 @@ export function runnerStart(options: RunnerStartOptions): RunnerProcess {
         await outbox.markRetry(entry.sequence, nextRetry)
       }
     }
+    const size = await outbox.size()
+    if (size >= DURABLE_OUTBOX_COMPACTION_THRESHOLD) {
+      await outbox.compact()
+    }
+  }
+
+  /**
+   * Heartbeats at RUNNER_HEARTBEAT_FRACTION of the remaining lease and renews
+   * it. Any failure closes the lease, aborting lease.signal so the executor
+   * cancels the running task (cancelled_by_runner). Resolves when the lease
+   * ends or the runner stops.
+   */
+  function runHeartbeat(
+    deviceKey: DeviceKeyRecord,
+    lease: RunnerLeaseState,
+    getPendingDigests: () => string[],
+  ): Promise<void> {
+    return new Promise<void>((resolve) => {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      let stopping = false
+
+      function stop(): void {
+        if (stopping) return
+        stopping = true
+        if (timer) clearTimeout(timer)
+        timer = undefined
+        lease.signal.removeEventListener("abort", stop)
+        abortController.signal.removeEventListener("abort", stop)
+        resolve()
+      }
+
+      function schedule(): void {
+        if (stopping) return
+        if (timer) clearTimeout(timer)
+        const remaining =
+          Date.parse(lease.leaseExpiresAt) -
+          RUNNER_LEASE_SAFETY_MARGIN_MS -
+          clock().getTime()
+        if (remaining <= 0) return
+        const delay = Math.min(
+          Math.max(
+            Math.round(remaining * RUNNER_HEARTBEAT_FRACTION),
+            RUNNER_POLL_BASE_INTERVAL_MS,
+          ),
+          RUNNER_POLL_MAX_BACKOFF_MS,
+        )
+        timer = setTimeout(() => {
+          timer = undefined
+          void beat()
+        }, delay)
+        timer.unref()
+      }
+
+      async function beat(): Promise<void> {
+        if (stopping) return
+        try {
+          const task = lease.task
+          const digests = getPendingDigests()
+          const response = await options.transport.heartbeat({
+            version: RUNNER_TRANSPORT_VERSION,
+            meta: buildMeta(deviceKey.keyId),
+            leaseId: task.leaseId,
+            taskId: task.taskId,
+            currentFencingToken: task.fencingToken,
+            eventDigests: digests.slice(-100),
+          })
+          markTransportSuccess()
+          await lease.acceptRenewal(response.renewedEnvelope)
+        } catch {
+          // A failed heartbeat cannot prove the lease is safe to continue:
+          // closing it aborts lease.signal and cancels the running task.
+          lease.close()
+        }
+        schedule()
+      }
+
+      lease.signal.addEventListener("abort", stop, { once: true })
+      abortController.signal.addEventListener("abort", stop, { once: true })
+      schedule()
+    })
+  }
+
+  /**
+   * Claims a task, verifies its signed envelope into a lease, executes it via
+   * the injected executor, and persists events plus the signed receipt in the
+   * outbox. Returns true when the task ran to completion.
+   */
+  async function tryClaimAndExecute(
+    deviceKey: DeviceKeyRecord,
+    coordinates: { taskId: string; runId: string; attempt: number; fencingToken: number },
+  ): Promise<boolean> {
+    setStatus("claiming")
+    let claimed: ClaimResponse
+    try {
+      claimed = await options.transport.claim({
+        version: RUNNER_TRANSPORT_VERSION,
+        meta: buildMeta(deviceKey.keyId),
+        taskId: coordinates.taskId,
+        runId: coordinates.runId,
+        attempt: coordinates.attempt,
+        fencingToken: coordinates.fencingToken,
+      })
+      markTransportSuccess()
+    } catch {
+      recordTransportFailure()
+      return false
+    }
+
+    let lease: RunnerLeaseState
+    try {
+      lease = await RunnerLeaseState.create({
+        initialEnvelope: claimed.taskEnvelope,
+        resolvePlatformPublicKey: options.resolvePlatformPublicKey,
+        clock,
+      })
+    } catch {
+      // Invalid, expired, or not-yet-valid lease: never execute. The platform
+      // re-queues the task; nothing is recorded locally beyond the failure.
+      tasksFailed += 1
+      return false
+    }
+
+    setStatus("executing")
+    const task = lease.task
+    const outbox = options.durableStore.outbox()
+    let pendingEventDigests: string[] = []
+    const heartbeat = runHeartbeat(deviceKey, lease, () => pendingEventDigests)
+    try {
+      const result = await options.executeTask({
+        taskEnvelope: claimed.taskEnvelope,
+        resolvePlatformPublicKey: options.resolvePlatformPublicKey,
+        runnerId: options.config.runnerId,
+        sellerId: options.config.sellerId,
+        resolveLocalPackage: options.resolveLocalPackage,
+        hostRegistry: options.hostRegistry,
+        replayGuard: new DurableRunnerReplayGuard(options.durableStore, { clock }),
+        receiptKeyId: options.receiptKeyId,
+        receiptPrivateKey: options.receiptPrivateKey,
+        clock,
+        onEvent: async (event: RunnerEvent) => {
+          const entry = await outbox.append({
+            kind: "event",
+            taskId: event.taskId,
+            fencingToken: event.fencingToken,
+            payload: Buffer.from(JSON.stringify(event), "utf8").toString("base64url"),
+          })
+          pendingEventDigests.push(event.digest)
+        },
+        leaseState: lease,
+      })
+      await outbox.append({
+        kind: "receipt",
+        taskId: task.taskId,
+        fencingToken: task.fencingToken,
+        payload: Buffer.from(JSON.stringify(result.signedReceipt), "utf8").toString(
+          "base64url",
+        ),
+      })
+      pendingEventDigests = []
+      tasksCompleted += 1
+      setStatus("idle")
+      await drainOutbox(deviceKey)
+      return true
+    } catch {
+      // Execution failed (lease expired, replay detected, host failure). No
+      // receipt is submitted; the platform re-queues the task.
+      tasksFailed += 1
+      setStatus("idle")
+      return false
+    } finally {
+      lease.close()
+      await heartbeat
+    }
   }
 
   async function runLoop(): Promise<void> {
     setStatus("idle")
     while (!abortController.signal.aborted && !stopped) {
-      // Drain any pending outbox entries
+      let deviceKey: DeviceKeyRecord
       try {
-        await drainOutbox()
+        deviceKey = await ensureDeviceEnrolled()
       } catch {
-        // Non-fatal: outbox drain failure
+        recordTransportFailure()
+        const continued = await sleep(pollBackoff(consecutiveFailures))
+        if (!continued) break
+        continue
       }
 
-      // Wait before next poll
+      try {
+        await drainOutbox(deviceKey)
+      } catch {
+        // Non-fatal: outbox drain failure is retried next cycle.
+      }
+      if (abortController.signal.aborted || stopped) break
+
+      let next: NextTaskResponse
+      try {
+        next = await options.transport.nextTask({
+          version: RUNNER_TRANSPORT_VERSION,
+          meta: buildMeta(deviceKey.keyId),
+        })
+        markTransportSuccess()
+      } catch {
+        recordTransportFailure()
+        const continued = await sleep(pollBackoff(consecutiveFailures))
+        if (!continued) break
+        continue
+      }
+
+      if (
+        next.hasTask &&
+        next.taskId &&
+        next.runId &&
+        typeof next.attempt === "number" &&
+        typeof next.fencingToken === "number"
+      ) {
+        const claimed = await tryClaimAndExecute(deviceKey, {
+          taskId: next.taskId,
+          runId: next.runId,
+          attempt: next.attempt,
+          fencingToken: next.fencingToken,
+        })
+        if (claimed && options.once) {
+          stopped = true
+          break
+        }
+        // Yield to the event loop between iterations: a task stream that never
+        // empties must not starve abort timers or lease expiry timers.
+        const continued = await sleep(RUNNER_POLL_BASE_INTERVAL_MS)
+        if (!continued) break
+        continue
+      }
+
+      setStatus("idle")
       const delay = pollBackoff(consecutiveFailures)
       const continued = await sleep(delay)
       if (!continued) break
-
-      if (consecutiveFailures >= RUNNER_MAX_CONSECUTIVE_FAILURES) {
-        setStatus("degraded")
-      } else if (processStatus === "degraded" && consecutiveFailures === 0) {
-        setStatus("idle")
-      }
     }
     setStatus("stopped")
   }

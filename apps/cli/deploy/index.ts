@@ -9,11 +9,13 @@
  * 5. Engine selection (probe-based)
  * 6. Automated deployment
  * 7. Done message
+ * 8. Re-runs consume the persisted config.json (locale, channel, bot name,
+ *    engine, saved key) so a redeploy never re-prompts for known choices.
  */
 
 import { detectSystemLocale, setLocale, t, getLocale, getAvailableLocales, getLocaleDisplayName } from "./i18n.js"
 import type { SupportedLocale } from "./i18n.js"
-import { selectPrompt, textPrompt, confirmPrompt, secretPrompt } from "./prompts.js"
+import { selectPrompt, textPrompt, confirmPrompt, secretPrompt, closePrompts } from "./prompts.js"
 import { loadConfig, saveConfig, hasExistingDeployment } from "./config.js"
 import type { DeployConfig } from "./config.js"
 import { detectEngines } from "./engines.js"
@@ -34,6 +36,14 @@ const VALID_CHANNELS = ["dingtalk", "lark", "wecom", "console", "http"]
 const VALID_ENGINES = ["qoder", "claude-code", "qwen-code", "codebuddy", "openai-key"]
 
 export async function deploy(options: DeployOptions = {}): Promise<void> {
+  try {
+    await runDeploy(options)
+  } finally {
+    closePrompts()
+  }
+}
+
+async function runDeploy(options: DeployOptions): Promise<void> {
   // Load persisted config
   const existing = loadConfig()
 
@@ -78,10 +88,12 @@ export async function deploy(options: DeployOptions = {}): Promise<void> {
     }
   }
 
-  // Step 2: Channel selection
+  // Step 2: Channel selection (explicit flag > persisted config > prompt)
   let channel: ChannelId
   if (options.channel && VALID_CHANNELS.includes(options.channel)) {
     channel = options.channel as ChannelId
+  } else if (existing.channel && VALID_CHANNELS.includes(existing.channel)) {
+    channel = existing.channel as ChannelId
   } else {
     channel = await selectPrompt(t("deploy.channel_prompt"), [
       { label: t("deploy.channel_dingtalk"), value: "dingtalk" },
@@ -92,10 +104,12 @@ export async function deploy(options: DeployOptions = {}): Promise<void> {
     ]) as ChannelId
   }
 
-  // Step 3: Bot name
+  // Step 3: Bot name (explicit flag > persisted config > default/prompt)
   let botName: string
   if (options.name) {
     botName = options.name
+  } else if (existing.botName) {
+    botName = existing.botName
   } else if (options.yes) {
     botName = t("deploy.name_default")
   } else {
@@ -105,10 +119,16 @@ export async function deploy(options: DeployOptions = {}): Promise<void> {
     )
   }
 
-  // Step 4: Engine selection
+  // Step 4: Engine selection (explicit flag > persisted config > prompt)
   let engineChoice: string
+  const persistedEngine =
+    existing.engine && VALID_ENGINES.includes(existing.engine)
+      ? existing.engine
+      : undefined
   if (options.engine && VALID_ENGINES.includes(options.engine)) {
     engineChoice = options.engine
+  } else if (persistedEngine) {
+    engineChoice = persistedEngine
   } else {
     process.stdout.write("\n")
     const engines = await detectEngines()
@@ -135,20 +155,27 @@ export async function deploy(options: DeployOptions = {}): Promise<void> {
 
   let openaiKey: string | undefined
   if (engineChoice === "openai-key") {
-    if (options.yes) {
+    const persistedKey = existing.openaiKey
+    if (persistedKey) {
+      // A saved key is consumed across processes; re-running deploy must
+      // never prompt for the secret again.
+      openaiKey = persistedKey
+    } else if (options.yes) {
       // In non-interactive mode without a key, we cannot proceed
       process.stderr.write(`${t("deploy.error_no_engine")}\n`)
       process.exitCode = 1
       return
-    }
-    openaiKey = await secretPrompt(t("deploy.openai_key_prompt"))
-    if (!openaiKey) {
-      process.stderr.write(`${t("deploy.error_no_engine")}\n`)
-      process.exitCode = 1
-      return
+    } else {
+      openaiKey = await secretPrompt(t("deploy.openai_key_prompt"))
+      if (!openaiKey) {
+        process.stderr.write(`${t("deploy.error_no_engine")}\n`)
+        process.exitCode = 1
+        return
+      }
     }
   } else if (!options.engine) {
-    // Verify selected engine is actually available (only when user picked interactively)
+    // Verify the picked engine is actually available (covers interactive
+    // selection and a persisted engine from a previous deploy)
     const engines = await detectEngines()
     const selected = engines.find((e) => e.id === engineChoice)
     if (selected && !selected.available) {

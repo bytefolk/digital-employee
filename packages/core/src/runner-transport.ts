@@ -33,6 +33,7 @@ export const RUNNER_TRANSPORT_REQUEST_TIMEOUT_MS = 30_000
 // --- Error codes ---
 
 export type RunnerTransportErrorCode =
+  | "RUNNER_TRANSPORT_ABORTED"
   | "RUNNER_TRANSPORT_UNAVAILABLE"
   | "RUNNER_TRANSPORT_TIMEOUT"
   | "RUNNER_TRANSPORT_UNAUTHORIZED"
@@ -72,6 +73,23 @@ export interface TransportRequestMeta {
   requestedAt: string
   /** Runner identifier. */
   runnerId: string
+}
+
+export interface NextTaskRequest {
+  version: typeof RUNNER_TRANSPORT_VERSION
+  meta: TransportRequestMeta
+}
+
+export interface NextTaskResponse {
+  version: typeof RUNNER_TRANSPORT_VERSION
+  /** False when the platform queue is empty. */
+  hasTask: boolean
+  /** Claim coordinates for the assigned task (present when hasTask). */
+  taskId?: string
+  runId?: string
+  attempt?: number
+  fencingToken?: number
+  polledAt: string
 }
 
 export interface ClaimRequest {
@@ -185,6 +203,14 @@ export interface RevokeKeyResponse {
 export interface RunnerTransportPort {
   // --- Task lifecycle ---
 
+  /**
+   * Poll the platform for the next assignable task without claiming it.
+   * Returns hasTask=false when the queue is empty. The runner then calls
+   * claim() with the returned coordinates; nothing is executed without a
+   * valid signed envelope from claim().
+   */
+  nextTask(request: NextTaskRequest): Promise<NextTaskResponse>
+
   /** Claim a task assignment from the platform. */
   claim(request: ClaimRequest): Promise<ClaimResponse>
 
@@ -240,6 +266,11 @@ export interface FakeTransportOptions {
   produceTaskEnvelope: (request: ClaimRequest) => SignedEnvelope
   /** Function to produce a renewed envelope on heartbeat. */
   produceRenewal: (request: HeartbeatRequest) => SignedEnvelope
+  /**
+   * Optional next-task scheduler. Return null/undefined for an empty queue.
+   * Defaults to no tasks.
+   */
+  nextTask?: (request: NextTaskRequest) => NextTaskResponse | null | undefined
 }
 
 /**
@@ -261,6 +292,18 @@ export class FakeRunnerTransport implements RunnerTransportPort {
 
   get submittedReceipt(): SignedEnvelope | null {
     return this.receipt
+  }
+
+  async nextTask(request: NextTaskRequest): Promise<NextTaskResponse> {
+    const next = this.options.nextTask?.(request)
+    if (!next) {
+      return {
+        version: RUNNER_TRANSPORT_VERSION,
+        hasTask: false,
+        polledAt: new Date().toISOString(),
+      }
+    }
+    return next
   }
 
   async claim(request: ClaimRequest): Promise<ClaimResponse> {

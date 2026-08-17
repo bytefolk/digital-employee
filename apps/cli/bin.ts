@@ -7,7 +7,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { DigitalEmployee } from "../../packages/core/src/digital-employee.js";
 import { validateStdioAdapterConfig } from "../../packages/core/src/agent-host-stdio-config.js";
+import type { StdioAdapterConfig } from "../../packages/core/src/agent-host-stdio-config.js";
 import type { AgentHostPolicy } from "../../packages/core/src/agent-host.js";
+import { CoreError } from "../../packages/core/src/contracts.js";
 import { ExternalStdioAgentHostAdapter } from "./stdio-agent-host.js";
 import {
   BUILT_IN_AGENT_HOST_IDS,
@@ -27,6 +29,10 @@ import {
 import { evaluateEmployeePackage } from "./employee-eval.js";
 import { deploy } from "./deploy/index.js";
 import { setup } from "./setup.js";
+
+// runner-commands loads node:sqlite, which prints a startup ExperimentalWarning
+// to stderr that cannot be suppressed in-process. It is imported lazily so
+// non-runner commands keep a clean, machine-readable stderr contract.
 
 type EmployeeResult = Awaited<ReturnType<DigitalEmployee["answer"]>>;
 
@@ -48,6 +54,12 @@ interface CommandValues {
   locale?: string;
   yes: boolean;
   help: boolean;
+  home?: string;
+  runnerId?: string;
+  sellerId?: string;
+  endpoint?: string;
+  once: boolean;
+  agentHost?: string;
 }
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -65,6 +77,13 @@ Agent-native usage:
   digital-employee eval [directory] [--json]
   digital-employee run [directory] --engine claude-code|qoder|qwen-code|codebuddy (--stdin | --input-file path | --question "..." | --input '{"message":"..."}') [--json]
   digital-employee stdio-host <config.json> [--question "..."] [--json]
+
+Runner (outbound worker for the signed-task platform protocol):
+  digital-employee runner init [--home dir] --runner-id <id> --seller-id <seller> --endpoint <url> [--json]
+  digital-employee runner doctor [--home dir] [--json]
+  digital-employee runner status [--home dir] [--json]
+  digital-employee runner start [--home dir] [--once] [--json]
+  digital-employee runner deploy <employee-directory> [--home dir] [--agent-host <id>] [--json]
 
 Standalone-v1 compatibility:
   digital-employee legacy <ask|sync|start|serve> [options]
@@ -101,15 +120,28 @@ function parseCommand(argv: string[]) {
       port: { type: "string", default: "3000" },
       locale: { type: "string" },
       yes: { type: "boolean", short: "y", default: false },
-      help: { type: "boolean", short: "h", default: false }
+      help: { type: "boolean", short: "h", default: false },
+      home: { type: "string" },
+      "runner-id": { type: "string" },
+      "seller-id": { type: "string" },
+      endpoint: { type: "string" },
+      once: { type: "boolean", default: false },
+      "agent-host": { type: "string" },
     }
   });
-  const values = parsed.values as typeof parsed.values & { "input-file"?: string };
+  const values = parsed.values as typeof parsed.values & {
+    "input-file"?: string;
+    "seller-id"?: string;
+    "agent-host"?: string;
+  };
   return {
     command,
     values: {
       ...values,
       inputFile: values["input-file"],
+      runnerId: values["runner-id"],
+      sellerId: values["seller-id"],
+      agentHost: values["agent-host"],
     } as CommandValues,
     positionals: parsed.positionals,
   };
@@ -434,7 +466,14 @@ async function run(values: CommandValues, positionals: string[]) {
   let input: unknown;
   let serializedInput: string | undefined;
   if (values.inputFile) {
-    serializedInput = await readBoundedInput(createReadStream(values.inputFile));
+    try {
+      serializedInput = await readBoundedInput(createReadStream(values.inputFile));
+    } catch (error) {
+      if (error instanceof TypeError && error.message === "run_input_too_large") {
+        throw error;
+      }
+      throw new TypeError("run_input_unreadable");
+    }
   } else if (values.stdin) {
     serializedInput = await readBoundedInput(process.stdin);
   } else if (values.input) {
@@ -554,6 +593,7 @@ async function main() {
   if (command === "eval") return evalFixtures(values, positionals);
   if (command === "run") return run(values, positionals);
   if (command === "stdio-host") return stdioHost(values, positionals);
+  if (command === "runner") return runnerCommand(positionals[0], values, positionals.slice(1));
   throw new TypeError(`unknown_command:${command}`);
 }
 
@@ -572,10 +612,28 @@ async function stdioHost(values: CommandValues, positionals: string[]) {
   if (!configPath) {
     throw new TypeError("stdio_host_config_required");
   }
-  const config = validateStdioAdapterConfig(
-    JSON.parse(await readFile(configPath, "utf8")),
-  );
+  let serialized: string;
+  try {
+    serialized = await readFile(configPath, "utf8");
+  } catch {
+    throw new TypeError("stdio_host_config_unreadable");
+  }
+  let config: StdioAdapterConfig;
+  try {
+    config = validateStdioAdapterConfig(JSON.parse(serialized));
+  } catch {
+    throw new TypeError("stdio_host_config_invalid");
+  }
   const adapter = new ExternalStdioAgentHostAdapter(config);
+  const runId = "cli-stdio-run";
+  let interrupted = false;
+  const onSignal = (): void => {
+    interrupted = true;
+    void adapter.cancel(runId).catch(() => {});
+    void adapter.dispose().catch(() => {});
+  };
+  process.once("SIGINT", onSignal);
+  process.once("SIGTERM", onSignal);
   try {
     const probe = await adapter.probe();
     if (!values.question) {
@@ -583,7 +641,7 @@ async function stdioHost(values: CommandValues, positionals: string[]) {
       return;
     }
     await adapter.preflight({
-      runId: "cli-stdio-preflight",
+      runId,
       employeeId: "cli",
       workingDirectory: process.cwd(),
       prompt: values.question,
@@ -591,7 +649,7 @@ async function stdioHost(values: CommandValues, positionals: string[]) {
     });
     const events = [];
     for await (const event of adapter.run({
-      runId: "cli-stdio-run",
+      runId,
       employeeId: "cli",
       workingDirectory: process.cwd(),
       prompt: values.question,
@@ -599,21 +657,159 @@ async function stdioHost(values: CommandValues, positionals: string[]) {
     })) {
       events.push(event);
     }
+    if (interrupted) {
+      process.exitCode = 130;
+      return;
+    }
+    const terminal = events[events.length - 1];
+    if (!terminal || terminal.type !== "run.completed") {
+      process.exitCode = 1;
+    }
     if (values.json) {
       process.stdout.write(`${JSON.stringify(events, null, 2)}\n`);
       return;
     }
-    const terminal = events[events.length - 1];
     process.stdout.write(
       `${terminal && terminal.type === "run.completed" ? JSON.stringify(terminal.output) : "run_failed"}\n`,
     );
+  } catch (error) {
+    if (interrupted) {
+      process.exitCode = 130;
+      return;
+    }
+    throw error;
   } finally {
+    process.removeListener("SIGINT", onSignal);
+    process.removeListener("SIGTERM", onSignal);
     await adapter.dispose();
   }
 }
 
+async function runnerCommand(
+  sub: string | undefined,
+  values: CommandValues,
+  positionals: string[],
+) {
+  const {
+    defaultRunnerHome,
+    runnerCommandDeploy,
+    runnerCommandDoctor,
+    runnerCommandInit,
+    runnerCommandStart,
+    runnerCommandStatus,
+  } = await import("./runner-commands.js");
+  const home = values.home || defaultRunnerHome();
+  if (sub === "init") {
+    if (!values.runnerId) throw new TypeError("runner_init_requires_runner_id");
+    if (!values.sellerId) throw new TypeError("runner_init_requires_seller_id");
+    if (!values.endpoint) throw new TypeError("runner_init_requires_endpoint");
+    const result = runnerCommandInit({
+      home,
+      runnerId: values.runnerId,
+      sellerId: values.sellerId,
+      platformEndpoint: values.endpoint,
+    });
+    if (values.json) {
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      return;
+    }
+    process.stdout.write(
+      `Initialized runner ${result.config.runnerId} for seller ${result.config.sellerId}\n`,
+    );
+    process.stdout.write(`Home: ${home}\n`);
+    process.stdout.write(`Platform endpoint: ${result.config.platformEndpoint}\n`);
+    return;
+  }
+  if (sub === "doctor") {
+    const report = await runnerCommandDoctor(home);
+    if (values.json) {
+      process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    } else {
+      for (const check of report.checks) {
+        process.stdout.write(`- ${check.name}: ${check.result} — ${check.message}\n`);
+      }
+      process.stdout.write(
+        `Runner doctor: ${report.healthy ? "healthy" : "unhealthy"}\n`,
+      );
+    }
+    if (!report.healthy) process.exitCode = 1;
+    return;
+  }
+  if (sub === "status") {
+    const status = await runnerCommandStatus(home);
+    if (values.json) {
+      process.stdout.write(`${JSON.stringify(status, null, 2)}\n`);
+      return;
+    }
+    process.stdout.write(
+      `Runner ${status.runnerId}: ${status.processStatus} (seller ${status.sellerId})\n`,
+    );
+    process.stdout.write(
+      `Tasks completed ${status.tasksCompleted}, failed ${status.tasksFailed}; ` +
+        `${status.deploymentCount} deployment(s); device key ${status.deviceKeyStatus}\n`,
+    );
+    return;
+  }
+  if (sub === "start") {
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    process.once("SIGINT", abort);
+    process.once("SIGTERM", abort);
+    const handle = runnerCommandStart({
+      home,
+      once: values.once,
+      signal: controller.signal,
+    });
+    if (values.once && !values.json) {
+      process.stdout.write("Runner waiting for one task...\n");
+    }
+    try {
+      await handle.process.done;
+    } finally {
+      process.removeListener("SIGINT", abort);
+      process.removeListener("SIGTERM", abort);
+      handle.close();
+    }
+    if (values.json) {
+      process.stdout.write(`${JSON.stringify(handle.process.status(), null, 2)}\n`);
+    } else {
+      const status = handle.process.status();
+      process.stdout.write(
+        `Runner stopped: ${status.tasksCompleted} completed, ` +
+          `${status.tasksFailed} failed (${status.processStatus})\n`,
+      );
+    }
+    return;
+  }
+  if (sub === "deploy") {
+    const directory = positionals[0];
+    if (!directory) throw new TypeError("runner_deploy_requires_directory");
+    if (positionals.length > 1) throw new TypeError("runner_deploy_accepts_one_directory");
+    const record = await runnerCommandDeploy({
+      home,
+      employeeDirectory: directory,
+      agentHostId: values.agentHost,
+    });
+    if (values.json) {
+      process.stdout.write(`${JSON.stringify(record, null, 2)}\n`);
+      return;
+    }
+    process.stdout.write(
+      `Deployed ${record.employeeId}@${record.employeeVersion} ` +
+        `(digest ${record.packageDigest.slice(0, 16)}...) to ${record.localPackageRef}\n`,
+    );
+    return;
+  }
+  throw new TypeError(`unknown_runner_command:${sub || "missing"}`);
+}
+
 main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : "unexpected_error";
-  process.stderr.write(`digital-employee: ${message}\n`);
+  const code =
+    error instanceof CoreError
+      ? error.code
+      : error instanceof Error
+        ? error.message
+        : "unexpected_error";
+  process.stderr.write(`digital-employee: ${code}\n`);
   process.exitCode = 1;
 });

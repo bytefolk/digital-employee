@@ -2,6 +2,7 @@
 
 import path from "node:path"
 import { realpath } from "node:fs/promises"
+import { setTimeout as delay } from "node:timers/promises"
 
 import {
   computeEmployeePackageDirectoryDigest,
@@ -291,15 +292,36 @@ function writeBinding(binding: DeployPackageBinding, runtime: DeployRuntime): vo
   )
 }
 
-async function hasExactHttpReadback(
+// Bounded window that tolerates a transient observation failure (for
+// example a loaded CI runner delaying one /health probe) without masking a
+// runtime that never becomes ready: fail-closed verdicts are unchanged.
+const HTTP_FINAL_READBACK_WINDOW_MS = 3_000
+const HTTP_FINAL_READBACK_DELAY_MS = 150
+
+export async function hasExactHttpReadback(
   config: DeployConfig,
   binding: DeployPackageBinding,
+  signal?: AbortSignal,
 ): Promise<boolean> {
   try {
+    if (
+      config.package?.localReference !== binding.localReference ||
+      config.package.digest !== binding.digest
+    ) {
+      return false
+    }
+    const deadline = Date.now() + HTTP_FINAL_READBACK_WINDOW_MS
+    let ready = false
+    while (!signal?.aborted && Date.now() < deadline) {
+      if (await readbackHttpDeployment(config)) {
+        ready = true
+        break
+      }
+      await delay(HTTP_FINAL_READBACK_DELAY_MS, undefined, { signal })
+        .catch(() => undefined)
+    }
     return (
-      config.package?.localReference === binding.localReference &&
-      config.package.digest === binding.digest &&
-      await readbackHttpDeployment(config) &&
+      ready &&
       await computeEmployeePackageDirectoryDigest(config.package.localReference) ===
         config.package.digest
     )
@@ -749,7 +771,11 @@ async function deployImpl(options: DeployOptions = {}): Promise<void> {
       let promoted = false
       try {
         await lock.assertOwned()
-        const prePublicationReadback = await hasExactHttpReadback(existing, binding)
+        const prePublicationReadback = await hasExactHttpReadback(
+          existing,
+          binding,
+          controller.signal,
+        )
         await lock.assertOwned()
         if (controller.signal.aborted) {
           failCode("deploy.error_interrupted", "deploy_interrupted")
@@ -778,6 +804,7 @@ async function deployImpl(options: DeployOptions = {}): Promise<void> {
         const postPublicationReadback = await hasExactHttpReadback(
           fresh.config,
           binding,
+          controller.signal,
         )
         await lock.assertOwned()
         if (controller.signal.aborted || !postPublicationReadback) {
@@ -1024,7 +1051,11 @@ async function deployImpl(options: DeployOptions = {}): Promise<void> {
         const prePublication = await loadExactConfigGeneration(stateGeneration, lock)
         const prePublicationReadback = controller.signal.aborted
           ? false
-          : await hasExactHttpReadback(prePublication.config, binding)
+          : await hasExactHttpReadback(
+              prePublication.config,
+              binding,
+              controller.signal,
+            )
         await lock.assertOwned()
         if (controller.signal.aborted) {
           failureCode = "deploy_interrupted"
@@ -1059,7 +1090,11 @@ async function deployImpl(options: DeployOptions = {}): Promise<void> {
           const published = await loadExactConfigGeneration(stateGeneration, lock)
           const postPublicationReadback = controller.signal.aborted
             ? false
-            : await hasExactHttpReadback(published.config, binding)
+            : await hasExactHttpReadback(
+                published.config,
+                binding,
+                controller.signal,
+              )
           await lock.assertOwned()
           if (controller.signal.aborted) {
             failureCode = "deploy_interrupted"
@@ -1086,7 +1121,11 @@ async function deployImpl(options: DeployOptions = {}): Promise<void> {
           const released = await loadExactConfigGeneration(stateGeneration, lock)
           const postReleaseReadback = controller.signal.aborted
             ? false
-            : await hasExactHttpReadback(released.config, binding)
+            : await hasExactHttpReadback(
+                released.config,
+                binding,
+                controller.signal,
+              )
           await lock.assertOwned()
           if (controller.signal.aborted) {
             failureCode = "deploy_interrupted"

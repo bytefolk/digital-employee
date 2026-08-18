@@ -1034,7 +1034,7 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
         "</employee-task>",
         ...(outputSchema !== undefined
           ? [
-              "Return exactly one JSON value and no code fence. It must match this JSON Schema:",
+              "Return exactly one JSON value with no prose or code fence. It must match this JSON Schema:",
               outputSchema.json,
             ]
           : []),

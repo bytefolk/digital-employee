@@ -567,6 +567,58 @@ function normalizeOutputValue(
   return output
 }
 
+function repairUnescapedQuotes(text: string): string {
+  let repaired = ""
+  let inString = false
+  let escaped = false
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    if (!inString) {
+      if (char === '"') inString = true
+      repaired += char
+      continue
+    }
+    if (escaped) {
+      escaped = false
+      repaired += char
+      continue
+    }
+    if (char === "\\") {
+      escaped = true
+      repaired += char
+      continue
+    }
+    if (char !== '"') {
+      repaired += char
+      continue
+    }
+    let lookahead = index + 1
+    while (
+      lookahead < text.length &&
+      (text[lookahead] === " " ||
+        text[lookahead] === "\t" ||
+        text[lookahead] === "\n" ||
+        text[lookahead] === "\r")
+    ) {
+      lookahead += 1
+    }
+    const next = text[lookahead]
+    if (
+      next === "," ||
+      next === "}" ||
+      next === "]" ||
+      next === ":" ||
+      next === undefined
+    ) {
+      inString = false
+      repaired += char
+    } else {
+      repaired += '\\"'
+    }
+  }
+  return repaired
+}
+
 function parseAndValidateOutput(
   text: string,
   schema: PreparedOutputSchema | undefined,
@@ -576,7 +628,11 @@ function parseAndValidateOutput(
   try {
     parsed = JSON.parse(text)
   } catch {
-    throw new QoderAdapterError("qoder_output_not_json")
+    try {
+      parsed = JSON.parse(repairUnescapedQuotes(text))
+    } catch {
+      throw new QoderAdapterError("qoder_output_not_json")
+    }
   }
   const normalized = normalizeOutputValue(parsed)
   if (!schema.validate(normalized)) {
@@ -1034,7 +1090,7 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
         "</employee-task>",
         ...(outputSchema !== undefined
           ? [
-              "Return exactly one JSON value with no prose or code fence. It must match this JSON Schema:",
+              "Return exactly one JSON value with no prose or code fence. Escape double quotes and backslashes inside string values. It must match this JSON Schema:",
               outputSchema.json,
             ]
           : []),

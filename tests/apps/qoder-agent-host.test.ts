@@ -571,6 +571,25 @@ for (const [mode, expectedCode] of [
   })
 }
 
+test("Qoder repairs unescaped quotes inside model JSON strings", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "qoder-quote-repair-"))
+  const request = await employeeRequest(parent, "run-unescaped-quotes")
+  const events = await collect(
+    adapter(parent, "unescaped-quotes").run(request),
+  )
+  const terminal = events.at(-1)
+
+  assert.equal(terminal?.type, "run.completed")
+  assert.equal(
+    terminal?.type === "run.completed" &&
+      typeof terminal.output === "object" &&
+      terminal.output !== null &&
+      !Array.isArray(terminal.output) &&
+      terminal.output.answer,
+    'fixture "quoted" answer',
+  )
+})
+
 test("Qoder treats a false JSON Schema as present and fails closed", async () => {
   const parent = await mkdtemp(path.join(os.tmpdir(), "qoder-false-schema-"))
   const request = await employeeRequest(parent, "run-false-schema")

@@ -299,7 +299,9 @@ async function executeRun() {
               ? "{not-json}"
               : mode === "unstructured-prose"
                 ? "plain fixture answer"
-                : output,
+                : mode === "unescaped-quotes"
+                  ? output.replace("fixture answer", 'fixture "quoted" answer')
+                  : output,
   }
   emit(result)
   if (mode === "duplicate-result") emit(result)

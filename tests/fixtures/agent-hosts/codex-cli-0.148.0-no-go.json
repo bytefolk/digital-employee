@@ -1,0 +1,38 @@
+{
+  "schema": "codex-host-research-record.v1",
+  "auditedHost": "codex-cli",
+  "auditedVersion": "0.148.0",
+  "policy": "digital-employee-default-deny.v1",
+  "transport": "loopback-responses-fixture",
+  "realProviderConfigured": false,
+  "loopbackRequestObserved": true,
+  "modelVisibleTools": [
+    "apply_patch"
+  ],
+  "eventTypes": [
+    "thread.started",
+    "turn.completed",
+    "turn.started"
+  ],
+  "processExitCode": 0,
+  "axes": {
+    "implemented": false,
+    "fixtureConformant": false,
+    "liveQualified": false
+  },
+  "vectors": {
+    "modelVisibleToolRemoval": "FAIL_E3",
+    "nativeEventValidation": "OBSERVED_NOT_QUALIFIED",
+    "singleTerminalOutcome": "NOT_VERIFIED",
+    "deadlineAndCancel": "NOT_VERIFIED",
+    "processTreeCleanup": "NOT_VERIFIED",
+    "credentialBoundary": "NOT_VERIFIED",
+    "filesystemEnforcement": "NOT_VERIFIED",
+    "networkEnforcement": "NOT_VERIFIED",
+    "mcpIsolation": "NOT_VERIFIED",
+    "skillPluginIsolation": "NOT_VERIFIED",
+    "outputSchema": "NOT_VERIFIED"
+  },
+  "verdict": "NO_GO",
+  "blocker": "model_visible_disallowed_tool:apply_patch"
+}

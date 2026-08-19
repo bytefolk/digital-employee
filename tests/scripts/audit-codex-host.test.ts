@@ -12,7 +12,7 @@ import {
 } from "../../scripts/audit-codex-host.js";
 
 const expectedFixture = new URL(
-  "../fixtures/agent-hosts/codex-cli-0.147.0-no-go.json",
+  "../fixtures/agent-hosts/codex-cli-0.148.0-no-go.json",
   import.meta.url
 );
 
@@ -115,7 +115,7 @@ test("the probe refuses a binary outside the audited version", async () => {
   try {
     await writeFile(binary, fakeCodexSource("0.146.0"), { mode: 0o755 });
     await chmod(binary, 0o755);
-    await assert.rejects(auditCodex(binary), /expected codex-cli 0\.147\.0/);
+    await assert.rejects(auditCodex(binary), /expected codex-cli 0\.148\.0/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

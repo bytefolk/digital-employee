@@ -1,6 +1,6 @@
 # Agent Host 状态与接入策略
 
-- 状态日期：2026-08-14
+- 状态日期：2026-08-19
 - 适用范围：当前源码树中的 `employee-package.v1alpha1`、`agent-host.v1`
 - 相关文档：[架构说明](architecture.md)、[员工包规范](employee-package.md)、[ADR 0001](decisions/0001-agent-host-boundary.md)
 
@@ -8,7 +8,7 @@
 
 `digital-employee` 不实现另一套通用 Agent loop。模型推理、上下文窗口、原生工具循环和宿主会话由 Agent Host 负责；本项目负责员工包、Host Adapter、能力协商、策略、标准事件，以及后续的通道、队列、审计和人工接力。
 
-当前源码中有四条版本锁定的 **runnable** 路径：Qoder CLI 1.1.x、Claude Code `>=2.1.214 <2.2.0`、Qwen Code `0.17.1` 和 CodeBuddy Code `2.106.4`。它们都是 one-shot、无状态、POSIX 本机/单租户技术预览；Qoder 只获得最小只读文件投影，另外三个是不暴露原生工具的 context-only Adapter。四条路径都不支持 MCP、附件、会话恢复、写工具或审批回调，也都没有使用真实模型权益验收。Windows 因尚无经过验证的 Job Object 进程树清理而 fail closed。Codex 仍是 **probe-only**：Codex CLI 0.146.0 无法可靠移除所有模型可见的内建工具，其中包括 `apply_patch`。
+当前源码中有四条版本锁定的 **runnable** 路径：Qoder CLI 1.1.x、Claude Code `>=2.1.214 <2.2.0`、Qwen Code `0.17.1` 和 CodeBuddy Code `2.106.4`。它们都是 one-shot、无状态、POSIX 本机/单租户技术预览；Qoder 只获得最小只读文件投影，另外三个是不暴露原生工具的 context-only Adapter。四条路径都不支持 MCP、附件、会话恢复、写工具或审批回调，也都没有使用真实模型权益验收。Windows 因尚无经过验证的 Job Object 进程树清理而 fail closed。Codex 仍是 **probe-only**：Codex CLI 0.148.0 无法可靠移除所有模型可见的内建工具，其中包括 `apply_patch`，详见 [0.148.0 复审](research/codex-cli-0.148.0-default-deny-audit.md)。
 
 官方产品文档只能证明某个宿主值得适配，不能把 `documented` 提升为本仓库的 `supported`。只有版本锁定、Adapter 实现和仓库内 Adapter 专用确定性 fixture 全部通过后，一项能力才能参与运行前兼容性判断。
 
@@ -61,7 +61,7 @@ v2 的全部 50 个向量；这些 fixture 不启动真实 Agent Host，也不�
 | --- | --- | --- | --- |
 | Qoder CLI 1.1.x | `runnable`；内置、版本锁定、只读 one-shot Adapter | 当前实现与测试见 [`qoder-agent-host.ts`](../apps/cli/qoder-agent-host.ts) 和 [验证账本](verification.md) | 最小只读文件投影，运行时校验精确的读/搜索工具集；`structured_output` 由 Adapter 严格终态校验，Schema 限 16 KiB 且必须同步；无效、超限或异步 Schema 在运行工作区投影、受限 `--version` 探针和模型进程前即拒绝；仍不是多租户在线服务 |
 | Claude Code `>=2.1.214 <2.2.0` | `runnable`；内置、版本锁定、context-only one-shot Adapter | 官方提供 [`claude -p` 与 `--bare`](https://code.claude.com/docs/en/headless)、JSON/stream-json、[权限](https://code.claude.com/docs/en/permissions)、[沙箱](https://code.claude.com/docs/en/sandboxing)、[MCP](https://code.claude.com/docs/en/mcp)、[Skills](https://code.claude.com/docs/en/skills) 和 [Agent SDK](https://code.claude.com/docs/en/agent-sdk/typescript) | `--bare --tools "" --strict-mcp-config --disable-slash-commands --no-session-persistence`，资产经 stdin 内联；只支持显式 `ANTHROPIC_API_KEY` |
-| Codex CLI | `probe-only`；仅检查本机命令和版本 | 官方提供 [`codex exec`](https://learn.chatgpt.com/docs/non-interactive-mode)、[JSONL 与输出 Schema](https://learn.chatgpt.com/docs/developer-commands?surface=cli#cli-codex-exec)、[MCP](https://learn.chatgpt.com/docs/extend/mcp)、[Skills](https://learn.chatgpt.com/docs/build-skills)；[App Server](https://learn.chatgpt.com/docs/app-server) 另有事件与 `turn/interrupt` | 已审计 0.146.0；即使禁用 shell/unified exec，`apply_patch` 等模型可见内建工具仍无法可靠全部移除，所以 `tool_allowlist` 保持 `unknown` |
+| Codex CLI | `probe-only`；仅检查本机命令和版本 | 官方提供 [`codex exec`](https://learn.chatgpt.com/docs/non-interactive-mode)、[JSONL 与输出 Schema](https://learn.chatgpt.com/docs/developer-commands?surface=cli#cli-codex-exec)、[MCP](https://learn.chatgpt.com/docs/extend/mcp)、[Skills](https://learn.chatgpt.com/docs/build-skills)；[App Server](https://learn.chatgpt.com/docs/app-server) 另有事件与 `turn/interrupt` | 已审计 0.148.0（[复审记录](research/codex-cli-0.148.0-default-deny-audit.md)，前次 0.147.0 记录见 [research](research/codex-cli-0.147.0-default-deny-audit.md)）；即使禁用 shell/unified exec，`apply_patch` 等模型可见内建工具仍无法可靠全部移除，候选移除配置也未被 `--strict-config` 接受，上游禁用 `apply_patch` 的请求已按 NOT_PLANNED 关闭（[openai/codex#8161](https://github.com/openai/codex/issues/8161)），所以 `tool_allowlist` 保持 `unknown` |
 | Qwen Code `0.17.1` | `runnable`；内置、精确版本锁定、context-only one-shot Adapter | 官方提供 [headless JSON/stream-json](https://qwenlm.github.io/qwen-code-docs/en/users/features/headless/)、[权限与沙箱](https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/)、[MCP](https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/)、[Skills](https://qwenlm.github.io/qwen-code-docs/en/users/features/skills) 和 [TypeScript SDK](https://github.com/QwenLM/qwen-code/blob/main/packages/sdk-typescript/README.md) | 密封 UTF-8 资产经 stdin 内联，工具/MCP/slash-command 集为空；锁定 0.17.1 的不可调用内建 Agent 目录；要求显式 `OPENAI_API_KEY` 与 `OPENAI_MODEL`，可选 `OPENAI_BASE_URL` |
 | CodeBuddy Code `2.106.4` | `runnable`；内置、精确版本锁定、context-only one-shot Adapter | 官方提供 [headless JSON/双向 JSONL](https://www.workbuddy.ai/docs/cli/headless)、[权限与沙箱](https://www.workbuddy.ai/docs/cli/settings)、[MCP](https://www.workbuddy.ai/docs/cli/mcp)、[Skills](https://www.workbuddy.ai/docs/cli/skills)、[Python SDK](https://www.workbuddy.ai/docs/cli/sdk-python) 和 [Beta HTTP API](https://www.workbuddy.ai/docs/cli/http-api) | 密封 UTF-8 资产经 stdin 内联；空 `--tools` 不足以清空 2.106.4，Adapter 额外逐项 deny 该版本全部内建工具并校验最终工具/MCP 集为空；要求显式 `CODEBUDDY_API_KEY` 与 `CODEBUDDY_MODEL` |
 | QwenWork（千问办公） | 不在 Host registry | 官方定位是[办公工作台](https://qwenwork.cn/docs)，提供[定时任务](https://qwenwork.cn/docs/desktop/scheduled-tasks)、[IM 渠道](https://qwenwork.cn/docs/desktop/im-channels)和 [Skills](https://qwenwork.cn/docs/features/skills) | Workbench / Channel，不是当前 Agent Host；官方文档尚未给出本项目所需的稳定 headless 事件与取消契约 |

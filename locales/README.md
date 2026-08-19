@@ -35,5 +35,27 @@ validation errors are logged to stderr as warnings — they don't block loading
 since missing keys fall back to English. Add `"locale.display_name"` and all
 keys present in `en.json` to keep validation clean.
 
+A catalog that cannot be parsed as JSON, or whose root is not a JSON object,
+is treated as malformed: the CLI writes a single `[i18n] failed to parse
+{locale}.json` warning to stderr and serves canonical English instead. It
+never crashes and never serves a half-loaded catalog. An explicitly requested
+unsupported `--locale` is rejected as invalid input (nonzero exit).
+
 To validate all locale files at once during CI, use `npm run check` which
 exercises the test suite including the AC-002 validation tests.
+
+## Verify against the built CLI
+
+After adding a catalog, prove discovery and rendering against the built CLI
+(no TypeScript changes required):
+
+```bash
+npm run build --silent
+node ./dist/apps/cli/bin.js deploy --help --locale {locale-code}
+```
+
+The new locale code must appear in the supported locale list and the help
+text must render from your catalog. Built-CLI discovery, malformed-catalog
+fallback, and fail-closed `--locale` handling are pinned by
+`tests/apps/deploy-i18n-discovery.test.ts`, which runs on Node 20, 22, and 24
+in CI.

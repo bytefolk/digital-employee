@@ -151,6 +151,12 @@ export function setLocale(locale: SupportedLocale): void {
   try {
     parsed = JSON.parse(raw) as Record<string, unknown>
   } catch {
+    parsed = null as unknown as Record<string, unknown>
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    process.stderr.write(
+      `[i18n] failed to parse ${locale}.json; falling back to English\n`,
+    )
     messages = { ...fallbackMessages }
     currentLocale = "en"
     return

@@ -16,6 +16,18 @@ All notable changes to this project will be documented in this file.
   sanitized fixture, and `docs/agent-hosts.md` drops the stale 0.146.0
   wording in favor of the 0.148.0/0.147.0 research records.
 
+### Fixed
+
+- Deploy i18n malformed-catalog handling is now observable and pinned by
+  built-CLI tests (#79). A catalog that fails JSON parsing or has a
+  non-object root falls back to canonical English with a single `[i18n]`
+  stderr warning instead of silently or unsafely loading. New
+  `tests/apps/deploy-i18n-discovery.test.ts` proves on the built CLI that a
+  JSON-only synthetic locale is discovered and rendered without any
+  TypeScript registration, that malformed catalogs fall back to English, and
+  that an explicitly unsupported `--locale` exits nonzero;
+  `locales/README.md` documents the exact built-CLI verification commands.
+
 ## [0.4.0] - 2026-08-16
 
 ### Added

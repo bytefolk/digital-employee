@@ -386,8 +386,27 @@ test("the qualification kit issues a fixture-conformant record for the reference
         liveQualified: false,
       })
       assert.equal(record.liveEvidence, undefined)
-      assert.equal(record.cases.length, 13)
+      assert.equal(record.cases.length, 18)
       assert.ok(record.cases.every((entry) => entry.passed))
+      for (const vector of [
+        "valid_json",
+        "non_json",
+        "schema_mismatch",
+        "invalid_schema_preflight",
+        "cancel_buffered",
+        "secret_rejected",
+      ]) {
+        assert.deepEqual(
+          record.cases.find((entry) => entry.id === vector),
+          {
+            domain: "output_schema",
+            id: vector,
+            passed: true,
+            code: `${vector}_ok`,
+          },
+          vector,
+        )
+      }
       assert.equal(observed.length, 3)
       assert.ok(
         observed.every(

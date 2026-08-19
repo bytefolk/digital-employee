@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- The reusable Adapter qualification kit now earns `output_schema` evidence
+  through six deterministic vectors (#113): `valid_json`, `non_json`,
+  `schema_mismatch`, `invalid_schema_preflight`, `cancel_buffered`, and
+  `secret_rejected`. Kit version moves to `1.2.0` (18 cases); the v1 record
+  validator still accepts the superseded `1.1.0` 13-case and legacy `1.0.0`
+  nine-case contracts, and unknown kit versions fail closed. Rejection is
+  Adapter-enforced and synchronous: invalid, `$async`, or oversized Schemas
+  never reach a model process, nonconforming terminals are replaced by one
+  typed final `run.failed` without echoing hostile output bytes, cancellation
+  wins over buffered success, and the credential sentinel never surfaces.
+  Default CI stays offline: records are `fixtureConformant` with
+  `liveQualified: false` and no live model or paid call.
+
 ### Changed
 
 - Codex default-deny research is re-audited against stable Codex CLI 0.148.0
@@ -18,6 +33,14 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- The external stdio Adapter no longer fails closed on its own teardown
+  traffic (#113). After a synthesized Schema-mismatch terminal, the mandated
+  closing response is drained before the run stream is deleted, and `cancel`
+  registers a bounded waiter for its exchange id, so late closing responses
+  and cancel acknowledgements can no longer be dispatched as unsolicited
+  messages that kill every active stream and signal the host child. Pipe
+  errors on a dead Adapter are absorbed instead of escaping as uncaught
+  stream errors.
 - Deploy i18n malformed-catalog handling is now observable and pinned by
   built-CLI tests (#79). A catalog that fails JSON parsing or has a
   non-object root falls back to canonical English with a single `[i18n]`

@@ -1,9 +1,10 @@
 # Adapter qualification
 
 `runQualificationSuite` produces an `adapter-qualification-record.v1` record
-from repository-owned, offline evidence. Kit version `1.1.0` hardens every
+from repository-owned, offline evidence. Kit version `1.2.0` hardens every
 case with a wall-clock bound and requires direct evidence for cancellation,
-default-deny policy enforcement, secret handling, and process-tree cleanup.
+default-deny policy enforcement, secret handling, process-tree cleanup, and
+Adapter-enforced terminal output Schema validity.
 
 Qualification does not discover, install, or trust an Adapter. The caller
 registers the Adapter and supplies a working directory plus a deterministic
@@ -30,7 +31,7 @@ does not emit a record.
 
 ## Evidence matrix
 
-The record contains 13 cases across the existing nine domains:
+The record contains 18 cases across nine domains:
 
 | Domain | Case | Required evidence |
 | --- | --- | --- |
@@ -46,7 +47,12 @@ The record contains 13 cases across the existing nine domains:
 | `filesystem_network_enforcement` | `network_deny_refused` | The typed `network.connect` qualification operation is rejected with `qualification_network_policy_denied` during preflight or after `run.started` in one final `run.failed`. |
 | `tool_mcp_enforcement` | `tool_allowlist_respected` | No event reports a tool outside the frozen allowlist. |
 | `tool_mcp_enforcement` | `mcp_deny_refused` | The typed `mcp.invoke` qualification operation is rejected with `qualification_mcp_policy_denied` during preflight or after `run.started` in one final `run.failed`. |
-| `output_schema` | `terminal_output_matches_schema` | The terminal output matches the requested closed schema. |
+| `output_schema` | `valid_json` | A run against the frozen closed case Schema ends in exactly one terminal whose output is strict JSON conforming to that Schema. |
+| `output_schema` | `non_json` | A non-JSON terminal is never forwarded: the run ends in exactly one typed final `run.failed` and no `run.completed`. |
+| `output_schema` | `schema_mismatch` | A Schema-violating terminal is never forwarded: the run ends in exactly one typed final `run.failed` and the offending output bytes are never echoed. |
+| `output_schema` | `invalid_schema_preflight` | An invalid Schema (the canonical `$async: true` hazard) is rejected before any `run.started` and before any model process, in exactly one typed final `run.failed`. |
+| `output_schema` | `cancel_buffered` | Cancellation wins over success: buffered partial output is never flushed as `run.completed`, and the run ends in exactly one typed final `run.failed`. |
+| `output_schema` | `secret_rejected` | A terminal carrying the credential sentinel is rejected in exactly one typed final `run.failed`; the sentinel never appears in events, errors, or the record. |
 
 The sentinel scanner is bounded and cycle-safe. It inspects string and symbol
 data properties without invoking getters or custom serializers. Accessors,
@@ -93,8 +99,11 @@ gate.
 
 ## Record compatibility
 
-New runs always emit kit `1.1.0` with the 13-case contract above. The v1 record
-validator also accepts kit `1.0.0` under its original nine-case contract
-(`cancel_stops_run` and `stream_terminates`). For either version it rejects
-missing, extra, duplicated, or cross-domain cases and recomputes every domain
-count and evidence axis from the cases and optional live evidence.
+New runs always emit kit `1.2.0` with the 18-case contract above. The v1
+record validator also accepts the two earlier published contracts under their
+own case sets: kit `1.1.0` (the 13-case contract ending in
+`terminal_output_matches_schema`) and kit `1.0.0` (the original nine-case
+contract with `cancel_stops_run` and `stream_terminates`). For every accepted
+version it rejects missing, extra, duplicated, or cross-domain cases and
+recomputes every domain count and evidence axis from the cases and optional
+live evidence. Unknown kit versions fail closed.

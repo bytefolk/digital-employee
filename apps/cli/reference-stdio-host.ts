@@ -15,6 +15,7 @@ import type { AgentHostStdioRequest } from "../../packages/core/src/agent-host-s
 import { CoreError } from "../../packages/core/src/contracts.js"
 import {
   ADAPTER_QUALIFICATION_DRIVER_SCHEMA_ID,
+  QUALIFICATION_CREDENTIAL_SENTINEL,
   QUALIFICATION_FILESYSTEM_DENIAL_CODE,
   QUALIFICATION_MCP_DENIAL_CODE,
   QUALIFICATION_NETWORK_DENIAL_CODE,
@@ -199,6 +200,24 @@ function qualificationOperation(
       kind: "process_tree",
       scenario: operation.scenario,
     }
+  }
+  if (
+    operation.kind === "output_schema.emit" &&
+    (operation.scenario === "non_json" ||
+      operation.scenario === "schema_mismatch" ||
+      operation.scenario === "secret_rejected") &&
+    Object.keys(operation).length === 2
+  ) {
+    return {
+      kind: "output_schema.emit",
+      scenario: operation.scenario,
+    }
+  }
+  if (
+    operation.kind === "output_schema.buffer_until_cancel" &&
+    Object.keys(operation).length === 1
+  ) {
+    return { kind: "output_schema.buffer_until_cancel" }
   }
   return undefined
 }
@@ -478,6 +497,32 @@ export function serveReferenceStdioHost(): void {
         activeRun = { id: request.id, runId: payload.runId }
         diagnostics(`run started for ${payload.runId}`)
         event(request.id, payload.runId, { type: "run.started" })
+        if (operation?.kind === "output_schema.emit") {
+          // Deterministic hostile terminals: the adapter must reject every
+          // one of these against the run's output schema.
+          const output =
+            operation.scenario === "non_json"
+              ? "this terminal output is prose, not json"
+              : operation.scenario === "schema_mismatch"
+                ? { wrong_field: "mismatched" }
+                : { answer: "ok", leaked: QUALIFICATION_CREDENTIAL_SENTINEL }
+          event(request.id, payload.runId, {
+            type: "run.completed",
+            output,
+          })
+          successResponse(request.id)
+          activeRun = null
+          return
+        }
+        if (operation?.kind === "output_schema.buffer_until_cancel") {
+          // Buffer partial output and never flush it; only a cancel produces
+          // the terminal for this run.
+          event(request.id, payload.runId, {
+            type: "assistant.delta",
+            text: '{"answer":"partial',
+          })
+          return
+        }
         if (operation?.kind === "process_tree") {
           spawnQualificationTree(operation.scenario)
         }

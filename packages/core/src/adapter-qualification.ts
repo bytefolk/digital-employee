@@ -19,7 +19,8 @@ import { CoreError } from "./contracts.js"
 export const ADAPTER_QUALIFICATION_SCHEMA_ID =
   "adapter-qualification-record.v1" as const
 
-export const ADAPTER_QUALIFICATION_KIT_VERSION = "1.1.0" as const
+export const ADAPTER_QUALIFICATION_KIT_VERSION = "1.2.0" as const
+export const SUPERSEDED_ADAPTER_QUALIFICATION_KIT_VERSION = "1.1.0" as const
 export const LEGACY_ADAPTER_QUALIFICATION_KIT_VERSION = "1.0.0" as const
 
 export const ADAPTER_QUALIFICATION_DRIVER_SCHEMA_ID =
@@ -66,7 +67,7 @@ const LEGACY_QUALIFICATION_CASE_CONTRACT = [
   ["output_schema", "terminal_output_matches_schema"],
 ] as const satisfies readonly (readonly [QualificationDomain, string])[]
 
-const CURRENT_QUALIFICATION_CASE_CONTRACT = [
+const SUPERSEDED_QUALIFICATION_CASE_CONTRACT = [
   ["capability_negotiation", "probe_contract"],
   ["native_event_validation", "events_well_formed"],
   ["single_terminal_outcome", "exactly_one_terminal"],
@@ -82,8 +83,30 @@ const CURRENT_QUALIFICATION_CASE_CONTRACT = [
   ["output_schema", "terminal_output_matches_schema"],
 ] as const satisfies readonly (readonly [QualificationDomain, string])[]
 
+const CURRENT_QUALIFICATION_CASE_CONTRACT = [
+  ["capability_negotiation", "probe_contract"],
+  ["native_event_validation", "events_well_formed"],
+  ["single_terminal_outcome", "exactly_one_terminal"],
+  ["deadline_cancel", "cancel_stops_active_run"],
+  ["process_tree_cleanup", "descendants_disposed_normal"],
+  ["process_tree_cleanup", "descendants_disposed_timeout"],
+  ["process_tree_cleanup", "descendants_disposed_cancel"],
+  ["credential_boundaries", "no_metadata_echo"],
+  ["filesystem_network_enforcement", "hostile_write_refused"],
+  ["filesystem_network_enforcement", "network_deny_refused"],
+  ["tool_mcp_enforcement", "tool_allowlist_respected"],
+  ["tool_mcp_enforcement", "mcp_deny_refused"],
+  ["output_schema", "valid_json"],
+  ["output_schema", "non_json"],
+  ["output_schema", "schema_mismatch"],
+  ["output_schema", "invalid_schema_preflight"],
+  ["output_schema", "cancel_buffered"],
+  ["output_schema", "secret_rejected"],
+] as const satisfies readonly (readonly [QualificationDomain, string])[]
+
 export type AdapterQualificationKitVersion =
   | typeof LEGACY_ADAPTER_QUALIFICATION_KIT_VERSION
+  | typeof SUPERSEDED_ADAPTER_QUALIFICATION_KIT_VERSION
   | typeof ADAPTER_QUALIFICATION_KIT_VERSION
 
 export type QualificationDriverOperation =
@@ -105,8 +128,13 @@ export type QualificationDriverOperation =
       kind: "process_tree"
       scenario: QualificationProcessTreeScenario
     }
+  | {
+      kind: "output_schema.emit"
+      scenario: QualificationOutputSchemaEmitScenario
+    }
+  | { kind: "output_schema.buffer_until_cancel" }
 
-export interface QualificationDriverMetadata {
+export type QualificationDriverMetadata = {
   schema: typeof ADAPTER_QUALIFICATION_DRIVER_SCHEMA_ID
   operation: QualificationDriverOperation
 }
@@ -134,6 +162,16 @@ export type QualificationProcessTreeScenario =
   | "normal"
   | "timeout"
   | "cancel"
+
+/**
+ * Terminal-output scenarios the qualification driver can ask a deterministic
+ * Host to emit. The Adapter under qualification must fail each one closed
+ * without forwarding the non-conforming value.
+ */
+export type QualificationOutputSchemaEmitScenario =
+  | "non_json"
+  | "schema_mismatch"
+  | "secret_rejected"
 
 export interface QualificationProcessTreeDescendants {
   childPid: number
@@ -245,7 +283,14 @@ function defaultQualificationPolicy(): AgentHostPolicy {
   }
 }
 
-const QUALIFICATION_SENTINEL = "qualification-sentinel-do-not-leak"
+/**
+ * Credential sentinel used by the scanner and by deterministic secret
+ * vectors. Any value carrying it must never reach events, diagnostics,
+ * terminals, or the qualification record.
+ */
+export const QUALIFICATION_CREDENTIAL_SENTINEL =
+  "qualification-sentinel-do-not-leak"
+const QUALIFICATION_SENTINEL = QUALIFICATION_CREDENTIAL_SENTINEL
 
 const QUALIFICATION_SCAN_BUDGET = 4_096
 const MAX_QUALIFICATION_CLEANUP_GRACE_MS = 5_000
@@ -1534,59 +1579,370 @@ async function runProcessTreeCase(
   }
 }
 
-async function runOutputSchemaCase(
+/**
+ * The single bounded, closed Schema every output_schema vector requests.
+ * Hosts under qualification validate against it synchronously; the kit never
+ * negotiates a different shape.
+ */
+const OUTPUT_SCHEMA_CASE_SCHEMA = Object.freeze({
+  type: "object",
+  properties: { answer: { type: "string" } },
+  required: ["answer"],
+  additionalProperties: false,
+})
+
+function outputConformsToCaseSchema(output: unknown): boolean {
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
+    return false
+  }
+  const record = output as Record<string, unknown>
+  const keys = Object.keys(record)
+  return (
+    keys.length === 1 && keys[0] === "answer" && typeof record.answer === "string"
+  )
+}
+
+/** True when the value survives one strict-JSON round trip unchanged. */
+function isStrictJsonValue(value: unknown): boolean {
+  let serialized: string
+  try {
+    serialized = JSON.stringify(value)
+  } catch {
+    return false
+  }
+  if (serialized === undefined) return false
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(serialized)
+  } catch {
+    return false
+  }
+  return canonicalJson(value) === canonicalJson(parsed)
+}
+
+function typedTerminalFailureCode(terminal: unknown): string | undefined {
+  const error = eventRecord(eventRecord(terminal)?.error)
+  const code = error?.code
+  return typeof code === "string" && CASE_CODE_PATTERN.test(code)
+    ? code
+    : undefined
+}
+
+function qualificationDriverMetadata(
+  operation: QualificationDriverOperation,
+): { adapterQualification: QualificationDriverMetadata } {
+  return {
+    adapterQualification: {
+      schema: ADAPTER_QUALIFICATION_DRIVER_SCHEMA_ID,
+      operation,
+    },
+  }
+}
+
+async function runValidJsonCase(
   adapter: AgentHostAdapter,
   workingDirectory: string,
   policy: AgentHostPolicy,
   context: QualificationCaseContext,
 ): Promise<QualificationCaseResult> {
-  const schema = {
-    type: "object",
-    properties: { answer: { type: "string" } },
-    required: ["answer"],
-    additionalProperties: false,
-  }
   const request = qualificationRequest(
     adapter,
-    "output_schema",
+    "output_schema_valid_json",
     workingDirectory,
     policy,
     context,
-    { outputSchema: schema },
+    { outputSchema: OUTPUT_SCHEMA_CASE_SCHEMA },
   )
   const collected = await collectEvents(adapter, request, context)
   if (collected.failed) {
     return caseResult(
       "output_schema",
-      "terminal_output_matches_schema",
+      "valid_json",
       false,
       collected.overflow
         ? "qualification_event_overflow"
-        : "output_schema_case_unavailable",
+        : "valid_json_path_unavailable",
     )
   }
-  const terminal = collected.events.filter(isTerminal)
-  if (terminal.length !== 1 || eventType(terminal[0]) !== "run.completed") {
+  const terminals = collected.events.filter(isTerminal)
+  const terminal = terminals[0]
+  if (
+    terminals.length !== 1 ||
+    eventType(terminal) !== "run.completed" ||
+    collected.events.at(-1) !== terminal
+  ) {
     return caseResult(
       "output_schema",
-      "terminal_output_matches_schema",
+      "valid_json",
       false,
-      "no_completed_terminal",
+      terminals.length === 0
+        ? "missing_terminal_event"
+        : terminals.length > 1
+          ? "duplicate_terminal_event"
+          : eventType(terminal) === "run.failed"
+            ? "valid_json_failed_terminal"
+            : "event_after_terminal",
     )
   }
-  const output = eventRecord(terminal[0])?.output
-  const outputRecord = eventRecord(output)
-  const keys = outputRecord ? Object.keys(outputRecord) : []
-  const matches =
-    keys.length === 1 &&
-    keys[0] === "answer" &&
-    typeof outputRecord?.answer === "string"
-  return caseResult(
-    "output_schema",
-    "terminal_output_matches_schema",
-    matches,
-    matches ? "output_schema_ok" : "output_schema_violation",
+  const output = eventRecord(terminal)?.output
+  if (!outputConformsToCaseSchema(output)) {
+    return caseResult(
+      "output_schema",
+      "valid_json",
+      false,
+      "output_schema_violation",
+    )
+  }
+  if (!isStrictJsonValue(output)) {
+    return caseResult(
+      "output_schema",
+      "valid_json",
+      false,
+      "output_not_strict_json",
+    )
+  }
+  return caseResult("output_schema", "valid_json", true, "valid_json_ok")
+}
+
+async function runRejectedTerminalCase(
+  adapter: AgentHostAdapter,
+  workingDirectory: string,
+  policy: AgentHostPolicy,
+  context: QualificationCaseContext,
+  caseId: "non_json" | "schema_mismatch" | "secret_rejected",
+  scenario: QualificationOutputSchemaEmitScenario,
+): Promise<QualificationCaseResult> {
+  const request = qualificationRequest(
+    adapter,
+    `output_schema_${caseId}`,
+    workingDirectory,
+    policy,
+    context,
+    {
+      outputSchema: OUTPUT_SCHEMA_CASE_SCHEMA,
+      metadata: qualificationDriverMetadata({
+        kind: "output_schema.emit",
+        scenario,
+      }),
+    },
   )
+  const collected = await collectEvents(adapter, request, context)
+  if (collected.failed) {
+    return caseResult(
+      "output_schema",
+      caseId,
+      false,
+      collected.overflow
+        ? "qualification_event_overflow"
+        : `${caseId}_path_unavailable`,
+    )
+  }
+  const terminals = collected.events.filter(isTerminal)
+  const terminal = terminals[0]
+  const completed = collected.events.some(
+    (event) => eventType(event) === "run.completed",
+  )
+  const typedCode =
+    !completed &&
+    terminals.length === 1 &&
+    eventType(terminal) === "run.failed" &&
+    collected.events.at(-1) === terminal
+      ? typedTerminalFailureCode(terminal)
+      : undefined
+  const passed = typedCode !== undefined
+  let code = `${caseId}_ok`
+  if (!passed) {
+    code = completed
+      ? `${caseId}_forwarded_bad_terminal`
+      : terminals.length === 0
+        ? `${caseId}_missing_terminal`
+        : terminals.length > 1
+          ? `${caseId}_duplicate_terminal`
+          : eventType(terminal) === "run.completed"
+            ? `${caseId}_completed_terminal`
+            : collected.events.at(-1) !== terminal
+              ? `${caseId}_event_after_terminal`
+              : `${caseId}_untyped_failure`
+  }
+  return caseResult("output_schema", caseId, passed, code)
+}
+
+async function runInvalidSchemaPreflightCase(
+  adapter: AgentHostAdapter,
+  workingDirectory: string,
+  policy: AgentHostPolicy,
+  context: QualificationCaseContext,
+): Promise<QualificationCaseResult> {
+  const caseId = "invalid_schema_preflight"
+  // An asynchronous Schema is the canonical hazard: accepting it would let a
+  // validator Promise masquerade as a synchronous terminal guarantee.
+  const request = qualificationRequest(
+    adapter,
+    `output_schema_${caseId}`,
+    workingDirectory,
+    policy,
+    context,
+    { outputSchema: { $async: true, ...OUTPUT_SCHEMA_CASE_SCHEMA } },
+  )
+  const collected = await collectEvents(adapter, request, context)
+  if (collected.failed) {
+    return caseResult(
+      "output_schema",
+      caseId,
+      false,
+      collected.overflow
+        ? "qualification_event_overflow"
+        : `${caseId}_path_unavailable`,
+    )
+  }
+  const started = collected.events.some(
+    (event) => eventType(event) === "run.started",
+  )
+  const terminals = collected.events.filter(isTerminal)
+  const terminal = terminals[0]
+  const typedCode =
+    !started &&
+    terminals.length === 1 &&
+    eventType(terminal) === "run.failed" &&
+    collected.events.at(-1) === terminal
+      ? typedTerminalFailureCode(terminal)
+      : undefined
+  const passed = typedCode !== undefined
+  let code = `${caseId}_ok`
+  if (!passed) {
+    code = started
+      ? `${caseId}_ran_model_process`
+      : terminals.length === 0
+        ? `${caseId}_missing_terminal`
+        : terminals.length > 1
+          ? `${caseId}_duplicate_terminal`
+          : collected.events.at(-1) !== terminal
+            ? `${caseId}_event_after_terminal`
+            : `${caseId}_untyped_failure`
+  }
+  return caseResult("output_schema", caseId, passed, code)
+}
+
+async function runCancelBufferedCase(
+  adapter: AgentHostAdapter,
+  workingDirectory: string,
+  policy: AgentHostPolicy,
+  context: QualificationCaseContext,
+): Promise<QualificationCaseResult> {
+  const caseId = "cancel_buffered"
+  if (typeof adapter.cancel !== "function") {
+    return caseResult("output_schema", caseId, false, "cancel_not_supported")
+  }
+  const request = qualificationRequest(
+    adapter,
+    `output_schema_${caseId}`,
+    workingDirectory,
+    policy,
+    context,
+    {
+      outputSchema: OUTPUT_SCHEMA_CASE_SCHEMA,
+      metadata: qualificationDriverMetadata({
+        kind: "output_schema.buffer_until_cancel",
+      }),
+    },
+  )
+  const iterator = adapter.run(request)[Symbol.asyncIterator]()
+  context.registerCleanup(async () => {
+    await iterator.return?.()
+  })
+  const events: AgentHostEvent[] = []
+  let buffered = false
+  let failedCollecting: CollectedEvents | undefined
+  while (!buffered) {
+    let next: IteratorResult<AgentHostEvent>
+    try {
+      next = await iterator.next()
+    } catch (error) {
+      context.scanner.observe(error)
+      failedCollecting = { events, failed: true, overflow: false }
+      break
+    }
+    if (next.done) {
+      failedCollecting = { events, failed: false, overflow: false }
+      break
+    }
+    context.scanner.observe(next.value)
+    if (context.scanner.incomplete) {
+      failedCollecting = { events, failed: true, overflow: false }
+      break
+    }
+    events.push(next.value)
+    if (events.length > 256) {
+      failedCollecting = { events, failed: true, overflow: true }
+      break
+    }
+    if (
+      eventType(next.value) === "assistant.delta" ||
+      eventType(next.value) === "run.completed"
+    ) {
+      // A completed terminal before cancellation is itself the flush bug;
+      // stop buffering observation and let the assertion classify it.
+      buffered = true
+    }
+  }
+  if (!buffered) {
+    return caseResult(
+      "output_schema",
+      caseId,
+      false,
+      failedCollecting?.overflow
+        ? "qualification_event_overflow"
+        : `${caseId}_never_buffered`,
+    )
+  }
+  try {
+    await context.cancelRun(adapter, request.runId)
+  } catch (error) {
+    context.scanner.observe(error)
+    return caseResult(
+      "output_schema",
+      caseId,
+      false,
+      `${caseId}_path_unavailable`,
+    )
+  }
+  const collected = await collectFromIterator(iterator, context, events)
+  if (collected.failed) {
+    return caseResult(
+      "output_schema",
+      caseId,
+      false,
+      collected.overflow
+        ? "qualification_event_overflow"
+        : `${caseId}_path_unavailable`,
+    )
+  }
+  const terminals = collected.events.filter(isTerminal)
+  const terminal = terminals[0]
+  const flushed = collected.events.some(
+    (event) => eventType(event) === "run.completed",
+  )
+  const typedCode =
+    !flushed &&
+    terminals.length === 1 &&
+    eventType(terminal) === "run.failed" &&
+    collected.events.at(-1) === terminal
+      ? typedTerminalFailureCode(terminal)
+      : undefined
+  const passed = typedCode !== undefined
+  let code = `${caseId}_ok`
+  if (!passed) {
+    code = flushed
+      ? `${caseId}_buffer_flushed`
+      : terminals.length === 0
+        ? `${caseId}_leaves_stream_open`
+        : terminals.length > 1
+          ? `${caseId}_duplicate_terminal`
+          : collected.events.at(-1) !== terminal
+            ? `${caseId}_event_after_terminal`
+            : `${caseId}_untyped_failure`
+  }
+  return caseResult("output_schema", caseId, passed, code)
 }
 
 function caseTimeoutResult(
@@ -1762,9 +2118,85 @@ export async function runQualificationSuite(
     await runBoundedCase(
       caseTimeoutMs,
       scanner,
-      caseTimeoutResult("output_schema", "terminal_output_matches_schema"),
+      caseTimeoutResult("output_schema", "valid_json"),
       (context) =>
-        runOutputSchemaCase(adapter, options.workingDirectory, policy, context),
+        runValidJsonCase(adapter, options.workingDirectory, policy, context),
+    ),
+  )
+  cases.push(
+    await runBoundedCase(
+      caseTimeoutMs,
+      scanner,
+      caseTimeoutResult("output_schema", "non_json"),
+      (context) =>
+        runRejectedTerminalCase(
+          adapter,
+          options.workingDirectory,
+          policy,
+          context,
+          "non_json",
+          "non_json",
+        ),
+    ),
+  )
+  cases.push(
+    await runBoundedCase(
+      caseTimeoutMs,
+      scanner,
+      caseTimeoutResult("output_schema", "schema_mismatch"),
+      (context) =>
+        runRejectedTerminalCase(
+          adapter,
+          options.workingDirectory,
+          policy,
+          context,
+          "schema_mismatch",
+          "schema_mismatch",
+        ),
+    ),
+  )
+  cases.push(
+    await runBoundedCase(
+      caseTimeoutMs,
+      scanner,
+      caseTimeoutResult("output_schema", "invalid_schema_preflight"),
+      (context) =>
+        runInvalidSchemaPreflightCase(
+          adapter,
+          options.workingDirectory,
+          policy,
+          context,
+        ),
+    ),
+  )
+  cases.push(
+    await runBoundedCase(
+      caseTimeoutMs,
+      scanner,
+      caseTimeoutResult("output_schema", "cancel_buffered"),
+      (context) =>
+        runCancelBufferedCase(
+          adapter,
+          options.workingDirectory,
+          policy,
+          context,
+        ),
+    ),
+  )
+  cases.push(
+    await runBoundedCase(
+      caseTimeoutMs,
+      scanner,
+      caseTimeoutResult("output_schema", "secret_rejected"),
+      (context) =>
+        runRejectedTerminalCase(
+          adapter,
+          options.workingDirectory,
+          policy,
+          context,
+          "secret_rejected",
+          "secret_rejected",
+        ),
     ),
   )
 
@@ -1936,13 +2368,18 @@ export function validateAdapterQualificationRecord(
       "policyDigest must be a sha256 hex digest",
     )
   }
+  const knownKitVersions = new Set<string>([
+    LEGACY_ADAPTER_QUALIFICATION_KIT_VERSION,
+    SUPERSEDED_ADAPTER_QUALIFICATION_KIT_VERSION,
+    ADAPTER_QUALIFICATION_KIT_VERSION,
+  ])
   if (
-    record.kitVersion !== ADAPTER_QUALIFICATION_KIT_VERSION &&
-    record.kitVersion !== LEGACY_ADAPTER_QUALIFICATION_KIT_VERSION
+    typeof record.kitVersion !== "string" ||
+    !knownKitVersions.has(record.kitVersion)
   ) {
     throw qualificationError(
       "INVALID_QUALIFICATION_RECORD",
-      `kitVersion must be ${LEGACY_ADAPTER_QUALIFICATION_KIT_VERSION} or ${ADAPTER_QUALIFICATION_KIT_VERSION}`,
+      `kitVersion must be ${LEGACY_ADAPTER_QUALIFICATION_KIT_VERSION}, ${SUPERSEDED_ADAPTER_QUALIFICATION_KIT_VERSION} or ${ADAPTER_QUALIFICATION_KIT_VERSION}`,
     )
   }
   if (
@@ -2055,7 +2492,9 @@ export function validateAdapterQualificationRecord(
   const expectedContract =
     record.kitVersion === LEGACY_ADAPTER_QUALIFICATION_KIT_VERSION
       ? LEGACY_QUALIFICATION_CASE_CONTRACT
-      : CURRENT_QUALIFICATION_CASE_CONTRACT
+      : record.kitVersion === SUPERSEDED_ADAPTER_QUALIFICATION_KIT_VERSION
+        ? SUPERSEDED_QUALIFICATION_CASE_CONTRACT
+        : CURRENT_QUALIFICATION_CASE_CONTRACT
   if (record.cases.length !== expectedContract.length) {
     throw qualificationError(
       "INVALID_QUALIFICATION_RECORD",

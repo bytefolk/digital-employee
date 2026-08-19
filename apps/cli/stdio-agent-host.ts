@@ -4,6 +4,8 @@ import type { ChildProcess } from "node:child_process"
 import { dirname } from "node:path"
 import { readFile } from "node:fs/promises"
 
+import { Ajv2020 } from "ajv/dist/2020.js"
+
 import { CoreError } from "../../packages/core/src/contracts.js"
 import type {
   AgentHostAdapter,
@@ -39,7 +41,11 @@ const STDIO_CODES = {
   terminalContractViolated: "agent_host_terminal_contract_violated",
   cleanupFailed: "agent_host_stdio_cleanup_failed",
   streamFailed: "agent_host_stream_failed",
+  outputSchemaInvalid: "agent_host_stdio_output_schema_invalid",
+  outputSchemaMismatch: "agent_host_stdio_output_schema_mismatch",
 } as const
+
+const MAX_OUTPUT_SCHEMA_BYTES = 16 * 1024
 
 function stdioError(
   code: string,
@@ -51,6 +57,53 @@ function stdioError(
     retryable: false,
     details,
   })
+}
+
+interface PreparedOutputSchema {
+  validate: (output: unknown) => boolean
+}
+
+/**
+ * Compiles the run output schema synchronously before any host exchange.
+ * Invalid, oversized, or `$async` schemas fail closed here so an unusable
+ * schema never reaches a model process.
+ */
+function prepareOutputSchema(
+  schema: unknown,
+): PreparedOutputSchema | undefined {
+  if (schema === undefined) return undefined
+  try {
+    const serialized = JSON.stringify(schema)
+    if (
+      !serialized ||
+      Buffer.byteLength(serialized, "utf8") > MAX_OUTPUT_SCHEMA_BYTES
+    ) {
+      throw stdioError(
+        STDIO_CODES.outputSchemaInvalid,
+        "run output schema is too large",
+      )
+    }
+    const ajv = new Ajv2020({
+      allErrors: true,
+      allowUnionTypes: true,
+      strict: false,
+      validateSchema: true,
+    })
+    const validate = ajv.compile(JSON.parse(serialized) as object)
+    if ("$async" in validate && validate.$async === true) {
+      throw stdioError(
+        STDIO_CODES.outputSchemaInvalid,
+        "run output schema must be synchronous",
+      )
+    }
+    return { validate: (output: unknown) => Boolean(validate(output)) }
+  } catch (error) {
+    if (error instanceof CoreError) throw error
+    throw stdioError(
+      STDIO_CODES.outputSchemaInvalid,
+      "run output schema is not a valid JSON Schema",
+    )
+  }
 }
 
 interface StreamState {
@@ -117,6 +170,7 @@ export class ExternalStdioAgentHostAdapter implements AgentHostAdapter {
   }
 
   async preflight(request: AgentHostRunRequest): Promise<AgentHostProbeResult> {
+    prepareOutputSchema(request.outputSchema)
     const payload = validateAgentHostRunRequestWire(this.wirePayload(request))
     const message = await this.exchange("preflight", payload)
     return probeResultFromStdioResponse(message, this.hostId)
@@ -140,6 +194,24 @@ export class ExternalStdioAgentHostAdapter implements AgentHostAdapter {
   }
 
   async *run(request: AgentHostRunRequest): AsyncGenerator<AgentHostEvent> {
+    let preparedSchema: PreparedOutputSchema | undefined
+    try {
+      // Enforced before any host exchange: an invalid schema must never
+      // spawn a run or reach a model process.
+      preparedSchema = prepareOutputSchema(request.outputSchema)
+    } catch {
+      yield {
+        type: "run.failed",
+        runId: request.runId,
+        timestamp: new Date().toISOString(),
+        error: {
+          code: STDIO_CODES.outputSchemaInvalid,
+          message: "run output schema is invalid",
+          retryable: false,
+        },
+      }
+      return
+    }
     const payload = validateAgentHostRunRequestWire(this.wirePayload(request))
     const child = await this.ensureChild()
     const id = this.nextId()
@@ -182,7 +254,29 @@ export class ExternalStdioAgentHostAdapter implements AgentHostAdapter {
               "stdio adapter emitted an event after the terminal outcome",
             )
           }
-          yield validateAgentHostEventWire(message.event)
+          const event = validateAgentHostEventWire(message.event)
+          if (event.type === "run.completed" && preparedSchema !== undefined) {
+            if (!preparedSchema.validate(event.output)) {
+              // The terminal output is replaced, never echoed: raw output
+              // bytes must not surface in the failure event. The mandated
+              // closing response is still drained below so it cannot arrive
+              // after this stream id is torn down.
+              yield {
+                type: "run.failed",
+                runId: request.runId,
+                timestamp: new Date().toISOString(),
+                error: {
+                  code: STDIO_CODES.outputSchemaMismatch,
+                  message:
+                    "agent host output did not match the run output schema",
+                  retryable: false,
+                },
+              }
+              sawTerminal = true
+              continue
+            }
+          }
+          yield event
           if (
             message.event.type === "run.completed" ||
             message.event.type === "run.failed"
@@ -222,6 +316,16 @@ export class ExternalStdioAgentHostAdapter implements AgentHostAdapter {
   async cancel(runId: string): Promise<void> {
     if (this.exited) return
     const id = this.nextId()
+    // A host may acknowledge the cancel exchange itself; without a waiter the
+    // reply would be dispatched as an unsolicited protocol violation.
+    const waiter: { resolve: (message: AgentHostStdioMessage) => void } = {
+      resolve: () => {},
+    }
+    this.pending.set(id, waiter)
+    const timer = setTimeout(() => {
+      this.pending.delete(id)
+    }, this.config.timeoutMs)
+    timer.unref?.()
     try {
       this.writeLine({
         protocol: AGENT_HOST_STDIO_PROTOCOL_VERSION,
@@ -230,6 +334,8 @@ export class ExternalStdioAgentHostAdapter implements AgentHostAdapter {
         payload: { runId },
       })
     } catch {
+      clearTimeout(timer)
+      this.pending.delete(id)
       return
     }
   }
@@ -377,6 +483,11 @@ export class ExternalStdioAgentHostAdapter implements AgentHostAdapter {
       }
       this.pending.clear()
     })
+    // Pipe failures on a dead Adapter are expected teardown conditions; they
+    // must never escape as uncaught stream errors.
+    child.stdin?.on("error", () => {})
+    child.stdout?.on("error", () => {})
+    child.stderr?.on("error", () => {})
     child.stdout?.on("data", (chunk: Buffer) => this.consumeStdout(chunk))
     child.stderr?.on("data", (chunk: Buffer) => this.consumeStderr(chunk))
     return child

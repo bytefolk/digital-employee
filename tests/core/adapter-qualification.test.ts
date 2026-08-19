@@ -72,6 +72,9 @@ interface FixtureBehavior {
   eventAfterTerminal?: boolean
   disallowedTool?: boolean
   outputSchemaViolation?: boolean
+  forwardBadOutputSchemaTerminal?: boolean
+  acceptAsyncOutputSchema?: boolean
+  flushBufferedOutput?: boolean
   echoMetadata?: boolean
   missingCapability?: boolean
   probeOnly?: boolean
@@ -102,6 +105,16 @@ function qualificationOperation(request: AgentHostRunRequest): string {
     return ""
   }
   return String((operation as Record<string, unknown>).kind ?? "")
+}
+
+function qualificationScenario(request: AgentHostRunRequest): string {
+  const driver = request.metadata?.adapterQualification
+  if (!driver || typeof driver !== "object" || Array.isArray(driver)) return ""
+  const operation = (driver as Record<string, unknown>).operation
+  if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
+    return ""
+  }
+  return String((operation as Record<string, unknown>).scenario ?? "")
 }
 
 function qualificationAdapter(
@@ -182,6 +195,25 @@ function qualificationAdapter(
         return
       }
       const at = "2026-08-06T03:00:00.000Z"
+      if (
+        request.runId ===
+          "qualification-output_schema_invalid_schema_preflight" &&
+        !behavior.acceptAsyncOutputSchema
+      ) {
+        // A conformant adapter rejects an asynchronous Schema before any run
+        // starts; no run.started may ever be emitted for this vector.
+        yield {
+          type: "run.failed",
+          runId: request.runId,
+          timestamp: at,
+          error: {
+            code: "fixture_output_schema_invalid",
+            message: "asynchronous output schema rejected before run",
+            retryable: false,
+          },
+        }
+        return
+      }
       const started: AgentHostEvent = {
         type: "run.started",
         runId: request.runId,
@@ -207,6 +239,69 @@ function qualificationAdapter(
                 ? QUALIFICATION_NETWORK_DENIAL_CODE
                 : QUALIFICATION_MCP_DENIAL_CODE,
             message: "direct qualification attempt denied",
+            retryable: false,
+          },
+        }
+        return
+      }
+      if (operation === "output_schema.buffer_until_cancel") {
+        // Buffer partial output and never flush it; only the cancel produces
+        // the terminal for this run.
+        yield {
+          type: "assistant.delta",
+          runId: request.runId,
+          timestamp: at,
+          text: '{"answer":"partial',
+        }
+        await new Promise<void>((resolve) => {
+          cancelWaiters.set(request.runId, resolve)
+          if (cancelled.has(request.runId)) resolve()
+        })
+        if (behavior.flushBufferedOutput) {
+          yield {
+            type: "run.completed",
+            runId: request.runId,
+            timestamp: at,
+            output: { answer: "flushed" },
+          }
+          return
+        }
+        yield {
+          type: "run.failed",
+          runId: request.runId,
+          timestamp: at,
+          error: {
+            code: "agent_host_cancelled",
+            message: "run cancelled",
+            retryable: false,
+          },
+        }
+        return
+      }
+      if (operation === "output_schema.emit") {
+        if (behavior.forwardBadOutputSchemaTerminal) {
+          const scenario = qualificationScenario(request)
+          const output =
+            scenario === "non_json"
+              ? "this terminal output is prose, not json"
+              : scenario === "schema_mismatch"
+                ? { wrong_field: "mismatched" }
+                : { answer: "ok", leaked: SENTINEL }
+          yield {
+            type: "run.completed",
+            runId: request.runId,
+            timestamp: at,
+            output,
+          }
+          return
+        }
+        yield {
+          type: "run.failed",
+          runId: request.runId,
+          timestamp: at,
+          error: {
+            code: "fixture_output_schema_rejected",
+            message: "hostile terminal output rejected against schema",
             retryable: false,
           },
         }
@@ -285,7 +380,9 @@ function qualificationAdapter(
           toolName: "noop",
         }
       }
-      const schemaCase = request.runId === "qualification-output_schema"
+      const schemaCase =
+        request.runId === "qualification-output_schema" ||
+        request.runId === "qualification-output_schema_valid_json"
       const output =
         schemaCase && !behavior.outputSchemaViolation
           ? { answer: "qualified" }
@@ -619,8 +716,27 @@ test("a conforming built-in-class adapter earns the fixture axis without live ev
     liveQualified: false,
   }, JSON.stringify(record.cases.filter((entry) => !entry.passed)))
   assert.equal(record.liveEvidence, undefined)
-  assert.equal(record.cases.length, 13)
+  assert.equal(record.cases.length, 18)
   assert.ok(record.cases.every((entry) => entry.passed))
+  for (const vector of [
+    "valid_json",
+    "non_json",
+    "schema_mismatch",
+    "invalid_schema_preflight",
+    "cancel_buffered",
+    "secret_rejected",
+  ]) {
+    assert.deepEqual(
+      record.cases.find((entry) => entry.id === vector),
+      {
+        domain: "output_schema",
+        id: vector,
+        passed: true,
+        code: `${vector}_ok`,
+      },
+      vector,
+    )
+  }
   for (const domain of QUALIFICATION_DOMAINS) {
     assert.equal(record.domains[domain].failed, 0, domain)
   }
@@ -687,8 +803,7 @@ test("a hung case times out with a stable result and the suite continues", async
   )
   assert.ok(
     record.cases.some(
-      (entry) =>
-        entry.id === "terminal_output_matches_schema" && entry.passed,
+      (entry) => entry.id === "valid_json" && entry.passed,
     ),
   )
 })
@@ -1357,11 +1472,51 @@ test("a terminal output outside the schema fails the output schema domain", asyn
     qualificationAdapter({ outputSchemaViolation: true }),
     { workingDirectory: directory, generatedAt: GENERATED_AT },
   )
-  const schemaCase = record.cases.find(
-    (entry) => entry.id === "terminal_output_matches_schema",
-  )
+  const schemaCase = record.cases.find((entry) => entry.id === "valid_json")
   assert.equal(schemaCase?.passed, false)
   assert.equal(schemaCase?.code, "output_schema_violation")
+  assert.equal(record.axes.fixtureConformant, false)
+})
+
+test("forwarding a hostile terminal output fails the rejection vectors", async () => {
+  const directory = await workingDirectory()
+  const record = await runQualificationSuite(
+    qualificationAdapter({ forwardBadOutputSchemaTerminal: true }),
+    { workingDirectory: directory, generatedAt: GENERATED_AT },
+  )
+  for (const vector of ["non_json", "schema_mismatch", "secret_rejected"]) {
+    const vectorCase = record.cases.find((entry) => entry.id === vector)
+    assert.equal(vectorCase?.passed, false, vector)
+    assert.equal(vectorCase?.code, `${vector}_forwarded_bad_terminal`, vector)
+  }
+  assert.equal(record.axes.fixtureConformant, false)
+})
+
+test("accepting an asynchronous output schema fails the preflight vector", async () => {
+  const directory = await workingDirectory()
+  const record = await runQualificationSuite(
+    qualificationAdapter({ acceptAsyncOutputSchema: true }),
+    { workingDirectory: directory, generatedAt: GENERATED_AT },
+  )
+  const vectorCase = record.cases.find(
+    (entry) => entry.id === "invalid_schema_preflight",
+  )
+  assert.equal(vectorCase?.passed, false)
+  assert.equal(vectorCase?.code, "invalid_schema_preflight_ran_model_process")
+  assert.equal(record.axes.fixtureConformant, false)
+})
+
+test("flushing buffered output after cancel fails the cancel vector", async () => {
+  const directory = await workingDirectory()
+  const record = await runQualificationSuite(
+    qualificationAdapter({ flushBufferedOutput: true }),
+    { workingDirectory: directory, generatedAt: GENERATED_AT },
+  )
+  const vectorCase = record.cases.find(
+    (entry) => entry.id === "cancel_buffered",
+  )
+  assert.equal(vectorCase?.passed, false)
+  assert.equal(vectorCase?.code, "cancel_buffered_buffer_flushed")
   assert.equal(record.axes.fixtureConformant, false)
 })
 
@@ -1672,6 +1827,12 @@ test("record validation supports the legacy 1.0 contract and derives all summari
           "descendants_disposed_cancel",
           "network_deny_refused",
           "mcp_deny_refused",
+          "valid_json",
+          "non_json",
+          "schema_mismatch",
+          "invalid_schema_preflight",
+          "cancel_buffered",
+          "secret_rejected",
         ].includes(entry.id),
     )
     .map((entry) =>
@@ -1681,6 +1842,12 @@ test("record validation supports the legacy 1.0 contract and derives all summari
           ? { ...entry, id: "stream_terminates", code: "stream_terminates_ok" }
           : entry,
     )
+  legacyCases.push({
+    domain: "output_schema",
+    id: "terminal_output_matches_schema",
+    passed: true,
+    code: "terminal_output_matches_schema_ok",
+  })
   const legacyDomains = Object.fromEntries(
     QUALIFICATION_DOMAINS.map((domain) => {
       const entries = legacyCases.filter((entry) => entry.domain === domain)
@@ -1719,6 +1886,78 @@ test("record validation supports the legacy 1.0 contract and derives all summari
       ...legacy,
       axes: { ...legacy.axes, fixtureConformant: !legacy.axes.fixtureConformant },
     }),
+  )
+})
+
+test("record validation supports the superseded 1.1 contract", async () => {
+  const directory = await workingDirectory()
+  const current = await runQualificationSuite(qualificationAdapter(), {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+  })
+  const supersededCases = current.cases
+    .filter(
+      (entry) =>
+        ![
+          "valid_json",
+          "non_json",
+          "schema_mismatch",
+          "invalid_schema_preflight",
+          "cancel_buffered",
+          "secret_rejected",
+        ].includes(entry.id),
+    )
+    .concat({
+      domain: "output_schema",
+      id: "terminal_output_matches_schema",
+      passed: true,
+      code: "terminal_output_matches_schema_ok",
+    })
+  const supersededDomains = Object.fromEntries(
+    QUALIFICATION_DOMAINS.map((domain) => {
+      const entries = supersededCases.filter(
+        (entry) => entry.domain === domain,
+      )
+      return [
+        domain,
+        {
+          passed: entries.filter((entry) => entry.passed).length,
+          failed: entries.filter((entry) => !entry.passed).length,
+        },
+      ]
+    }),
+  )
+  const superseded = {
+    ...current,
+    kitVersion: "1.1.0",
+    cases: supersededCases,
+    domains: supersededDomains,
+    axes: {
+      implemented: true,
+      fixtureConformant: supersededCases.every((entry) => entry.passed),
+      liveQualified: false,
+    },
+  }
+  assert.doesNotThrow(() => validateAdapterQualificationRecord(superseded))
+  assert.throws(() =>
+    validateAdapterQualificationRecord({
+      ...superseded,
+      cases: supersededCases.slice(0, -1),
+    }),
+  )
+})
+
+test("record validation rejects unknown kit versions", async () => {
+  const directory = await workingDirectory()
+  const record = await runQualificationSuite(qualificationAdapter(), {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+  })
+  assert.throws(
+    () => validateAdapterQualificationRecord({ ...record, kitVersion: "2.0.0" }),
+    (error: unknown) =>
+      error instanceof Error &&
+      error.message.includes("1.0.0, 1.1.0 or 1.2.0"),
   )
 })
 
@@ -1768,6 +2007,17 @@ test("the policy digest is deterministic across runs", async () => {
 
 const STDIO_HOST_ID = "builtin-stdio-host"
 const STDIO_TIMESTAMP = "2026-08-06T03:00:00.000Z"
+
+function builtinOutputConforms(output: unknown): boolean {
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
+    return false
+  }
+  const record = output as Record<string, unknown>
+  const keys = Object.keys(record)
+  return (
+    keys.length === 1 && keys[0] === "answer" && typeof record.answer === "string"
+  )
+}
 
 function stdioHostProbePayload(): Record<string, unknown> {
   const capabilities = createUnknownAgentHostCapabilities()
@@ -1904,6 +2154,32 @@ function fakeStdioHost(options: StdioHostOptions = {}) {
         )
         return lines
       }
+      const emitScenario =
+        qualificationOperation(payload) === "output_schema.emit"
+          ? qualificationScenario(payload)
+          : undefined
+      if (emitScenario !== undefined) {
+        // Hostile terminals the Adapter must reject against the run schema.
+        const output =
+          emitScenario === "non_json"
+            ? "this terminal output is prose, not json"
+            : emitScenario === "schema_mismatch"
+              ? { wrong_field: "mismatched" }
+              : { answer: "ok", leaked: SENTINEL }
+        lines.push(
+          envelope({
+            id: request.id,
+            kind: "event",
+            event: {
+              type: "run.completed",
+              runId: payload.runId,
+              timestamp: STDIO_TIMESTAMP,
+              output,
+            },
+          }),
+        )
+        return lines
+      }
       const completed: Record<string, unknown> = {
         type: "run.completed",
         runId: payload.runId,
@@ -2029,6 +2305,61 @@ function builtinStdioAdapter(
         yield failed.event
         return
       }
+      const wireEvent = (event: Record<string, unknown>): AgentHostEvent => {
+        const line = encodeAgentHostStdioLine({
+          protocol: AGENT_HOST_STDIO_PROTOCOL_VERSION,
+          id: `run-${request.runId}`,
+          kind: "event",
+          event,
+        })
+        const message = parseAgentHostStdioHostLine(line, STDIO_HOST_ID)
+        assert.equal(message.kind, "event")
+        return message.event
+      }
+      if (operation === "output_schema.buffer_until_cancel") {
+        yield wireEvent({
+          type: "run.started",
+          runId: request.runId,
+          timestamp: STDIO_TIMESTAMP,
+        })
+        yield wireEvent({
+          type: "assistant.delta",
+          runId: request.runId,
+          timestamp: STDIO_TIMESTAMP,
+          text: '{"answer":"partial',
+        })
+        await new Promise<void>((resolve) => {
+          cancelWaiters.set(request.runId, resolve)
+          if (cancelled.has(request.runId)) resolve()
+        })
+        yield wireEvent({
+          type: "run.failed",
+          runId: request.runId,
+          timestamp: STDIO_TIMESTAMP,
+          error: {
+            code: "agent_host_cancelled",
+            message: "run cancelled",
+            retryable: false,
+          },
+        })
+        return
+      }
+      if (
+        request.runId === "qualification-output_schema_invalid_schema_preflight"
+      ) {
+        // The asynchronous Schema is rejected before any host exchange.
+        yield wireEvent({
+          type: "run.failed",
+          runId: request.runId,
+          timestamp: STDIO_TIMESTAMP,
+          error: {
+            code: "agent_host_stdio_output_schema_invalid",
+            message: "asynchronous output schema rejected before run",
+            retryable: false,
+          },
+        })
+        return
+      }
       const lines = exchange({
         id: `run-${request.runId}`,
         kind: "run",
@@ -2036,9 +2367,28 @@ function builtinStdioAdapter(
       })
       for (const line of lines) {
         const message = parseAgentHostStdioHostLine(line, STDIO_HOST_ID)
-        if (message.kind === "event") {
-          yield message.event
+        if (message.kind !== "event") continue
+        const event = message.event
+        if (
+          event.type === "run.completed" &&
+          request.outputSchema !== undefined &&
+          !builtinOutputConforms(event.output)
+        ) {
+          // Adapter-enforced terminal validation: the hostile output is
+          // replaced by a typed failure and never forwarded.
+          yield wireEvent({
+            type: "run.failed",
+            runId: request.runId,
+            timestamp: STDIO_TIMESTAMP,
+            error: {
+              code: "agent_host_stdio_output_schema_mismatch",
+              message: "terminal output did not match the output schema",
+              retryable: false,
+            },
+          })
+          return
         }
+        yield event
       }
     },
     async cancel(runId) {
@@ -2074,7 +2424,7 @@ test("the built-in stdio adapter earns the fixture axis offline through the vers
     fixtureConformant: true,
     liveQualified: false,
   }, JSON.stringify(record.cases.filter((entry) => !entry.passed)))
-  assert.equal(record.cases.length, 13)
+  assert.equal(record.cases.length, 18)
   assert.ok(record.cases.every((entry) => entry.passed))
   for (const domain of QUALIFICATION_DOMAINS) {
     assert.equal(record.domains[domain].failed, 0, domain)

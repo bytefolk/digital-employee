@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Codex default-deny research is re-audited against stable Codex CLI 0.148.0
+  (release `rust-v0.148.0`, tag commit `3ba0f71`): the offline Responses
+  fixture still observes model-visible `apply_patch` after every expressible
+  tool reduction, four candidate removal surfaces are rejected by
+  `--strict-config` as unknown fields, and upstream closed the `apply_patch`
+  disable request as NOT_PLANNED (openai/codex#8161). The verdict stays
+  NO-GO / probe-only; the audit script and tests now pin 0.148.0 with a new
+  sanitized fixture, and `docs/agent-hosts.md` drops the stale 0.146.0
+  wording in favor of the 0.148.0/0.147.0 research records.
+
 ## [0.4.0] - 2026-08-16
 
 ### Added

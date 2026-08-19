@@ -48,6 +48,8 @@ printf '%s\n' '{"message":"批准资料里怎么说？"}' | \
   node ./dist/apps/cli/bin.js run ../team-answer --engine qoder --stdin
 ```
 
+`QODER_PERSONAL_ACCESS_TOKEN` 需要在 Qoder 账号设置中生成 Personal Access Token，它是部署用的服务凭证，不是个人 CLI 登录态。Token 缺失、无效或过期时，`run` 会在产出任何可信输出前 fail closed，分别报 `qoder_service_token_not_configured` 或 `qoder_access_token_invalid`。
+
 Claude Code、Qwen Code 或 CodeBuddy 使用同样的 `validate/run` 命令，改为对应 `--engine` 并配置该 Adapter 的服务 API Key 即可。`--stdin`/`--input-file` 让任务数据不进入外层进程参数。Claude Code、Qwen Code 和 CodeBuddy 只接收由 manifest 显式选中、有上限的密封 UTF-8 资产投影，并在空白且隔离的工作目录、HOME 和配置目录中运行；输出被信任前必须确认模型可见 tools 与 MCP 均为空。Claude 还会确认 plugins、Skills 和 slash commands 为空；Qwen 会禁用 slash commands 并锁定不可调用的内建 Agent 目录；CodeBuddy 则会显式拒绝已验证版本的每一个内建工具，因为单独使用空 `--tools` 并不能真正清空工具。Qoder 使用最小只读文件投影，并确认精确的读取/搜索工具集以及空 MCP/Skill/plugin 集；回答文本会等进程与凭证清理成功后再整体按真实服务 Token 脱敏。工具值会在截断前脱敏，包含服务 Token 的工具标识或键会被拒绝，需要凭证或通用模式脱敏的 schema 结构化输出会 fail closed。
 
 四条链路仍是本机/单租户技术预览，不是已经可供市场租赁的在线员工服务；都会 fail-closed 拒绝 MCP、附件、会话恢复、写操作与审批回调。模型认证/推理控制面保持可达，员工 tool/MCP 数据面网络被禁止。当前只完成了一致性 fixture，没有使用真实模型权益验收。

@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-export const AUDITED_CODEX_VERSION = "0.147.0";
+export const AUDITED_CODEX_VERSION = "0.148.0";
 export const AUDIT_SCHEMA = "codex-host-research-record.v1";
 export const MAX_LOOPBACK_REQUEST_BYTES = 4 * 1024 * 1024;
 

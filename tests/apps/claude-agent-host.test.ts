@@ -249,6 +249,8 @@ test("Claude run uses an empty host workspace and an inline bounded value projec
     ),
     false,
   )
+  assert.equal(captured.environmentContainsSchemaMarker, false)
+  assert.equal(JSON.stringify(events).includes("SCHEMA_ARGV_MARKER"), false)
 
   const envelope = JSON.parse(captured.stdin.slice(captured.stdin.indexOf("\n") + 1))
   assert.equal(envelope.schemaVersion, "digital-employee-context.v1")

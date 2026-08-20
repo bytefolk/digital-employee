@@ -78,6 +78,9 @@ if (capture) {
       cwd: process.cwd(),
       workspaceEntries: await readdir(process.cwd()),
       environmentKeys: Object.keys(process.env).sort(),
+      environmentContainsSchemaMarker: Object.values(process.env).some(
+        (value) => value?.includes("SCHEMA_ARGV_MARKER"),
+      ),
       apiKeyConfigured: Boolean(process.env.ANTHROPIC_API_KEY),
       home: process.env.HOME,
       configDirectory: process.env.CLAUDE_CONFIG_DIR,

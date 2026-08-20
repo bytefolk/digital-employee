@@ -18,6 +18,25 @@
 
 `structured_output` 统一表示 **Adapter 保证终态有效**，而不是 Host 原生约束生成：有 `outputSchema` 时，`run.completed` 必须携带原值通过调用方同步 Schema 的终态 JSON；修复、强制转换、默认值、删字段或脱敏都不得制造一个合格值，校验后的安全检查若需要改写 schema-bound 值也必须 fail closed。无效 JSON、异步 Schema、Schema 不匹配、取消、超时或清理失败同样必须 fail closed。事件流本身是 JSON 不构成该能力。四个 runnable Adapter（Qoder、Claude、Qwen、CodeBuddy）共用同一个前置守卫 `output-schema-guard.ts`：Schema 限 16 KiB、必须同步，`$async:true` 与任何非法 Schema 在受限版本探针、投影或模型进程之前即被拒绝；每次运行只编译一份 prepared Schema 快照，投影与终态校验复用同一快照，终态阶段不再重新编译或重新接受 Schema。
 
+## `structured_output` 资格证据（精确版本）
+
+Issue #113 的四个 runnable Adapter 以如下精确版本证据报告
+`structured_output: supported`（`capabilitySource: conformance_test`）：
+
+| Adapter | 锁定的 Host 版本 | 确定性 fixture 版本 | 备注 |
+|---|---|---|---|
+| Qoder CLI | 合规家族 `1.1.x`（代码只锁定 major.minor） | `1.1.12` | 本机受限探针另观察到 `1.1.17`；裸 `1.1.x` 之外的任何形式（`1.2.0`、`v1.1.12`、`1.1.12-beta.1`、`1.1.012`）以 `qoder_version_not_conformance_verified` fail closed |
+| Claude Code | `>=2.1.214 <2.2.0` | `2.1.214` | 区间外版本保持 not_ready |
+| Qwen Code | `0.17.1` | `0.17.1` | 精确版本锁定 |
+| CodeBuddy Code | `2.106.4` | `2.106.4` | 精确版本锁定 |
+
+证据边界：
+
+- 上述全部是 **fixture conformance**（E3）：仓库内确定性子进程 fixture，`fixtureConformant: true`、`liveQualified: false`；`liveQualified` 只允许由带校验 `liveEvidence`（环境标识 + sha256）的记录翻转，默认 CI 不产生真实模型或付费调用。
+- Schema 字节只出现在受限 stdin/context 通道：四家 Adapter 的投影测试都以独立 marker 断言 Schema 字节不出现在 argv、进程环境变量取值或公开事件流（含序列化事件）中。
+- 资格不授予任何新的 tool、MCP、写、网络或审批权限；`structured-action.v1` 一类包仅通过普通 registry 与包绑定协商能力。
+- AC-004 要求的“后续版本化发布证明通用下游选择且不修改应用状态”是发版门禁，不由本证据表替代。
+
 ## 名词边界
 
 - **Employee Package（员工包）**：宿主中立的员工源码，核心是 `employee.json`、`SKILL.md`、输入/输出 Schema、显式资产，以及可选 MCP 声明。它声明能力要求，但不选择某个厂商 Host。

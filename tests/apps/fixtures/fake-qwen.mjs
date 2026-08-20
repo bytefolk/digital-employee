@@ -66,6 +66,9 @@ if (capture) {
       cwd: process.cwd(),
       workspaceEntries: await readdir(process.cwd()),
       environmentKeys: Object.keys(process.env).sort(),
+      environmentContainsSchemaMarker: Object.values(process.env).some(
+        (value) => value?.includes("SCHEMA_ARGV_MARKER"),
+      ),
       apiKeyConfigured: Boolean(process.env.OPENAI_API_KEY),
       model: process.env.OPENAI_MODEL,
       baseUrl: process.env.OPENAI_BASE_URL,

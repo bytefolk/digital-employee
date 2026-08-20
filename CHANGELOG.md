@@ -33,6 +33,17 @@ All notable changes to this project will be documented in this file.
   and that each of the three adapters fails closed with its typed code,
   zero version-probe calls and no model spawn for invalid/`$async`/oversized
   Schemas; Schema-absent requests keep the existing unstructured behavior.
+- Issue #113 AC-004 evidence is hardened without changing any authority:
+  Claude, Qwen and CodeBuddy projection tests now assert (as Qoder already
+  did) that output-Schema bytes never reach process environment values or
+  the public event stream, joining the existing argv assertions; stdin
+  stays the one bounded channel. `docs/agent-hosts.md` gains the canonical
+  exact-version qualification table (Qoder `1.1.x` family / fixture
+  `1.1.12`, Claude Code `>=2.1.214 <2.2.0`, Qwen Code `0.17.1`, CodeBuddy
+  Code `2.106.4`) separating fixture conformance from live entitlement, and
+  `docs/verification.md` is refreshed (Codex 0.146.0 wording replaced by
+  the 0.148.0 audit, new #113 evidence row). The later versioned release
+  proving generic downstream selection remains a separate release gate.
 - Codex default-deny research is re-audited against stable Codex CLI 0.148.0
   (release `rust-v0.148.0`, tag commit `3ba0f71`): the offline Responses
   fixture still observes model-visible `apply_patch` after every expressible

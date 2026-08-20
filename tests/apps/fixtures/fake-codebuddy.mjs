@@ -105,6 +105,11 @@ if (capture) {
         runtimeEntries: await entries(process.env.XDG_RUNTIME_DIR),
       },
       environmentKeys: Object.keys(process.env).sort(),
+      environmentContainsSchemaMarker: Object.values(process.env).some(
+        (value) =>
+          value?.includes("SCHEMA_ARGV_MARKER") ||
+          value?.includes("SCHEMA@ARGV_MARKER"),
+      ),
       apiKeyConfigured: Boolean(process.env.CODEBUDDY_API_KEY),
       modelEnvironment: process.env.CODEBUDDY_MODEL,
       baseUrl: process.env.CODEBUDDY_BASE_URL,

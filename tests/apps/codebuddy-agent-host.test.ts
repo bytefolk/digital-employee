@@ -329,6 +329,8 @@ test("CodeBuddy run is zero-tool, fully isolated, and value-projected over stdin
     ),
     false,
   )
+  assert.equal(captured.environmentContainsSchemaMarker, false)
+  assert.equal(JSON.stringify(events).includes("SCHEMA@ARGV_MARKER"), false)
 
   assert.equal(captured.stdin.includes("@"), false)
   assert.equal(captured.stdin.includes("\\u0040"), true)

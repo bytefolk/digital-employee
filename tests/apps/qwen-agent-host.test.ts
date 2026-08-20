@@ -288,6 +288,8 @@ test("Qwen run isolates the host and projects one escaped stdin envelope", async
     ),
     false,
   )
+  assert.equal(captured.environmentContainsSchemaMarker, false)
+  assert.equal(JSON.stringify(events).includes("SCHEMA_ARGV_MARKER"), false)
 
   assert.equal(captured.literalAtPath, false)
   assert.equal(captured.stdin.includes("@/etc/passwd"), false)

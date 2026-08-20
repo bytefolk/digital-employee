@@ -6,7 +6,6 @@ import os from "node:os"
 import path from "node:path"
 import { createInterface } from "node:readline"
 import type { Readable, Writable } from "node:stream"
-import { Ajv2020 } from "ajv/dist/2020.js"
 
 import {
   AGENT_HOST_PROTOCOL_VERSION,
@@ -33,6 +32,7 @@ import {
   readInlineAgentAssets,
 } from "./inline-agent-projection.js"
 import type { InlineAgentAsset } from "./inline-agent-projection.js"
+import { prepareOutputSchemaSnapshot } from "./output-schema-guard.js"
 
 const QWEN_HOST_ID = "qwen-code"
 const QWEN_DISPLAY_NAME = "Qwen Code"
@@ -44,7 +44,6 @@ const CLEANUP_ATTEMPTS = 2
 const CLEANUP_ATTEMPT_TIMEOUT_MS = 2_000
 const MAX_PROMPT_BYTES = 256 * 1024
 const MAX_INSTRUCTIONS_BYTES = 128 * 1024
-const MAX_SCHEMA_BYTES = 16 * 1024
 const MAX_STDIN_BYTES = 512 * 1024
 const MAX_STDOUT_BYTES = 4 * 1024 * 1024
 const MAX_STDERR_BYTES = 256 * 1024
@@ -120,6 +119,7 @@ interface PreparedRun {
 interface PreparedOutputSchema {
   json: string
   value: SafeValue
+  validate: (candidate: unknown) => boolean
 }
 
 interface QwenStreamNormalizerOptions {
@@ -286,28 +286,11 @@ function validatedBaseUrl(environment: NodeJS.ProcessEnv): string | undefined {
 function serializeAndValidateSchema(
   schema: SafeValue | undefined,
 ): PreparedOutputSchema | undefined {
-  if (schema === undefined) return undefined
-  try {
-    const serialized = JSON.stringify(schema)
-    if (!serialized || byteLength(serialized) > MAX_SCHEMA_BYTES) {
-      throw new QwenAdapterError("qwen_output_schema_too_large")
-    }
-    const ajv = new Ajv2020({
-      allErrors: true,
-      allowUnionTypes: true,
-      strict: false,
-      validateSchema: true,
-    })
-    const value = JSON.parse(serialized) as SafeValue
-    const validate = ajv.compile(value as object)
-    if ("$async" in validate && validate.$async === true) {
-      throw new QwenAdapterError("qwen_output_schema_invalid")
-    }
-    return { json: serialized, value }
-  } catch (error) {
-    if (error instanceof QwenAdapterError) throw error
-    throw new QwenAdapterError("qwen_output_schema_invalid")
-  }
+  return prepareOutputSchemaSnapshot(schema, {
+    tooLarge: () => new QwenAdapterError("qwen_output_schema_too_large"),
+    invalid: () => new QwenAdapterError("qwen_output_schema_invalid"),
+    isGuardError: (error) => error instanceof QwenAdapterError,
+  })
 }
 
 function validateRequestShape(
@@ -635,25 +618,15 @@ function normalizeOutputValue(
   return output
 }
 
-function validateStructuredOutput(value: unknown, schema: SafeValue): SafeValue {
+function validateStructuredOutput(
+  value: unknown,
+  validate: (candidate: unknown) => boolean,
+): SafeValue {
   const normalized = normalizeOutputValue(value)
-  try {
-    const ajv = new Ajv2020({
-      allErrors: true,
-      allowUnionTypes: true,
-      strict: false,
-      validateSchema: true,
-    })
-    const validate = ajv.compile(schema as object)
-    if ("$async" in validate && validate.$async === true) {
-      throw new QwenStreamProtocolError("qwen_output_schema_invalid")
-    }
-    if (validate(normalized) !== true) {
-      throw new QwenStreamProtocolError("qwen_output_schema_mismatch")
-    }
-  } catch (error) {
-    if (error instanceof QwenStreamProtocolError) throw error
-    throw new QwenStreamProtocolError("qwen_output_schema_invalid")
+  // The validator is the Adapter's one prepared synchronous Schema
+  // snapshot; the stream layer never recompiles or re-accepts a Schema.
+  if (!validate(normalized)) {
+    throw new QwenStreamProtocolError("qwen_output_schema_mismatch")
   }
   return normalized
 }
@@ -901,7 +874,9 @@ class QwenZeroToolStreamNormalizer {
     throw new QwenStreamProtocolError("qwen_stream_unknown_event")
   }
 
-  finish(outputSchema: SafeValue | undefined): QwenStreamCompletion {
+  finish(
+    outputValidator: ((candidate: unknown) => boolean) | undefined,
+  ): QwenStreamCompletion {
     if (!this.initSeen) {
       throw new QwenStreamProtocolError("qwen_init_missing")
     }
@@ -926,9 +901,9 @@ class QwenZeroToolStreamNormalizer {
       throw new QwenStreamProtocolError("qwen_output_not_json")
     }
     const output =
-      outputSchema === undefined
+      outputValidator === undefined
         ? normalizeOutputValue(parsed)
-        : validateStructuredOutput(parsed, outputSchema)
+        : validateStructuredOutput(parsed, outputValidator)
 
     const usage = record(this.result.usage)
     const inputTokens = usage?.input_tokens
@@ -1085,6 +1060,28 @@ export class QwenAgentHostAdapter implements AgentHostAdapter {
   }
 
   async preflight(request: AgentHostRunRequest): Promise<AgentHostProbeResult> {
+    try {
+      serializeAndValidateSchema(request.outputSchema)
+    } catch (error) {
+      const code =
+        error instanceof QwenAdapterError
+          ? error.code
+          : "qwen_policy_projection_failed"
+      return {
+        protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
+        hostId: QWEN_HOST_ID,
+        displayName: QWEN_DISPLAY_NAME,
+        status: "not_ready",
+        available: false,
+        adapterStatus: "runnable",
+        capabilities: capabilities(),
+        capabilitySource: "conformance_test",
+        issues: [
+          issue(code, "Qwen Code cannot safely validate this output Schema"),
+        ],
+      }
+    }
+
     const probe = await this.probe(request.signal)
     const issues = [...probe.issues]
     try {
@@ -1147,6 +1144,9 @@ export class QwenAgentHostAdapter implements AgentHostAdapter {
 
       const beforePrepareError = stoppedRunError(active)
       if (beforePrepareError) throw beforePrepareError
+      // The shared Schema guard fails closed before any probe, projection or
+      // model process; prepareRun re-checks deterministically below.
+      serializeAndValidateSchema(request.outputSchema)
       const probe = await this.probe(request.signal)
       const afterProbeError = stoppedRunError(active)
       if (afterProbeError) throw afterProbeError
@@ -1350,7 +1350,7 @@ export class QwenAgentHostAdapter implements AgentHostAdapter {
 
       let completion: QwenStreamCompletion
       try {
-        completion = normalizer.finish(prepared.outputSchema?.value)
+        completion = normalizer.finish(prepared.outputSchema?.validate)
       } catch (error) {
         if (error instanceof QwenStreamProtocolError) {
           throw new QwenAdapterError(error.code, error.retryable)

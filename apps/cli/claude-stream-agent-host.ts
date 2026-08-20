@@ -1,5 +1,3 @@
-import { Ajv2020 } from "ajv/dist/2020.js"
-
 import { redactText } from "../../packages/core/src/contracts.js"
 import type {
   AgentHostEvent,
@@ -114,26 +112,13 @@ function normalizeOutputValue(
 
 function validateStructuredOutput(
   value: unknown,
-  schema: SafeValue,
+  validate: (candidate: unknown) => boolean,
 ): SafeValue {
   const normalized = normalizeOutputValue(value)
-  try {
-    const ajv = new Ajv2020({
-      allErrors: true,
-      allowUnionTypes: true,
-      strict: false,
-      validateSchema: true,
-    })
-    const validate = ajv.compile(schema as object)
-    if ("$async" in validate && validate.$async === true) {
-      throw new ClaudeStreamProtocolError("claude_output_schema_invalid")
-    }
-    if (validate(normalized) !== true) {
-      throw new ClaudeStreamProtocolError("claude_output_schema_mismatch")
-    }
-  } catch (error) {
-    if (error instanceof ClaudeStreamProtocolError) throw error
-    throw new ClaudeStreamProtocolError("claude_output_schema_invalid")
+  // The validator is the Adapter's one prepared synchronous Schema
+  // snapshot; the stream layer never recompiles or re-accepts a Schema.
+  if (!validate(normalized)) {
+    throw new ClaudeStreamProtocolError("claude_output_schema_mismatch")
   }
   return normalized
 }
@@ -412,7 +397,9 @@ export class ClaudeZeroToolStreamNormalizer {
     throw new ClaudeStreamProtocolError("claude_stream_unknown_event")
   }
 
-  finish(outputSchema: SafeValue | undefined): ClaudeStreamCompletion {
+  finish(
+    outputValidator: ((candidate: unknown) => boolean) | undefined,
+  ): ClaudeStreamCompletion {
     if (!this.initSeen) {
       throw new ClaudeStreamProtocolError("claude_init_missing")
     }
@@ -424,7 +411,7 @@ export class ClaudeZeroToolStreamNormalizer {
     }
 
     let output: SafeValue
-    if (outputSchema !== undefined) {
+    if (outputValidator !== undefined) {
       if (typeof this.result.result !== "string") {
         throw new ClaudeStreamProtocolError("claude_result_text_missing")
       }
@@ -434,7 +421,7 @@ export class ClaudeZeroToolStreamNormalizer {
       } catch {
         throw new ClaudeStreamProtocolError("claude_output_not_json")
       }
-      output = validateStructuredOutput(parsed, outputSchema)
+      output = validateStructuredOutput(parsed, outputValidator)
     } else {
       if (typeof this.result.result !== "string") {
         throw new ClaudeStreamProtocolError("claude_result_text_missing")

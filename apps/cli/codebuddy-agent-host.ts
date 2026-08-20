@@ -17,7 +17,6 @@ import os from "node:os"
 import path from "node:path"
 import { createInterface } from "node:readline"
 import type { Readable, Writable } from "node:stream"
-import { Ajv2020 } from "ajv/dist/2020.js"
 
 import {
   AGENT_HOST_PROTOCOL_VERSION,
@@ -44,6 +43,7 @@ import {
   readInlineAgentAssets,
 } from "./inline-agent-projection.js"
 import type { InlineAgentAsset } from "./inline-agent-projection.js"
+import { prepareOutputSchemaSnapshot } from "./output-schema-guard.js"
 
 const CODEBUDDY_HOST_ID = "codebuddy"
 const CODEBUDDY_DISPLAY_NAME = "CodeBuddy Code"
@@ -54,7 +54,6 @@ const CLEANUP_ATTEMPTS = 2
 const CLEANUP_ATTEMPT_TIMEOUT_MS = 2_000
 const MAX_PROMPT_BYTES = 256 * 1024
 const MAX_INSTRUCTIONS_BYTES = 128 * 1024
-const MAX_SCHEMA_BYTES = 16 * 1024
 const MAX_STDIN_BYTES = 512 * 1024
 const MAX_STDOUT_BYTES = 4 * 1024 * 1024
 const MAX_STDERR_BYTES = 256 * 1024
@@ -148,6 +147,7 @@ interface PreparedRun {
 interface PreparedOutputSchema {
   json: string
   value: SafeValue
+  validate: (candidate: unknown) => boolean
 }
 
 interface ValidatedConfiguration {
@@ -269,29 +269,11 @@ function validateIdentifier(value: string, code: string): void {
 function serializeAndValidateSchema(
   schema: SafeValue | undefined,
 ): PreparedOutputSchema | undefined {
-  if (schema === undefined) return undefined
-  let serialized: string | undefined
-  try {
-    serialized = JSON.stringify(schema)
-    if (!serialized || byteLength(serialized) > MAX_SCHEMA_BYTES) {
-      throw new CodeBuddyAdapterError("codebuddy_output_schema_too_large")
-    }
-    const ajv = new Ajv2020({
-      allErrors: true,
-      allowUnionTypes: true,
-      strict: false,
-      validateSchema: true,
-    })
-    const value = JSON.parse(serialized) as SafeValue
-    const validate = ajv.compile(value as object)
-    if ("$async" in validate && validate.$async === true) {
-      throw new CodeBuddyAdapterError("codebuddy_output_schema_invalid")
-    }
-    return { json: serialized, value }
-  } catch (error) {
-    if (error instanceof CodeBuddyAdapterError) throw error
-    throw new CodeBuddyAdapterError("codebuddy_output_schema_invalid")
-  }
+  return prepareOutputSchemaSnapshot(schema, {
+    tooLarge: () => new CodeBuddyAdapterError("codebuddy_output_schema_too_large"),
+    invalid: () => new CodeBuddyAdapterError("codebuddy_output_schema_invalid"),
+    isGuardError: (error) => error instanceof CodeBuddyAdapterError,
+  })
 }
 
 function validateRequestShape(
@@ -805,8 +787,11 @@ function scrubOutput(
   return value
 }
 
-function parseAndValidateOutput(text: string, schema: SafeValue | undefined): SafeValue {
-  if (schema === undefined) return redactText(text)
+function parseAndValidateOutput(
+  text: string,
+  validate: ((candidate: unknown) => boolean) | undefined,
+): SafeValue {
+  if (validate === undefined) return redactText(text)
   let parsed: unknown
   try {
     parsed = JSON.parse(text)
@@ -814,23 +799,10 @@ function parseAndValidateOutput(text: string, schema: SafeValue | undefined): Sa
     throw new CodeBuddyProtocolError("codebuddy_output_not_json")
   }
   const normalized = normalizeOutputValue(parsed)
-  try {
-    const ajv = new Ajv2020({
-      allErrors: true,
-      allowUnionTypes: true,
-      strict: false,
-      validateSchema: true,
-    })
-    const validate = ajv.compile(schema as object)
-    if ("$async" in validate && validate.$async === true) {
-      throw new CodeBuddyProtocolError("codebuddy_output_schema_invalid")
-    }
-    if (validate(normalized) !== true) {
-      throw new CodeBuddyProtocolError("codebuddy_output_schema_mismatch")
-    }
-  } catch (error) {
-    if (error instanceof CodeBuddyProtocolError) throw error
-    throw new CodeBuddyProtocolError("codebuddy_output_schema_invalid")
+  // The validator is the Adapter's one prepared synchronous Schema
+  // snapshot; the stream layer never recompiles or re-accepts a Schema.
+  if (!validate(normalized)) {
+    throw new CodeBuddyProtocolError("codebuddy_output_schema_mismatch")
   }
   return normalized
 }
@@ -1143,7 +1115,9 @@ class CodeBuddyStreamNormalizer {
     throw new CodeBuddyProtocolError("codebuddy_stream_unknown_event")
   }
 
-  finish(outputSchema: SafeValue | undefined): {
+  finish(
+    outputValidator: ((candidate: unknown) => boolean) | undefined,
+  ): {
     output: SafeValue
     usage: Extract<AgentHostEvent, { type: "usage" }>
   } {
@@ -1167,7 +1141,7 @@ class CodeBuddyStreamNormalizer {
     }
     const output = parseAndValidateOutput(
       this.result.result,
-      outputSchema,
+      outputValidator,
     )
     const usage = record(this.result.usage)
     const inputTokens = usage?.input_tokens
@@ -1304,6 +1278,28 @@ export class CodeBuddyAgentHostAdapter implements AgentHostAdapter {
   }
 
   async preflight(request: AgentHostRunRequest): Promise<AgentHostProbeResult> {
+    try {
+      serializeAndValidateSchema(request.outputSchema)
+    } catch (error) {
+      const code =
+        error instanceof CodeBuddyAdapterError
+          ? error.code
+          : "codebuddy_policy_projection_failed"
+      return {
+        protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
+        hostId: CODEBUDDY_HOST_ID,
+        displayName: CODEBUDDY_DISPLAY_NAME,
+        status: "not_ready",
+        available: false,
+        adapterStatus: "runnable",
+        capabilities: capabilities(),
+        capabilitySource: "conformance_test",
+        issues: [
+          issue(code, "CodeBuddy Code cannot safely validate this output Schema"),
+        ],
+      }
+    }
+
     const probe = await this.probe(request.signal)
     const issues = [...probe.issues]
     try {
@@ -1363,6 +1359,9 @@ export class CodeBuddyAgentHostAdapter implements AgentHostAdapter {
 
       const beforeProbeError = stoppedRunError(active)
       if (beforeProbeError) throw beforeProbeError
+      // The shared Schema guard fails closed before any probe, projection or
+      // model process; prepareRun re-checks deterministically below.
+      serializeAndValidateSchema(request.outputSchema)
       const executableBefore = await inspectExecutable(
         this.command,
         this.environment,
@@ -1614,7 +1613,7 @@ export class CodeBuddyAgentHostAdapter implements AgentHostAdapter {
       }
       let completion
       try {
-        completion = normalizer.finish(prepared.outputSchema?.value)
+        completion = normalizer.finish(prepared.outputSchema?.validate)
       } catch (error) {
         if (error instanceof CodeBuddyProtocolError) {
           throw new CodeBuddyAdapterError(error.code, error.retryable)

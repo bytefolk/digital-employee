@@ -16,7 +16,7 @@
 
 当前 `capabilitySource: conformance_test` 指仓库内针对特定 Adapter 和锁定 Host 版本的确定性子进程 fixture。它不是可供第三方 Adapter 复用的认证 harness，也不是厂商认证或真实模型额度验证。Qoder 的 capability 声明来自 Adapter 专用确定性 fixture；本轮没有生成通用 qualification record，`liveQualified` 为 false。
 
-`structured_output` 统一表示 **Adapter 保证终态有效**，而不是 Host 原生约束生成：有 `outputSchema` 时，`run.completed` 必须携带原值通过调用方同步 Schema 的终态 JSON；修复、强制转换、默认值、删字段或脱敏都不得制造一个合格值，校验后的安全检查若需要改写 schema-bound 值也必须 fail closed。无效 JSON、异步 Schema、Schema 不匹配、取消、超时或清理失败同样必须 fail closed。事件流本身是 JSON 不构成该能力。Qoder 额外把 Schema 限制在 16 KiB，并在受限版本探针或任何投影、模型进程前完成编译。
+`structured_output` 统一表示 **Adapter 保证终态有效**，而不是 Host 原生约束生成：有 `outputSchema` 时，`run.completed` 必须携带原值通过调用方同步 Schema 的终态 JSON；修复、强制转换、默认值、删字段或脱敏都不得制造一个合格值，校验后的安全检查若需要改写 schema-bound 值也必须 fail closed。无效 JSON、异步 Schema、Schema 不匹配、取消、超时或清理失败同样必须 fail closed。事件流本身是 JSON 不构成该能力。四个 runnable Adapter（Qoder、Claude、Qwen、CodeBuddy）共用同一个前置守卫 `output-schema-guard.ts`：Schema 限 16 KiB、必须同步，`$async:true` 与任何非法 Schema 在受限版本探针、投影或模型进程之前即被拒绝；每次运行只编译一份 prepared Schema 快照，投影与终态校验复用同一快照，终态阶段不再重新编译或重新接受 Schema。
 
 ## 名词边界
 

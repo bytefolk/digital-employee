@@ -5,7 +5,6 @@ import os from "node:os"
 import path from "node:path"
 import { createInterface } from "node:readline"
 import type { Readable, Writable } from "node:stream"
-import { Ajv2020 } from "ajv/dist/2020.js"
 
 import {
   AGENT_HOST_PROTOCOL_VERSION,
@@ -37,6 +36,7 @@ import {
   readInlineAgentAssets,
 } from "./inline-agent-projection.js"
 import type { InlineAgentAsset } from "./inline-agent-projection.js"
+import { prepareOutputSchemaSnapshot } from "./output-schema-guard.js"
 
 const CLAUDE_HOST_ID = "claude-code"
 const CLAUDE_DISPLAY_NAME = "Claude Code"
@@ -48,7 +48,6 @@ const CLEANUP_ATTEMPTS = 2
 const CLEANUP_ATTEMPT_TIMEOUT_MS = 2_000
 const MAX_PROMPT_BYTES = 256 * 1024
 const MAX_INSTRUCTIONS_BYTES = 128 * 1024
-const MAX_SCHEMA_BYTES = 16 * 1024
 const MAX_STDIN_BYTES = 512 * 1024
 const MAX_STDOUT_BYTES = 4 * 1024 * 1024
 const MAX_STDERR_BYTES = 256 * 1024
@@ -108,6 +107,7 @@ interface PreparedRun {
 interface PreparedOutputSchema {
   json: string
   value: SafeValue
+  validate: (candidate: unknown) => boolean
 }
 
 export interface ClaudeAgentHostAdapterOptions {
@@ -208,29 +208,11 @@ function validateIdentifier(value: string, code: string): void {
 function serializeAndValidateSchema(
   schema: SafeValue | undefined,
 ): PreparedOutputSchema | undefined {
-  if (schema === undefined) return undefined
-  let serialized: string | undefined
-  try {
-    serialized = JSON.stringify(schema)
-    if (!serialized || byteLength(serialized) > MAX_SCHEMA_BYTES) {
-      throw new ClaudeAdapterError("claude_output_schema_too_large")
-    }
-    const ajv = new Ajv2020({
-      allErrors: true,
-      allowUnionTypes: true,
-      strict: false,
-      validateSchema: true,
-    })
-    const value = JSON.parse(serialized) as SafeValue
-    const validate = ajv.compile(value as object)
-    if ("$async" in validate && validate.$async === true) {
-      throw new ClaudeAdapterError("claude_output_schema_invalid")
-    }
-    return { json: serialized, value }
-  } catch (error) {
-    if (error instanceof ClaudeAdapterError) throw error
-    throw new ClaudeAdapterError("claude_output_schema_invalid")
-  }
+  return prepareOutputSchemaSnapshot(schema, {
+    tooLarge: () => new ClaudeAdapterError("claude_output_schema_too_large"),
+    invalid: () => new ClaudeAdapterError("claude_output_schema_invalid"),
+    isGuardError: (error) => error instanceof ClaudeAdapterError,
+  })
 }
 
 function validateRequestShape(
@@ -627,6 +609,31 @@ export class ClaudeAgentHostAdapter implements AgentHostAdapter {
   }
 
   async preflight(request: AgentHostRunRequest): Promise<AgentHostProbeResult> {
+    try {
+      serializeAndValidateSchema(request.outputSchema)
+    } catch (error) {
+      const code =
+        error instanceof ClaudeAdapterError
+          ? error.code
+          : "claude_policy_projection_failed"
+      return {
+        protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
+        hostId: CLAUDE_HOST_ID,
+        displayName: CLAUDE_DISPLAY_NAME,
+        status: "not_ready",
+        available: false,
+        adapterStatus: "runnable",
+        capabilities: capabilities(),
+        capabilitySource: "conformance_test",
+        issues: [
+          issue(
+            code,
+            "Claude Code cannot safely validate this output Schema",
+          ),
+        ],
+      }
+    }
+
     const probe = await this.probe(request.signal)
     const issues = [...probe.issues]
     try {
@@ -688,6 +695,9 @@ export class ClaudeAgentHostAdapter implements AgentHostAdapter {
 
       const beforePrepareError = stoppedRunError(active)
       if (beforePrepareError) throw beforePrepareError
+      // The shared Schema guard fails closed before any probe, projection or
+      // model process; prepareRun re-checks deterministically below.
+      serializeAndValidateSchema(request.outputSchema)
       const probe = await this.probe(request.signal)
       const afterProbeError = stoppedRunError(active)
       if (afterProbeError) throw afterProbeError
@@ -909,7 +919,7 @@ export class ClaudeAgentHostAdapter implements AgentHostAdapter {
 
       let completion
       try {
-        completion = normalizer.finish(prepared.outputSchema?.value)
+        completion = normalizer.finish(prepared.outputSchema?.validate)
       } catch (error) {
         if (error instanceof ClaudeStreamProtocolError) {
           throw new ClaudeAdapterError(error.code, error.retryable)

@@ -17,7 +17,6 @@ import os from "node:os"
 import path from "node:path"
 import { createInterface } from "node:readline"
 import type { Readable, Writable } from "node:stream"
-import { Ajv2020 } from "ajv/dist/2020.js"
 
 import {
   AGENT_HOST_PROTOCOL_VERSION,
@@ -41,6 +40,7 @@ import {
   signalAgentHostProcessTree,
   waitForAgentHostProcessTreeExit,
 } from "./agent-host-process-tree.js"
+import { prepareOutputSchemaSnapshot } from "./output-schema-guard.js"
 
 const QODER_HOST_ID = "qoder"
 const QODER_DISPLAY_NAME = "Qoder CLI"
@@ -64,7 +64,6 @@ const CLEANUP_ATTEMPTS = 2
 const CLEANUP_ATTEMPT_TIMEOUT_MS = 2_000
 const MAX_PROMPT_BYTES = 256 * 1024
 const MAX_INSTRUCTIONS_BYTES = 128 * 1024
-const MAX_SCHEMA_BYTES = 16 * 1024
 const MAX_STDOUT_BYTES = 4 * 1024 * 1024
 const MAX_STDERR_BYTES = 256 * 1024
 const MAX_LINE_BYTES = 1024 * 1024
@@ -300,30 +299,11 @@ interface PreparedOutputSchema {
 function prepareOutputSchema(
   schema: SafeValue | undefined,
 ): PreparedOutputSchema | undefined {
-  if (schema === undefined) return undefined
-  try {
-    const json = JSON.stringify(schema)
-    if (typeof json !== "string") {
-      throw new QoderAdapterError("qoder_output_schema_invalid")
-    }
-    if (byteLength(json) > MAX_SCHEMA_BYTES) {
-      throw new QoderAdapterError("qoder_output_schema_too_large")
-    }
-    const ajv = new Ajv2020({
-      allErrors: true,
-      allowUnionTypes: true,
-      strict: false,
-      validateSchema: true,
-    })
-    const validate = ajv.compile(JSON.parse(json))
-    if ("$async" in validate && validate.$async === true) {
-      throw new QoderAdapterError("qoder_output_schema_invalid")
-    }
-    return { json, validate: (value) => validate(value) === true }
-  } catch (error) {
-    if (error instanceof QoderAdapterError) throw error
-    throw new QoderAdapterError("qoder_output_schema_invalid")
-  }
+  return prepareOutputSchemaSnapshot(schema, {
+    tooLarge: () => new QoderAdapterError("qoder_output_schema_too_large"),
+    invalid: () => new QoderAdapterError("qoder_output_schema_invalid"),
+    isGuardError: (error) => error instanceof QoderAdapterError,
+  })
 }
 
 function validateRequestShape(

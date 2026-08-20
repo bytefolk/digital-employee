@@ -537,6 +537,54 @@ test("CodeBuddy validates synchronous JSON Schema locally before launching", asy
   }
 })
 
+test("CodeBuddy preflight rejects invalid, $async and oversized Schemas before any probe or spawn", async () => {
+  for (const [name, outputSchema, code] of [
+    [
+      "invalid",
+      { type: "definitely-not-a-json-schema-type" },
+      "codebuddy_output_schema_invalid",
+    ],
+    [
+      "async",
+      { $async: true, type: "object" },
+      "codebuddy_output_schema_invalid",
+    ],
+    [
+      "oversized",
+      {
+        type: "object",
+        properties: { filler: { description: "x".repeat(20_000) } },
+      },
+      "codebuddy_output_schema_too_large",
+    ],
+  ] as const) {
+    const parent = await mkdtemp(
+      path.join(os.tmpdir(), `codebuddy-guard-${name}-`),
+    )
+    const launchLog = path.join(parent, "launch.jsonl")
+    const request = await employeeRequest(parent, `run-guard-${name}`)
+    request.outputSchema = outputSchema as SafeValue
+    const versionCalls: Array<{ command: string; args: string[] }> = []
+    const host = adapter(parent, "success", undefined, 10_000, {
+      fixtureArgs: ["--launch-log", launchLog],
+      versionExecutor: async (command, args) => {
+        versionCalls.push({ command, args })
+        return fixtureVersionExecutor()
+      },
+    })
+
+    const preflight = await host.preflight(request)
+    assert.equal(preflight.status, "not_ready")
+    assert.equal(preflight.available, false)
+    assert.deepEqual(
+      preflight.issues.map((entry) => entry.code),
+      [code],
+    )
+    assert.deepEqual(versionCalls, [])
+    await assert.rejects(access(launchLog))
+  }
+})
+
 test("CodeBuddy keeps the prepared Schema when the request mutates before spawn", async () => {
   const parent = await mkdtemp(path.join(os.tmpdir(), "codebuddy-late-schema-"))
   const request = await employeeRequest(parent, "run-late-schema")

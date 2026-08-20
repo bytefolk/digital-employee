@@ -21,6 +21,18 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Claude, Qwen, CodeBuddy and Qoder now share one synchronous output-Schema
+  preflight guard (`apps/cli/output-schema-guard.ts`, #113): invalid,
+  oversized (>16 KiB), `$async:true` and otherwise unsupported Schemas are
+  rejected before any version probe, projection or model process, and each
+  run prepares exactly one Schema snapshot that projection and terminal
+  validation both consume — the stream layer never recompiles or re-accepts
+  a Schema. Claude, Qwen and CodeBuddy preflight previously probed first,
+  and Qwen/CodeBuddy recompiled Ajv at the terminal; both behaviors are
+  gone. New deterministic regressions prove the shared guard unit contract
+  and that each of the three adapters fails closed with its typed code,
+  zero version-probe calls and no model spawn for invalid/`$async`/oversized
+  Schemas; Schema-absent requests keep the existing unstructured behavior.
 - Codex default-deny research is re-audited against stable Codex CLI 0.148.0
   (release `rust-v0.148.0`, tag commit `3ba0f71`): the offline Responses
   fixture still observes model-visible `apply_patch` after every expressible

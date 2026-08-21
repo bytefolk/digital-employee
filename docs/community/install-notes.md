@@ -89,13 +89,13 @@ Copy the block below for each new note:
   8. `node ./dist/apps/cli/bin.js validate /tmp/my-employee-source --json` — `"status": "valid"`
   9. `node ./dist/apps/cli/bin.js eval /tmp/my-employee-source --json` — `"status": "passed"`
 - **Friction points:**
-  - `npm test` produced 1 failure in `tests/apps/deploy-cli.test.ts`: `HTTP activation protocol fails closed across EOF, timeout, forged tuple, generation, and lock-fence faults`. The test asserts `expectParentIpcLossReleasesLease` and reports `true !== false`. This is a WSL2 IPC timing issue — the test passes on native Linux CI but is unreliable under WSL2's process model. A developer on WSL2 should be aware of this pre-existing issue.
+  - `npm test` produced 1 failure in `tests/apps/deploy-cli.test.ts`: `HTTP activation protocol fails closed across EOF, timeout, forged tuple, generation, and lock-fence faults`. The test asserts `expectParentIpcLossReleasesLease` and reports `true !== false`. This failure has so far only been observed under WSL2; the hypothesis is that it stems from IPC timing differences in WSL2's process model. Confirmation against a native Ubuntu runner CI record is still needed. A developer working on WSL2 should be aware of this observation.
   - `npm ci` warns about `esbuild` postinstall scripts not covered by `allowScripts` — same as the npm consumer path.
   - The `npm run check` gate (`typecheck && build && test && governance:check && security:check`) takes ~6 minutes end-to-end, dominated by the test suite (~5.5 min). First-time contributors may be surprised by the duration.
 - **Fault paths hit:**
-  - Test failure in `deploy-cli.test.ts` (pre-existing WSL2 issue, not a regression)
+  - Test failure in `deploy-cli.test.ts` (observed under WSL2; native Linux CI confirmation pending)
 - **Recovery:**
-  - The single test failure is tolerated in WSL2 environments. CI (GitHub Actions, Ubuntu runner) must pass all tests.
+  - The single test failure is currently observed only under WSL2. Native Linux CI (GitHub Actions, Ubuntu runner) results should be checked to confirm the hypothesis.
 
 ---
 
@@ -109,5 +109,5 @@ and linked to the relevant issues for resolution.
 | `doctor` reports `"runnable": false` even when a Host binary is found — unclear to first-time users that it means "no credential configured" | 2026-08-21 | [#139](https://github.com/fullstack-ai-infra/digital-employee/issues/139) | Open |
 | `deploy` error messages state the error code but not the recovery action (e.g., "set `ANTHROPIC_API_KEY`") | 2026-08-21 | [#139](https://github.com/fullstack-ai-infra/digital-employee/issues/139) | Open |
 | `setup` command not discoverable from `--help` top-level overview | 2026-08-21 | [#139](https://github.com/fullstack-ai-infra/digital-employee/issues/139) | Open |
-| `deploy-cli.test.ts` IPC test unreliable under WSL2 (pre-existing, not a regression) | 2026-08-21 | [#91](https://github.com/fullstack-ai-infra/digital-employee/issues/91) (AC-001 CI gate) | Open |
+| `deploy-cli.test.ts` IPC test failure observed under WSL2; hypothesis is WSL2 process-model timing difference, native Linux CI confirmation pending | 2026-08-21 | [#91](https://github.com/fullstack-ai-infra/digital-employee/issues/91) (AC-001 CI gate) | Open |
 | `npm ci` / `npm install` warn about `esbuild` `allowScripts` — harmless but noisy for first-time users | 2026-08-21 | [#139](https://github.com/fullstack-ai-infra/digital-employee/issues/139) | Open |

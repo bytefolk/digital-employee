@@ -1,0 +1,8 @@
+$ npx digital-employee deploy ./my-first-employee \
+  --channel http \
+  --engine claude-code \
+  --runtime agent-native \
+  --port 3000 \
+  --yes
+The selected engine is unsupported, unavailable, or incompatible
+(claude_api_key_not_configured).

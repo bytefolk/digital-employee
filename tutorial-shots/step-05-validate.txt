@@ -1,0 +1,16 @@
+$ npx digital-employee validate ./my-first-employee --json
+{
+  "status": "valid",
+  "employee": {
+    "name": "my-first-employee",
+    "version": "0.1.0",
+    "schemaVersion": "employee-package.v1alpha1"
+  },
+  "files": [
+    "./SKILL.md",
+    "./schemas/input.schema.json",
+    "./schemas/output.schema.json",
+    "./knowledge/README.md",
+    "./evals/cases.json"
+  ]
+}

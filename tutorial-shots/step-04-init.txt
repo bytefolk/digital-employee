@@ -1,0 +1,12 @@
+$ npx digital-employee init ./my-first-employee \
+  --recipe minimal-answer.v1 \
+  --author your-team
+Created my-first-employee from minimal-answer.v1
+- ./employee.json
+- ./SKILL.md
+- ./schemas/input.schema.json
+- ./schemas/output.schema.json
+- ./knowledge/README.md
+- ./evals/cases.json
+
+Next: edit SKILL.md, add approved knowledge, then run validate and eval.

@@ -1,0 +1,4 @@
+$ npx digital-employee init ./my-employee \
+  --recipe minimal-answer.v1 \
+  --author your-team
+digital-employee: INIT_TARGET_ALREADY_EXISTS

@@ -1,0 +1,6 @@
+$ npx digital-employee run ./my-first-employee \
+  --engine claude-code \
+  --question "What is the support channel?"
+digital-employee: agent_host_incompatible
+- blocked: claude_api_key_not_configured
+- blocked: host_not_ready

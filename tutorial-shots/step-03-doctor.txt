@@ -1,0 +1,9 @@
+$ npx digital-employee doctor
+Agent hosts:
+- Claude Code: not_ready (2.1.235 (Claude Code)) [runnable]
+- Qoder CLI: not_found [runnable]
+- Codex CLI: not_found [probe-only]
+- Qwen Code: not_found [runnable]
+- CodeBuddy Code: not_found [runnable]
+
+Local readiness only; model access is verified only by a real run.

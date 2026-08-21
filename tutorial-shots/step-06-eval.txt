@@ -1,0 +1,23 @@
+$ npx digital-employee eval ./my-first-employee --json
+{
+  "schemaVersion": "employee-eval-result.v1alpha1",
+  "status": "passed",
+  "code": "EVAL_PASSED",
+  "employee": {
+    "name": "my-first-employee",
+    "version": "0.1.0",
+    "schemaVersion": "employee-package.v1alpha1"
+  },
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0
+  },
+  "cases": [
+    {
+      "id": "approved-support-channel",
+      "status": "passed",
+      "code": "EVAL_CASE_PASSED"
+    }
+  ]
+}

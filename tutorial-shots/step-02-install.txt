@@ -1,0 +1,8 @@
+$ npm install @fullstack-ai-infra/digital-employee@0.4.0
+
+added 36 packages, and audited 37 packages in 13s
+
+9 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities

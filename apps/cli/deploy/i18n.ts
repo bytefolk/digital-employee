@@ -176,6 +176,15 @@ export function setLocale(locale: SupportedLocale): void {
 }
 
 /**
+ * Report whether a message key exists in the current or English fallback
+ * catalog. Use this before rendering optional keys: t() falls back to the
+ * key itself, so existence cannot be detected through t().
+ */
+export function hasMessage(key: string): boolean {
+  return key in messages || key in fallbackMessages
+}
+
+/**
  * Get a translated message by key.
  * Supports {placeholder} interpolation.
  * Falls back to English value, then to the key itself.

@@ -1591,6 +1591,10 @@ test("built deploy rejects an invalid package before config, prompt, provider, o
 
   assert.equal(result.status, 1, result.stderr)
   assert.match(result.stderr, /Invalid employee package/)
+  assert.match(
+    result.stderr,
+    /Run `digital-employee init <directory>` to scaffold one\./,
+  )
   assert.doesNotMatch(result.stdout, /\?|Choice/)
   assert.equal(await noConfig(home), true)
   assert.equal(await markerMissing(marker), true)
@@ -1743,6 +1747,10 @@ test("built deploy rejects an explicit unavailable engine before config or runti
 
   assert.equal(result.status, 1, result.stderr)
   assert.match(result.stderr, /selected engine is unsupported, unavailable, or incompatible/i)
+  assert.match(
+    result.stderr,
+    /Install the qoder CLI or pass a different --engine/,
+  )
   assert.doesNotMatch(result.stdout, /\?|Choice|Ready:/)
   assert.equal(await noConfig(home), true)
 })
@@ -2020,6 +2028,14 @@ test("built HTTP deploy fails closed when the requested loopback port is already
   assert.equal(result.status, 1, result.stderr)
   assert.doesNotMatch(result.stdout, /Ready:/)
   assert.match(result.stderr, /Deployment failed/i)
+  assert.match(
+    result.stderr,
+    /could not listen on the requested port; another process may already be using it\. Free that port or choose another with --port/i,
+  )
+  assert.doesNotMatch(
+    result.stderr,
+    /Private deployment state could not be written/i,
+  )
   const configPath = path.join(home, ".digital-employee", "config.json")
   const config = JSON.parse(await readFile(configPath, "utf8")) as {
     outcome: string
@@ -6734,6 +6750,57 @@ test("unavailable explicit Agent engine fails before every interactive prompt", 
   assert.match(result.stderr, /engine is unsupported, unavailable, or incompatible/i)
   assert.doesNotMatch(result.stdout, /\?|Choice|Language|Where|called/)
   assert.equal(await noConfig(home), true)
+})
+
+test("missing engine credentials fail closed with localized recovery guidance", async (t) => {
+  const fixtures = [
+    {
+      locale: "en",
+      recovery:
+        /Set the QODER_PERSONAL_ACCESS_TOKEN environment variable, then rerun the same deploy command\./,
+    },
+    {
+      locale: "zh-CN",
+      recovery:
+        /请设置 QODER_PERSONAL_ACCESS_TOKEN 环境变量，然后重新运行同一 deploy 命令。/,
+    },
+    {
+      locale: "ja",
+      recovery:
+        /QODER_PERSONAL_ACCESS_TOKEN 環境変数を設定してから、同じdeployコマンドを再実行してください。/,
+    },
+  ]
+  for (const fixture of fixtures) {
+    await t.test(fixture.locale, async (subtest) => {
+      const temporary = await isolatedRoot(subtest, "deploy-missing-token-")
+      const home = path.join(temporary, "home")
+      const bin = path.join(temporary, "bin")
+      const packageDirectory = path.join(temporary, "missing-token")
+      await mkdir(home)
+      await installFakeQoder(bin)
+      await createEmployeePackage(packageDirectory, { name: "missing-token" })
+      const environment = cliEnvironment({ home, bin })
+      delete environment.QODER_PERSONAL_ACCESS_TOKEN
+
+      const result = runBuiltCli(
+        [
+          "deploy",
+          packageDirectory,
+          "--engine",
+          "qoder",
+          "--locale",
+          fixture.locale,
+        ],
+        { environment },
+      )
+
+      assert.equal(result.status, 1, result.stderr)
+      assert.match(result.stderr, /qoder_service_token_not_configured/)
+      assert.match(result.stderr, fixture.recovery)
+      assert.doesNotMatch(result.stdout, /\?|Choice|Ready:/)
+      assert.equal(await noConfig(home), true)
+    })
+  }
 })
 
 test("deploy parse failures are localized, actionable, and side-effect free", async (t) => {

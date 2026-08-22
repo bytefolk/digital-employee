@@ -48,6 +48,7 @@ import {
   detectSystemLocale,
   getAvailableLocales,
   getLocaleDisplayName,
+  hasMessage,
   setLocale,
   t,
 } from "./i18n.js"
@@ -111,6 +112,26 @@ function failInput(field: string, values: readonly string[]): void {
 function failCode(key: string, code: string): void {
   process.stderr.write(`${t(key, { code })}\n`)
   process.exitCode = 1
+}
+
+/**
+ * Render an optional recovery line for a fail-closed error code. Each known
+ * code has a localized `deploy.recovery_<code>` catalog entry naming the
+ * exact next action; unknown codes fall back to `fallbackKey` when given,
+ * and otherwise print nothing. Behavior, codes, and exit codes are
+ * unchanged — this is human-facing copy only.
+ */
+function writeRecoveryGuidance(
+  code: string,
+  vars: Record<string, string> = {},
+  fallbackKey?: string,
+): void {
+  const key = `deploy.recovery_${code}`
+  if (hasMessage(key)) {
+    process.stderr.write(`${t(key, vars)}\n`)
+  } else if (fallbackKey) {
+    process.stderr.write(`${t(fallbackKey, vars)}\n`)
+  }
 }
 
 function safeFailureCode(error: unknown, fallback: string): string {
@@ -556,6 +577,7 @@ async function deployImpl(options: DeployOptions = {}): Promise<void> {
       "deploy.error_invalid_package",
       safeFailureCode(error, "employee_package_invalid"),
     )
+    writeRecoveryGuidance("invalid_package")
     return
   }
 
@@ -595,6 +617,11 @@ async function deployImpl(options: DeployOptions = {}): Promise<void> {
   const preflightFailure = await preflightEngine(runtime, engine, binding)
   if (preflightFailure) {
     failCode("deploy.error_engine_unavailable", preflightFailure)
+    writeRecoveryGuidance(
+      preflightFailure,
+      { engine },
+      "deploy.recovery_engine_preflight",
+    )
     return
   }
   let locale: SupportedLocale
@@ -624,6 +651,7 @@ async function deployImpl(options: DeployOptions = {}): Promise<void> {
       /[\u0000-\u001f\u007f]/.test(httpToken))
   ) {
     failCode("deploy.error_aborted", "http_token_required")
+    writeRecoveryGuidance("http_token_required")
     return
   }
   const botName = options.name?.trim() || (

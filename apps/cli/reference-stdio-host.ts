@@ -219,6 +219,18 @@ function qualificationOperation(
   ) {
     return { kind: "output_schema.buffer_until_cancel" }
   }
+  if (
+    operation.kind === "projection.read_search" &&
+    Object.keys(operation).length === 1
+  ) {
+    return { kind: "projection.read_search" }
+  }
+  if (
+    operation.kind === "projection.write_tool" &&
+    Object.keys(operation).length === 1
+  ) {
+    return { kind: "projection.write_tool" }
+  }
   return undefined
 }
 
@@ -464,6 +476,12 @@ export function serveReferenceStdioHost(): void {
           errorResponse(request.id, QUALIFICATION_MCP_DENIAL_CODE)
           return
         }
+        if (operation?.kind === "projection.write_tool") {
+          // The reference projection is read-only by construction; a write
+          // attempt is refused at preflight with the typed filesystem denial.
+          errorResponse(request.id, QUALIFICATION_FILESYSTEM_DENIAL_CODE)
+          return
+        }
         successResponse(request.id, referenceStdioProbe())
         return
       }
@@ -521,6 +539,33 @@ export function serveReferenceStdioHost(): void {
             type: "assistant.delta",
             text: '{"answer":"partial',
           })
+          return
+        }
+        if (operation?.kind === "projection.read_search") {
+          // The deterministic read-only projection: exactly the two allowed
+          // read tools run to completion, then the run terminates.
+          for (const [toolCallId, toolName] of [
+            ["call-projection-read", "read_file"],
+            ["call-projection-search", "search_workspace"],
+          ] as const) {
+            event(request.id, payload.runId, {
+              type: "tool.started",
+              toolCallId,
+              toolName,
+            })
+            event(request.id, payload.runId, {
+              type: "tool.completed",
+              toolCallId,
+              toolName,
+              isError: false,
+            })
+          }
+          event(request.id, payload.runId, {
+            type: "run.completed",
+            output: { status: "answered", answer: "reference host", citations: [] },
+          })
+          successResponse(request.id)
+          activeRun = null
           return
         }
         if (operation?.kind === "process_tree") {

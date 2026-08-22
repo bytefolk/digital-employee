@@ -14,7 +14,12 @@ import {
   createExternalStdioHostRegistration,
 } from "../../apps/cli/stdio-agent-host.js"
 import type { AgentHostRunRequest } from "../../packages/core/src/agent-host.js"
-import { runQualificationSuite } from "../../packages/core/src/adapter-qualification.js"
+import {
+  compareQualificationSnapshots,
+  createQualificationSnapshot,
+  runQualificationSuite,
+  validateAdapterQualificationSnapshot,
+} from "../../packages/core/src/adapter-qualification.js"
 import type {
   QualificationProcessTreeFixture,
   QualificationProcessTreeScenario,
@@ -386,7 +391,7 @@ test("the qualification kit issues a fixture-conformant record for the reference
         liveQualified: false,
       })
       assert.equal(record.liveEvidence, undefined)
-      assert.equal(record.cases.length, 18)
+      assert.equal(record.cases.length, 20)
       assert.ok(record.cases.every((entry) => entry.passed))
       for (const vector of [
         "valid_json",
@@ -407,12 +412,81 @@ test("the qualification kit issues a fixture-conformant record for the reference
           vector,
         )
       }
+      for (const vector of ["read_search_only", "write_tool_refused"]) {
+        assert.deepEqual(
+          record.cases.find((entry) => entry.id === vector),
+          {
+            domain: "readonly_projection",
+            id: vector,
+            passed: true,
+            code: `${vector}_ok`,
+          },
+          vector,
+        )
+      }
       assert.equal(observed.length, 3)
       assert.ok(
         observed.every(
           ({ childPid, grandchildPid }) =>
             !processExists(childPid) && !processExists(grandchildPid),
         ),
+      )
+    } finally {
+      await adapter.dispose()
+    }
+  })
+})
+
+test("the release regression harness re-runs the vector set against the v0.4.0 baseline", async () => {
+  // REQ-002 / AC-002: on every release path run (npm test inside npm run
+  // check), the deterministic vector set re-runs against the reference Host
+  // and the freshly earned snapshot is compared against the committed v0.4.0
+  // baseline; any disappeared or weakened capability row fails the gate.
+  const baseline = validateAdapterQualificationSnapshot(
+    JSON.parse(
+      readFileSync(
+        path.join(
+          packageRoot,
+          "fixtures",
+          "qualification",
+          "snapshots",
+          "v0.4.0.json",
+        ),
+        "utf8",
+      ),
+    ),
+  )
+  assert.equal(baseline.release, "0.4.0")
+  assert.equal(baseline.hostId, REFERENCE_STDIO_HOST_ID)
+  assert.equal(baseline.hostVersion, "1.0.0")
+  assert.equal(baseline.kitVersion, "1.1.0")
+  const release = String(
+    JSON.parse(readFileSync(path.join(packageRoot, "package.json"), "utf8"))
+      .version,
+  )
+  const directory = await mkdtemp(path.join(os.tmpdir(), "stdio-baseline-"))
+  await withFlags(["REFERENCE_STDIO_QUALIFICATION_MODE"], async () => {
+    const adapter = new ExternalStdioAgentHostAdapter(referenceConfig())
+    const observed: Array<{ childPid: number; grandchildPid: number }> = []
+    try {
+      const record = await runQualificationSuite(adapter, {
+        workingDirectory: directory,
+        generatedAt: "2026-08-06T04:00:00Z",
+        caseTimeoutMs: 10_000,
+        processTreeFixture: referenceProcessTreeFixture(adapter, observed),
+      })
+      const current = createQualificationSnapshot(record, { release })
+      assert.deepEqual(compareQualificationSnapshots(baseline, current), [])
+      // AC-003: the new read/search-only projection domain earned its row
+      // through the same standardized path.
+      assert.deepEqual(
+        current.domains.find((row) => row.domain === "readonly_projection"),
+        {
+          domain: "readonly_projection",
+          status: "supported",
+          passed: 2,
+          failed: 0,
+        },
       )
     } finally {
       await adapter.dispose()

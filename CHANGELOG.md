@@ -6,6 +6,34 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- The capability evidence standard is now codified and enforced (#140
+  REQ-001 / REQ-002 / REQ-004, AC-001 / AC-002): every claim must carry the
+  exact Host version, the deterministic fixture (kit) version, the
+  `fixtureConformant` vs `liveQualified` boundary, and the sha256
+  fixture-corpus digest recomputed from the kit's frozen case contract.
+  `adapter-qualification-snapshot.v1` is the machine-readable per-release
+  form: `createQualificationSnapshot` derives it from a validated record and
+  `validateAdapterQualificationSnapshot` rejects incomplete or incoherent
+  claims (missing fields, unknown kit versions, digest/corpus mismatches,
+  dropped or duplicated domain rows, under-reported counts, or axes that
+  disagree with the rows). The release regression harness re-runs the full
+  deterministic vector set against the reference stdio Host on every
+  `npm run check` (CI and the release workflow) and fails closed via
+  `compareQualificationSnapshots` if any evidence earned in the committed
+  v0.4.0 baseline snapshot
+  (`fixtures/qualification/snapshots/v0.4.0.json`) disappears or weakens;
+  strengthened evidence always passes.
+- The Adapter qualification kit earns a tenth domain, `readonly_projection`
+  (#140 REQ-003 / AC-003), through two deterministic, model-free vectors:
+  `read_search_only` (one final `run.completed`, every tool event inside the
+  frozen read-only pair `read_file`/`search_workspace`, both exercised) and
+  `write_tool_refused` (a typed `qualification_filesystem_policy_denied` at
+  preflight or in one final `run.failed`, with zero executed tool events). Kit
+  version moves to `1.3.0` (20 cases); the v1 record validator now accepts
+  four versioned contracts (`1.0.0`, `1.1.0`, `1.2.0`, `1.3.0`) with
+  per-version domain sets, so a pre-`1.3.0` record carrying
+  `readonly_projection` fails closed exactly like a `1.3.0` record that drops
+  it. The reference stdio Host serves both operations deterministically.
 - The reusable Adapter qualification kit now earns `output_schema` evidence
   through six deterministic vectors (#113): `valid_json`, `non_json`,
   `schema_mismatch`, `invalid_schema_preflight`, `cancel_buffered`, and

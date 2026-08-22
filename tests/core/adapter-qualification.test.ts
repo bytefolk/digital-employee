@@ -33,6 +33,7 @@ import {
   DEFAULT_QUALIFICATION_CASE_TIMEOUT_MS,
   MAX_QUALIFICATION_CASE_TIMEOUT_MS,
   MIN_QUALIFICATION_CASE_TIMEOUT_MS,
+  PRIOR_QUALIFICATION_DOMAINS,
   QUALIFICATION_DOMAINS,
   QUALIFICATION_FILESYSTEM_DENIAL_CODE,
   QUALIFICATION_MCP_DENIAL_CODE,
@@ -89,6 +90,11 @@ interface FixtureBehavior {
   wrongMcpDenyAtRun?: boolean
   omitNetworkDenyAttempt?: boolean
   omitMcpDenyAttempt?: boolean
+  acceptProjectionWrite?: boolean
+  failProjectionWriteAtRun?: boolean
+  executeProjectionWrite?: boolean
+  projectionToolViolation?: boolean
+  projectionReadToolMissing?: boolean
   cancelCompletes?: boolean
   eventAfterCancel?: boolean
   hangEventStream?: boolean
@@ -180,6 +186,18 @@ function qualificationAdapter(
         throw new CoreError(
           QUALIFICATION_MCP_DENIAL_CODE,
           "MCP operation denied by policy",
+          { status: 403, retryable: false },
+        )
+      }
+      if (
+        operation === "projection.write_tool" &&
+        !behavior.acceptProjectionWrite &&
+        !behavior.failProjectionWriteAtRun &&
+        !behavior.executeProjectionWrite
+      ) {
+        throw new CoreError(
+          QUALIFICATION_FILESYSTEM_DENIAL_CODE,
+          "projection write denied by the read-only boundary",
           { status: 403, retryable: false },
         )
       }
@@ -302,6 +320,75 @@ function qualificationAdapter(
           error: {
             code: "fixture_output_schema_rejected",
             message: "hostile terminal output rejected against schema",
+            retryable: false,
+          },
+        }
+        return
+      }
+      if (operation === "projection.read_search") {
+        const toolNames = behavior.projectionReadToolMissing
+          ? (["read_file"] as const)
+          : (["read_file", "search_workspace"] as const)
+        for (const [index, toolName] of toolNames.entries()) {
+          yield {
+            type: "tool.started",
+            runId: request.runId,
+            timestamp: at,
+            toolCallId: `call-projection-${index}`,
+            toolName,
+          }
+          yield {
+            type: "tool.completed",
+            runId: request.runId,
+            timestamp: at,
+            toolCallId: `call-projection-${index}`,
+            toolName,
+            isError: false,
+          }
+        }
+        if (behavior.projectionToolViolation) {
+          yield {
+            type: "tool.started",
+            runId: request.runId,
+            timestamp: at,
+            toolCallId: "call-projection-write",
+            toolName: "write_file",
+          }
+        }
+        yield {
+          type: "run.completed",
+          runId: request.runId,
+          timestamp: at,
+          output: { status: "answered", answer: "fixture", citations: [] },
+        }
+        return
+      }
+      if (operation === "projection.write_tool") {
+        if (behavior.executeProjectionWrite) {
+          yield {
+            type: "tool.started",
+            runId: request.runId,
+            timestamp: at,
+            toolCallId: "call-projection-write",
+            toolName: "write_file",
+          }
+        }
+        if (behavior.acceptProjectionWrite) {
+          yield {
+            type: "run.completed",
+            runId: request.runId,
+            timestamp: at,
+            output: { status: "written" },
+          }
+          return
+        }
+        yield {
+          type: "run.failed",
+          runId: request.runId,
+          timestamp: at,
+          error: {
+            code: QUALIFICATION_FILESYSTEM_DENIAL_CODE,
+            message: "projection write denied by the read-only boundary",
             retryable: false,
           },
         }
@@ -716,7 +803,7 @@ test("a conforming built-in-class adapter earns the fixture axis without live ev
     liveQualified: false,
   }, JSON.stringify(record.cases.filter((entry) => !entry.passed)))
   assert.equal(record.liveEvidence, undefined)
-  assert.equal(record.cases.length, 18)
+  assert.equal(record.cases.length, 20)
   assert.ok(record.cases.every((entry) => entry.passed))
   for (const vector of [
     "valid_json",
@@ -730,6 +817,18 @@ test("a conforming built-in-class adapter earns the fixture axis without live ev
       record.cases.find((entry) => entry.id === vector),
       {
         domain: "output_schema",
+        id: vector,
+        passed: true,
+        code: `${vector}_ok`,
+      },
+      vector,
+    )
+  }
+  for (const vector of ["read_search_only", "write_tool_refused"]) {
+    assert.deepEqual(
+      record.cases.find((entry) => entry.id === vector),
+      {
+        domain: "readonly_projection",
         id: vector,
         passed: true,
         code: `${vector}_ok`,
@@ -751,7 +850,7 @@ test("a conforming built-in-class adapter earns the fixture axis without live ev
     record.policyDigest,
     createHash("sha256")
       .update(
-        '{"approval":{"mode":"never"},"filesystem":{"read":["."],"write":[]},"maxTurns":4,"network":{"mode":"deny"},"tools":{"allow":[{"mode":"read","name":"noop"}],"default":"deny"}}',
+        '{"approval":{"mode":"never"},"filesystem":{"read":["."],"write":[]},"maxTurns":4,"network":{"mode":"deny"},"tools":{"allow":[{"mode":"read","name":"noop"},{"mode":"read","name":"read_file"},{"mode":"read","name":"search_workspace"}],"default":"deny"}}',
       )
       .digest("hex"),
   )
@@ -1466,6 +1565,73 @@ test("a disallowed tool event fails the tool enforcement domain", async () => {
   assert.equal(record.axes.fixtureConformant, false)
 })
 
+test("the read-only projection domain requires both read tools and refuses writes", async () => {
+  const directory = await workingDirectory()
+  const conforming = await runQualificationSuite(qualificationAdapter(), {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+  })
+  for (const vector of ["read_search_only", "write_tool_refused"]) {
+    assert.deepEqual(
+      conforming.cases.find((entry) => entry.id === vector),
+      {
+        domain: "readonly_projection",
+        id: vector,
+        passed: true,
+        code: `${vector}_ok`,
+      },
+      vector,
+    )
+  }
+
+  const runLevelRefusal = await runQualificationSuite(
+    qualificationAdapter({ failProjectionWriteAtRun: true }),
+    { workingDirectory: directory, generatedAt: GENERATED_AT },
+  )
+  assert.deepEqual(
+    runLevelRefusal.cases.find((entry) => entry.id === "write_tool_refused"),
+    {
+      domain: "readonly_projection",
+      id: "write_tool_refused",
+      passed: true,
+      code: "write_tool_refused_ok",
+    },
+  )
+
+  const violations: Array<[FixtureBehavior, string, string]> = [
+    [
+      { projectionToolViolation: true },
+      "read_search_only",
+      "read_search_only_tool_violation",
+    ],
+    [
+      { projectionReadToolMissing: true },
+      "read_search_only",
+      "read_search_only_read_tool_missing",
+    ],
+    [
+      { acceptProjectionWrite: true },
+      "write_tool_refused",
+      "write_tool_accepted",
+    ],
+    [
+      { executeProjectionWrite: true },
+      "write_tool_refused",
+      "write_tool_executed",
+    ],
+  ]
+  for (const [behavior, id, code] of violations) {
+    const record = await runQualificationSuite(qualificationAdapter(behavior), {
+      workingDirectory: directory,
+      generatedAt: GENERATED_AT,
+    })
+    const vectorCase = record.cases.find((entry) => entry.id === id)
+    assert.equal(vectorCase?.passed, false, id)
+    assert.equal(vectorCase?.code, code, id)
+    assert.equal(record.axes.fixtureConformant, false, id)
+  }
+})
+
 test("a terminal output outside the schema fails the output schema domain", async () => {
   const directory = await workingDirectory()
   const record = await runQualificationSuite(
@@ -1833,6 +1999,8 @@ test("record validation supports the legacy 1.0 contract and derives all summari
           "invalid_schema_preflight",
           "cancel_buffered",
           "secret_rejected",
+          "read_search_only",
+          "write_tool_refused",
         ].includes(entry.id),
     )
     .map((entry) =>
@@ -1849,7 +2017,7 @@ test("record validation supports the legacy 1.0 contract and derives all summari
     code: "terminal_output_matches_schema_ok",
   })
   const legacyDomains = Object.fromEntries(
-    QUALIFICATION_DOMAINS.map((domain) => {
+    PRIOR_QUALIFICATION_DOMAINS.map((domain) => {
       const entries = legacyCases.filter((entry) => entry.domain === domain)
       return [
         domain,
@@ -1905,6 +2073,8 @@ test("record validation supports the superseded 1.1 contract", async () => {
           "invalid_schema_preflight",
           "cancel_buffered",
           "secret_rejected",
+          "read_search_only",
+          "write_tool_refused",
         ].includes(entry.id),
     )
     .concat({
@@ -1914,7 +2084,7 @@ test("record validation supports the superseded 1.1 contract", async () => {
       code: "terminal_output_matches_schema_ok",
     })
   const supersededDomains = Object.fromEntries(
-    QUALIFICATION_DOMAINS.map((domain) => {
+    PRIOR_QUALIFICATION_DOMAINS.map((domain) => {
       const entries = supersededCases.filter(
         (entry) => entry.domain === domain,
       )
@@ -1947,6 +2117,92 @@ test("record validation supports the superseded 1.1 contract", async () => {
   )
 })
 
+test("record validation supports the prior 1.2 contract and fences off the projection domain", async () => {
+  const directory = await workingDirectory()
+  const current = await runQualificationSuite(qualificationAdapter(), {
+    workingDirectory: directory,
+    generatedAt: GENERATED_AT,
+  })
+  const priorCases = current.cases.filter(
+    (entry) =>
+      entry.id !== "read_search_only" && entry.id !== "write_tool_refused",
+  )
+  const priorDomains = Object.fromEntries(
+    PRIOR_QUALIFICATION_DOMAINS.map((domain) => {
+      const entries = priorCases.filter((entry) => entry.domain === domain)
+      return [
+        domain,
+        {
+          passed: entries.filter((entry) => entry.passed).length,
+          failed: entries.filter((entry) => !entry.passed).length,
+        },
+      ]
+    }),
+  )
+  const prior = {
+    ...current,
+    kitVersion: "1.2.0",
+    cases: priorCases,
+    domains: priorDomains,
+    axes: {
+      implemented: true,
+      fixtureConformant: priorCases.every((entry) => entry.passed),
+      liveQualified: false,
+    },
+  }
+  assert.doesNotThrow(() => validateAdapterQualificationRecord(prior))
+  // A 1.2.0 record predates readonly_projection: carrying the domain in
+  // either the summary or the cases is a contract violation, and dropping
+  // the two projection cases from a 1.3.0 record is one too.
+  assert.throws(
+    () =>
+      validateAdapterQualificationRecord({
+        ...prior,
+        domains: {
+          ...priorDomains,
+          readonly_projection: { passed: 2, failed: 0 },
+        },
+      }),
+    (error: unknown) =>
+      error instanceof Error &&
+      error.message.includes("unknown qualification domain"),
+  )
+  assert.throws(() =>
+    validateAdapterQualificationRecord({
+      ...prior,
+      cases: [
+        ...priorCases,
+        {
+          domain: "readonly_projection",
+          id: "read_search_only",
+          passed: true,
+          code: "read_search_only_ok",
+        },
+      ],
+    }),
+  )
+  assert.throws(
+    () =>
+      validateAdapterQualificationRecord({ ...current, cases: priorCases }),
+    (error: unknown) =>
+      error instanceof Error &&
+      error.message.includes("kit 1.3.0 requires exactly 20 cases"),
+  )
+  assert.throws(
+    () =>
+      validateAdapterQualificationRecord({
+        ...current,
+        cases: priorCases.map((entry) => entry),
+        domains: priorDomains,
+      }),
+    (error: unknown) =>
+      error instanceof Error &&
+      error.message.includes(
+        "domain readonly_projection must report passed/failed counts",
+      ),
+  )
+})
+
 test("record validation rejects unknown kit versions", async () => {
   const directory = await workingDirectory()
   const record = await runQualificationSuite(qualificationAdapter(), {
@@ -1957,7 +2213,7 @@ test("record validation rejects unknown kit versions", async () => {
     () => validateAdapterQualificationRecord({ ...record, kitVersion: "2.0.0" }),
     (error: unknown) =>
       error instanceof Error &&
-      error.message.includes("1.0.0, 1.1.0 or 1.2.0"),
+      error.message.includes("1.0.0, 1.1.0, 1.2.0 or 1.3.0"),
   )
 })
 
@@ -1999,7 +2255,14 @@ test("the policy digest is deterministic across runs", async () => {
       filesystem: { read: ["."], write: [] },
       maxTurns: 4,
       network: { mode: "deny" },
-      tools: { default: "deny", allow: [{ name: "noop", mode: "read" }] },
+      tools: {
+        default: "deny",
+        allow: [
+          { name: "noop", mode: "read" },
+          { name: "read_file", mode: "read" },
+          { name: "search_workspace", mode: "read" },
+        ],
+      },
     }),
     first.policyDigest,
   )
@@ -2095,7 +2358,8 @@ function fakeStdioHost(options: StdioHostOptions = {}) {
         if (
           operation === "filesystem.write" ||
           operation === "network.connect" ||
-          operation === "mcp.invoke"
+          operation === "mcp.invoke" ||
+          operation === "projection.write_tool"
         ) {
           return [
             envelope({
@@ -2104,7 +2368,8 @@ function fakeStdioHost(options: StdioHostOptions = {}) {
               ok: false,
               error: {
                 code:
-                  operation === "filesystem.write"
+                  operation === "filesystem.write" ||
+                  operation === "projection.write_tool"
                     ? QUALIFICATION_FILESYSTEM_DENIAL_CODE
                     : operation === "network.connect"
                       ? QUALIFICATION_NETWORK_DENIAL_CODE
@@ -2179,6 +2444,40 @@ function fakeStdioHost(options: StdioHostOptions = {}) {
           }),
         )
         return lines
+      }
+      if (qualificationOperation(payload) === "projection.read_search") {
+        // The deterministic read-only projection: exactly the two allowed
+        // read tools run to completion before the terminal.
+        for (const [toolCallId, toolName] of [
+          ["call-projection-read", "read_file"],
+          ["call-projection-search", "search_workspace"],
+        ] as const) {
+          lines.push(
+            envelope({
+              id: request.id,
+              kind: "event",
+              event: {
+                type: "tool.started",
+                runId: payload.runId,
+                timestamp: STDIO_TIMESTAMP,
+                toolCallId,
+                toolName,
+              },
+            }),
+            envelope({
+              id: request.id,
+              kind: "event",
+              event: {
+                type: "tool.completed",
+                runId: payload.runId,
+                timestamp: STDIO_TIMESTAMP,
+                toolCallId,
+                toolName,
+                isError: false,
+              },
+            }),
+          )
+        }
       }
       const completed: Record<string, unknown> = {
         type: "run.completed",
@@ -2424,7 +2723,7 @@ test("the built-in stdio adapter earns the fixture axis offline through the vers
     fixtureConformant: true,
     liveQualified: false,
   }, JSON.stringify(record.cases.filter((entry) => !entry.passed)))
-  assert.equal(record.cases.length, 18)
+  assert.equal(record.cases.length, 20)
   assert.ok(record.cases.every((entry) => entry.passed))
   for (const domain of QUALIFICATION_DOMAINS) {
     assert.equal(record.domains[domain].failed, 0, domain)

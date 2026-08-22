@@ -16,6 +16,20 @@ verified archives; they do not rebuild them.
 4. Read the `release-status` job summary. A green run means every requested
    channel is complete.
 
+## Qualification evidence gate
+
+Every release run executes `npm run check`, which includes the Adapter
+qualification regression harness: the deterministic vector set re-runs
+against the reference stdio Host and the freshly earned
+`adapter-qualification-snapshot.v1` is compared against the committed
+baseline in `fixtures/qualification/snapshots/`. Any capability row that
+disappears or weakens since the baseline fails the release closed (#140).
+Cutting a release therefore includes publishing that release's snapshot as
+`fixtures/qualification/snapshots/vX.Y.Z.json` on main before tagging, so the
+next release compares against it. See
+[`adapter-qualification.md`](adapter-qualification.md#evidence-standard-and-per-release-snapshot)
+for the evidence standard the snapshot encodes.
+
 Registry authentication uses npm Trusted Publishing (GitHub OIDC). Do not add
 an `NPM_TOKEN` or `NODE_AUTH_TOKEN` repository secret.
 

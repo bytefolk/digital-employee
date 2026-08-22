@@ -19,7 +19,8 @@ import { CoreError } from "./contracts.js"
 export const ADAPTER_QUALIFICATION_SCHEMA_ID =
   "adapter-qualification-record.v1" as const
 
-export const ADAPTER_QUALIFICATION_KIT_VERSION = "1.2.0" as const
+export const ADAPTER_QUALIFICATION_KIT_VERSION = "1.3.0" as const
+export const PRIOR_ADAPTER_QUALIFICATION_KIT_VERSION = "1.2.0" as const
 export const SUPERSEDED_ADAPTER_QUALIFICATION_KIT_VERSION = "1.1.0" as const
 export const LEGACY_ADAPTER_QUALIFICATION_KIT_VERSION = "1.0.0" as const
 
@@ -41,7 +42,11 @@ export const QUALIFICATION_CAPABILITY_SOURCES = [
   "conformance_test",
 ] as const
 
-export const QUALIFICATION_DOMAINS = [
+/**
+ * Domains every kit version up to and including 1.2.0 qualifies. Kit 1.3.0
+ * adds the read/search-only projection surface on top of this frozen set.
+ */
+export const PRIOR_QUALIFICATION_DOMAINS = [
   "capability_negotiation",
   "native_event_validation",
   "single_terminal_outcome",
@@ -51,6 +56,11 @@ export const QUALIFICATION_DOMAINS = [
   "filesystem_network_enforcement",
   "tool_mcp_enforcement",
   "output_schema",
+] as const
+
+export const QUALIFICATION_DOMAINS = [
+  ...PRIOR_QUALIFICATION_DOMAINS,
+  "readonly_projection",
 ] as const
 
 export type QualificationDomain = (typeof QUALIFICATION_DOMAINS)[number]
@@ -83,7 +93,7 @@ const SUPERSEDED_QUALIFICATION_CASE_CONTRACT = [
   ["output_schema", "terminal_output_matches_schema"],
 ] as const satisfies readonly (readonly [QualificationDomain, string])[]
 
-const CURRENT_QUALIFICATION_CASE_CONTRACT = [
+const PRIOR_QUALIFICATION_CASE_CONTRACT = [
   ["capability_negotiation", "probe_contract"],
   ["native_event_validation", "events_well_formed"],
   ["single_terminal_outcome", "exactly_one_terminal"],
@@ -104,10 +114,63 @@ const CURRENT_QUALIFICATION_CASE_CONTRACT = [
   ["output_schema", "secret_rejected"],
 ] as const satisfies readonly (readonly [QualificationDomain, string])[]
 
+const CURRENT_QUALIFICATION_CASE_CONTRACT = [
+  ...PRIOR_QUALIFICATION_CASE_CONTRACT,
+  ["readonly_projection", "read_search_only"],
+  ["readonly_projection", "write_tool_refused"],
+] as const satisfies readonly (readonly [QualificationDomain, string])[]
+
 export type AdapterQualificationKitVersion =
   | typeof LEGACY_ADAPTER_QUALIFICATION_KIT_VERSION
   | typeof SUPERSEDED_ADAPTER_QUALIFICATION_KIT_VERSION
+  | typeof PRIOR_ADAPTER_QUALIFICATION_KIT_VERSION
   | typeof ADAPTER_QUALIFICATION_KIT_VERSION
+
+const QUALIFICATION_KIT_VERSION_SET = new Set<string>([
+  LEGACY_ADAPTER_QUALIFICATION_KIT_VERSION,
+  SUPERSEDED_ADAPTER_QUALIFICATION_KIT_VERSION,
+  PRIOR_ADAPTER_QUALIFICATION_KIT_VERSION,
+  ADAPTER_QUALIFICATION_KIT_VERSION,
+])
+
+/**
+ * The frozen deterministic fixture corpus for one published kit version: the
+ * exact ordered [domain, case] pairs a record written under that version must
+ * carry. Unknown versions fail closed. Downstream verifiers use this to
+ * recompute the corpus digest of a claim instead of trusting prose.
+ */
+export function qualificationKitCaseContract(
+  version: AdapterQualificationKitVersion,
+): readonly (readonly [QualificationDomain, string])[] {
+  switch (version) {
+    case LEGACY_ADAPTER_QUALIFICATION_KIT_VERSION:
+      return LEGACY_QUALIFICATION_CASE_CONTRACT
+    case SUPERSEDED_ADAPTER_QUALIFICATION_KIT_VERSION:
+      return SUPERSEDED_QUALIFICATION_CASE_CONTRACT
+    case PRIOR_ADAPTER_QUALIFICATION_KIT_VERSION:
+      return PRIOR_QUALIFICATION_CASE_CONTRACT
+    case ADAPTER_QUALIFICATION_KIT_VERSION:
+      return CURRENT_QUALIFICATION_CASE_CONTRACT
+    default:
+      throw qualificationError(
+        "INVALID_QUALIFICATION_RECORD",
+        `kitVersion must be ${LEGACY_ADAPTER_QUALIFICATION_KIT_VERSION}, ${SUPERSEDED_ADAPTER_QUALIFICATION_KIT_VERSION}, ${PRIOR_ADAPTER_QUALIFICATION_KIT_VERSION} or ${ADAPTER_QUALIFICATION_KIT_VERSION}`,
+      )
+  }
+}
+
+/**
+ * The domains a kit version qualifies. Records written before kit 1.3.0
+ * predate the read/search-only projection and must neither carry nor require
+ * the readonly_projection domain.
+ */
+export function qualificationKitDomains(
+  version: AdapterQualificationKitVersion,
+): readonly QualificationDomain[] {
+  return version === ADAPTER_QUALIFICATION_KIT_VERSION
+    ? QUALIFICATION_DOMAINS
+    : PRIOR_QUALIFICATION_DOMAINS
+}
 
 export type QualificationDriverOperation =
   | {
@@ -133,6 +196,8 @@ export type QualificationDriverOperation =
       scenario: QualificationOutputSchemaEmitScenario
     }
   | { kind: "output_schema.buffer_until_cancel" }
+  | { kind: "projection.read_search" }
+  | { kind: "projection.write_tool" }
 
 export type QualificationDriverMetadata = {
   schema: typeof ADAPTER_QUALIFICATION_DRIVER_SCHEMA_ID
@@ -273,9 +338,31 @@ export function canonicalPolicyDigest(policy: AgentHostPolicy): string {
   return createHash("sha256").update(canonicalJson(policy)).digest("hex")
 }
 
+/**
+ * Digest of the deterministic fixture corpus behind one kit version: sha256
+ * over the canonical JSON encoding of the frozen [domain, case] contract, in
+ * declared order. A capability claim earns this digest only by passing every
+ * case in the named corpus; recomputing it from the kit version lets a
+ * verifier detect corpus tampering without trusting the claimant.
+ */
+export function qualificationFixtureCorpusDigest(
+  version: AdapterQualificationKitVersion,
+): string {
+  return createHash("sha256")
+    .update(canonicalJson(qualificationKitCaseContract(version)))
+    .digest("hex")
+}
+
 function defaultQualificationPolicy(): AgentHostPolicy {
   return {
-    tools: { default: "deny", allow: [{ name: "noop", mode: "read" }] },
+    tools: {
+      default: "deny",
+      allow: [
+        { name: "noop", mode: "read" },
+        { name: "read_file", mode: "read" },
+        { name: "search_workspace", mode: "read" },
+      ],
+    },
     filesystem: { read: ["."], write: [] },
     network: { mode: "deny" },
     approval: { mode: "never" },
@@ -1233,6 +1320,185 @@ async function runToolCase(
     "tool_allowlist_respected",
     !violation,
     violation ? "disallowed_tool_event" : "tool_allowlist_respected_ok",
+  )
+}
+
+/**
+ * The read-only projection tool surface qualified by the readonly_projection
+ * domain. The positive vector must exercise both tools; any other tool event —
+ * and any executed write — fails the domain closed.
+ */
+export const READONLY_PROJECTION_TOOL_NAMES = [
+  "read_file",
+  "search_workspace",
+] as const
+
+function projectionToolEvents(
+  events: AgentHostEvent[],
+): Array<{ type: string; toolName: string }> {
+  const collected: Array<{ type: string; toolName: string }> = []
+  for (const event of events) {
+    const record = eventRecord(event)
+    if (record?.type !== "tool.started" && record?.type !== "tool.completed") {
+      continue
+    }
+    collected.push({ type: record.type, toolName: String(record.toolName) })
+  }
+  return collected
+}
+
+async function runReadSearchOnlyCase(
+  adapter: AgentHostAdapter,
+  workingDirectory: string,
+  policy: AgentHostPolicy,
+  context: QualificationCaseContext,
+): Promise<QualificationCaseResult> {
+  const caseId = "read_search_only"
+  const request = qualificationRequest(
+    adapter,
+    `projection_${caseId}`,
+    workingDirectory,
+    policy,
+    context,
+    {
+      prompt:
+        "project the workspace through the read-only tools; every tool event must stay within read_file and search_workspace",
+      metadata: qualificationDriverMetadata({
+        kind: "projection.read_search",
+      }),
+    },
+  )
+  const collected = await collectEvents(adapter, request, context)
+  if (collected.failed) {
+    return caseResult(
+      "readonly_projection",
+      caseId,
+      false,
+      collected.overflow
+        ? "qualification_event_overflow"
+        : `${caseId}_path_unavailable`,
+    )
+  }
+  const terminals = collected.events.filter(isTerminal)
+  const terminal = terminals[0]
+  if (
+    terminals.length !== 1 ||
+    eventType(terminal) !== "run.completed" ||
+    collected.events.at(-1) !== terminal
+  ) {
+    return caseResult(
+      "readonly_projection",
+      caseId,
+      false,
+      terminals.length === 0
+        ? `${caseId}_missing_terminal`
+        : terminals.length > 1
+          ? `${caseId}_duplicate_terminal`
+          : eventType(terminal) === "run.failed"
+            ? `${caseId}_failed_terminal`
+            : `${caseId}_event_after_terminal`,
+    )
+  }
+  const allowed = new Set<string>(READONLY_PROJECTION_TOOL_NAMES)
+  const exercised = new Set<string>()
+  for (const toolEvent of projectionToolEvents(collected.events)) {
+    if (!allowed.has(toolEvent.toolName)) {
+      return caseResult(
+        "readonly_projection",
+        caseId,
+        false,
+        `${caseId}_tool_violation`,
+      )
+    }
+    exercised.add(toolEvent.toolName)
+  }
+  const passed = READONLY_PROJECTION_TOOL_NAMES.every((name) =>
+    exercised.has(name),
+  )
+  return caseResult(
+    "readonly_projection",
+    caseId,
+    passed,
+    passed ? `${caseId}_ok` : `${caseId}_read_tool_missing`,
+  )
+}
+
+async function runWriteToolRefusedCase(
+  adapter: AgentHostAdapter,
+  workingDirectory: string,
+  policy: AgentHostPolicy,
+  context: QualificationCaseContext,
+): Promise<QualificationCaseResult> {
+  const caseId = "write_tool_refused"
+  const request = qualificationRequest(
+    adapter,
+    `projection_${caseId}`,
+    workingDirectory,
+    policy,
+    context,
+    {
+      prompt:
+        "attempt one write through the workspace projection; the read-only projection must deny it",
+      metadata: qualificationDriverMetadata({
+        kind: "projection.write_tool",
+      }),
+    },
+  )
+  try {
+    await adapter.preflight(request)
+  } catch (error) {
+    context.scanner.observe(error)
+    const refused =
+      !context.scanner.incomplete &&
+      qualificationPolicyDenialMatches(
+        error,
+        QUALIFICATION_FILESYSTEM_DENIAL_CODE,
+      )
+    return caseResult(
+      "readonly_projection",
+      caseId,
+      refused,
+      refused ? `${caseId}_ok` : "write_tool_policy_evidence_invalid",
+    )
+  }
+  const collected = await collectEvents(adapter, request, context)
+  if (collected.failed) {
+    return caseResult(
+      "readonly_projection",
+      caseId,
+      false,
+      collected.overflow
+        ? "qualification_event_overflow"
+        : "write_tool_case_unavailable",
+    )
+  }
+  const terminals = collected.events.filter(isTerminal)
+  const terminal = terminals[0]
+  const terminalRecord = terminal ? eventRecord(terminal) : undefined
+  const terminalError = eventRecord(terminalRecord?.error)
+  // A refused write must never even start: any tool event proves the
+  // projection executed past the read-only boundary.
+  const writeExecuted = projectionToolEvents(collected.events).length > 0
+  const refused =
+    collected.events.length >= 2 &&
+    eventType(collected.events[0]) === "run.started" &&
+    terminals.length === 1 &&
+    eventType(terminal) === "run.failed" &&
+    collected.events.at(-1) === terminal &&
+    terminalError?.code === QUALIFICATION_FILESYSTEM_DENIAL_CODE &&
+    terminalError.retryable === false &&
+    !writeExecuted
+  return caseResult(
+    "readonly_projection",
+    caseId,
+    refused,
+    refused
+      ? `${caseId}_ok`
+      : writeExecuted
+        ? "write_tool_executed"
+        : terminal && eventType(terminal) === "run.completed"
+          ? "write_tool_accepted"
+          : "write_tool_policy_evidence_invalid",
   )
 }
 
@@ -2199,6 +2465,34 @@ export async function runQualificationSuite(
         ),
     ),
   )
+  cases.push(
+    await runBoundedCase(
+      caseTimeoutMs,
+      scanner,
+      caseTimeoutResult("readonly_projection", "read_search_only"),
+      (context) =>
+        runReadSearchOnlyCase(
+          adapter,
+          options.workingDirectory,
+          policy,
+          context,
+        ),
+    ),
+  )
+  cases.push(
+    await runBoundedCase(
+      caseTimeoutMs,
+      scanner,
+      caseTimeoutResult("readonly_projection", "write_tool_refused"),
+      (context) =>
+        runWriteToolRefusedCase(
+          adapter,
+          options.workingDirectory,
+          policy,
+          context,
+        ),
+    ),
+  )
 
   if (scanner.detected || scanner.incomplete) {
     const credentialIndex = cases.findIndex(
@@ -2368,18 +2662,13 @@ export function validateAdapterQualificationRecord(
       "policyDigest must be a sha256 hex digest",
     )
   }
-  const knownKitVersions = new Set<string>([
-    LEGACY_ADAPTER_QUALIFICATION_KIT_VERSION,
-    SUPERSEDED_ADAPTER_QUALIFICATION_KIT_VERSION,
-    ADAPTER_QUALIFICATION_KIT_VERSION,
-  ])
   if (
     typeof record.kitVersion !== "string" ||
-    !knownKitVersions.has(record.kitVersion)
+    !QUALIFICATION_KIT_VERSION_SET.has(record.kitVersion)
   ) {
     throw qualificationError(
       "INVALID_QUALIFICATION_RECORD",
-      `kitVersion must be ${LEGACY_ADAPTER_QUALIFICATION_KIT_VERSION}, ${SUPERSEDED_ADAPTER_QUALIFICATION_KIT_VERSION} or ${ADAPTER_QUALIFICATION_KIT_VERSION}`,
+      `kitVersion must be ${LEGACY_ADAPTER_QUALIFICATION_KIT_VERSION}, ${SUPERSEDED_ADAPTER_QUALIFICATION_KIT_VERSION}, ${PRIOR_ADAPTER_QUALIFICATION_KIT_VERSION} or ${ADAPTER_QUALIFICATION_KIT_VERSION}`,
     )
   }
   if (
@@ -2391,6 +2680,11 @@ export function validateAdapterQualificationRecord(
       "generatedAt must be an ISO-8601 UTC timestamp",
     )
   }
+  // Domain coverage is versioned: records written before kit 1.3.0 predate
+  // the readonly_projection domain and must neither carry nor require it.
+  const versionDomains: readonly string[] = qualificationKitDomains(
+    record.kitVersion as AdapterQualificationKitVersion,
+  )
 
   const axes = record.axes as Record<string, unknown> | undefined
   if (
@@ -2455,14 +2749,14 @@ export function validateAdapterQualificationRecord(
     )
   }
   for (const key of Object.keys(domains)) {
-    if (!(QUALIFICATION_DOMAINS as readonly string[]).includes(key)) {
+    if (!versionDomains.includes(key)) {
       throw qualificationError(
         "INVALID_QUALIFICATION_RECORD",
         `unknown qualification domain: ${key}`,
       )
     }
   }
-  for (const domain of QUALIFICATION_DOMAINS) {
+  for (const domain of versionDomains) {
     const entry = domains[domain] as Record<string, unknown> | undefined
     if (
       !entry ||
@@ -2489,12 +2783,9 @@ export function validateAdapterQualificationRecord(
       "cases must be a non-empty array",
     )
   }
-  const expectedContract =
-    record.kitVersion === LEGACY_ADAPTER_QUALIFICATION_KIT_VERSION
-      ? LEGACY_QUALIFICATION_CASE_CONTRACT
-      : record.kitVersion === SUPERSEDED_ADAPTER_QUALIFICATION_KIT_VERSION
-        ? SUPERSEDED_QUALIFICATION_CASE_CONTRACT
-        : CURRENT_QUALIFICATION_CASE_CONTRACT
+  const expectedContract = qualificationKitCaseContract(
+    record.kitVersion as AdapterQualificationKitVersion,
+  )
   if (record.cases.length !== expectedContract.length) {
     throw qualificationError(
       "INVALID_QUALIFICATION_RECORD",
@@ -2526,7 +2817,7 @@ export function validateAdapterQualificationRecord(
     }
     if (
       typeof entry.domain !== "string" ||
-      !(QUALIFICATION_DOMAINS as readonly string[]).includes(entry.domain)
+      !versionDomains.includes(entry.domain)
     ) {
       throw qualificationError(
         "INVALID_QUALIFICATION_RECORD",
@@ -2570,7 +2861,7 @@ export function validateAdapterQualificationRecord(
     seenDomains.add(entry.domain)
     seenCases.add(entry.id)
   }
-  for (const domain of QUALIFICATION_DOMAINS) {
+  for (const domain of versionDomains) {
     if (!seenDomains.has(domain)) {
       throw qualificationError(
         "INVALID_QUALIFICATION_RECORD",
@@ -2579,7 +2870,7 @@ export function validateAdapterQualificationRecord(
     }
   }
   const typedCases = record.cases as QualificationCaseResult[]
-  for (const domain of QUALIFICATION_DOMAINS) {
+  for (const domain of versionDomains) {
     const domainCases = typedCases.filter((entry) => entry.domain === domain)
     const expectedPassed = domainCases.filter((entry) => entry.passed).length
     const expectedFailed = domainCases.length - expectedPassed
@@ -2610,4 +2901,416 @@ export function validateAdapterQualificationRecord(
     )
   }
   return value as AdapterQualificationRecord
+}
+
+// ---------------------------------------------------------------------------
+// Per-release qualification snapshot (issue #140)
+//
+// The capability evidence standard in machine-readable form. Every claim
+// carries the exact Host version, the deterministic fixture (kit) version,
+// the fixture-corpus digest, and the fixtureConformant vs liveQualified
+// boundary, so downstream selection can verify claims without trusting
+// prose. The release regression harness re-runs the vector set, republishes
+// the current snapshot, and fails closed when any earned evidence disappears
+// or weakens against the baseline snapshot.
+// ---------------------------------------------------------------------------
+
+export const ADAPTER_QUALIFICATION_SNAPSHOT_SCHEMA_ID =
+  "adapter-qualification-snapshot.v1" as const
+
+const STABLE_RELEASE_PATTERN = /^\d+\.\d+\.\d+$/
+
+export type QualificationSnapshotDomainStatus = "supported" | "unsupported"
+
+export interface QualificationSnapshotDomainRow {
+  domain: QualificationDomain
+  status: QualificationSnapshotDomainStatus
+  passed: number
+  failed: number
+}
+
+export interface AdapterQualificationSnapshot {
+  schema: typeof ADAPTER_QUALIFICATION_SNAPSHOT_SCHEMA_ID
+  /** Stable x.y.z release this snapshot publishes evidence for. */
+  release: string
+  hostId: string
+  /** Exact Host version the evidence was earned against. */
+  hostVersion: string
+  /** Deterministic fixture (qualification kit) version. */
+  kitVersion: AdapterQualificationKitVersion
+  /** sha256 of the kit's frozen [domain, case] corpus contract. */
+  fixtureCorpusDigest: string
+  generatedAt: string
+  /** The fixtureConformant vs liveQualified evidence boundary. */
+  axes: QualificationAxes
+  /** One row per domain of the kit version's corpus; no more, no fewer. */
+  domains: QualificationSnapshotDomainRow[]
+}
+
+function snapshotDomainStatus(
+  passed: number,
+  failed: number,
+): QualificationSnapshotDomainStatus {
+  return failed === 0 && passed > 0 ? "supported" : "unsupported"
+}
+
+/**
+ * Derive the per-release snapshot from a qualification record. The record is
+ * revalidated first and the derived snapshot is validated before returning;
+ * an incoherent claim can never be published through this path.
+ */
+export function createQualificationSnapshot(
+  record: AdapterQualificationRecord,
+  options: { release: string },
+): AdapterQualificationSnapshot {
+  const validated = validateAdapterQualificationRecord(record)
+  if (
+    !options ||
+    typeof options.release !== "string" ||
+    !STABLE_RELEASE_PATTERN.test(options.release)
+  ) {
+    throw qualificationError(
+      "INVALID_QUALIFICATION_SNAPSHOT",
+      "release must be a stable x.y.z version",
+    )
+  }
+  const kitVersion = validated.kitVersion
+  const domains: QualificationSnapshotDomainRow[] = qualificationKitDomains(
+    kitVersion,
+  ).map((domain) => {
+    const summary = validated.domains[domain]
+    return {
+      domain,
+      status: snapshotDomainStatus(summary.passed, summary.failed),
+      passed: summary.passed,
+      failed: summary.failed,
+    }
+  })
+  return validateAdapterQualificationSnapshot({
+    schema: ADAPTER_QUALIFICATION_SNAPSHOT_SCHEMA_ID,
+    release: options.release,
+    hostId: validated.hostId,
+    hostVersion: validated.hostVersion,
+    kitVersion,
+    fixtureCorpusDigest: qualificationFixtureCorpusDigest(kitVersion),
+    generatedAt: validated.generatedAt,
+    axes: { ...validated.axes },
+    domains,
+  })
+}
+
+/**
+ * Validate a capability evidence claim against the standard. A claim missing
+ * any required field — exact Host version, deterministic fixture version,
+ * corpus digest, or the evidence boundary axes — is rejected, as is any
+ * claim whose digest, domain rows, or counts do not match the named kit
+ * corpus. Validation never trusts the claimant: the corpus digest is
+ * recomputed from the frozen contract.
+ */
+export function validateAdapterQualificationSnapshot(
+  value: unknown,
+): AdapterQualificationSnapshot {
+  const evidenceScanner = new QualificationSentinelScanner()
+  evidenceScanner.observe(value)
+  if (evidenceScanner.detected) {
+    throw qualificationError(
+      "QUALIFICATION_EVIDENCE_SECRET_DETECTED",
+      "qualification evidence contained the credential sentinel",
+    )
+  }
+  if (evidenceScanner.incomplete) {
+    throw qualificationError(
+      "QUALIFICATION_EVIDENCE_SCAN_INCOMPLETE",
+      "qualification evidence could not be scanned completely",
+    )
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw qualificationError(
+      "INVALID_QUALIFICATION_SNAPSHOT",
+      "qualification snapshot must be an object",
+    )
+  }
+  const snapshot = value as Record<string, unknown>
+  const allowed = new Set([
+    "schema",
+    "release",
+    "hostId",
+    "hostVersion",
+    "kitVersion",
+    "fixtureCorpusDigest",
+    "generatedAt",
+    "axes",
+    "domains",
+  ])
+  for (const key of Object.keys(snapshot)) {
+    if (!allowed.has(key)) {
+      throw qualificationError(
+        "INVALID_QUALIFICATION_SNAPSHOT",
+        `unknown qualification snapshot field: ${key}`,
+      )
+    }
+  }
+  if (snapshot.schema !== ADAPTER_QUALIFICATION_SNAPSHOT_SCHEMA_ID) {
+    throw qualificationError(
+      "INVALID_QUALIFICATION_SNAPSHOT",
+      `schema must be ${ADAPTER_QUALIFICATION_SNAPSHOT_SCHEMA_ID}`,
+    )
+  }
+  if (
+    typeof snapshot.release !== "string" ||
+    !STABLE_RELEASE_PATTERN.test(snapshot.release)
+  ) {
+    throw qualificationError(
+      "INVALID_QUALIFICATION_SNAPSHOT",
+      "release must be a stable x.y.z version",
+    )
+  }
+  if (
+    typeof snapshot.hostId !== "string" ||
+    !HOST_ID_PATTERN.test(snapshot.hostId)
+  ) {
+    throw qualificationError(
+      "INVALID_QUALIFICATION_SNAPSHOT",
+      "hostId must be a lowercase host identifier",
+    )
+  }
+  if (!validHostVersion(snapshot.hostVersion)) {
+    throw qualificationError(
+      "INVALID_QUALIFICATION_SNAPSHOT",
+      "a capability claim must carry the exact Host version",
+    )
+  }
+  if (
+    typeof snapshot.kitVersion !== "string" ||
+    !QUALIFICATION_KIT_VERSION_SET.has(snapshot.kitVersion)
+  ) {
+    throw qualificationError(
+      "INVALID_QUALIFICATION_SNAPSHOT",
+      "a capability claim must carry a known deterministic fixture (kit) version",
+    )
+  }
+  const kitVersion = snapshot.kitVersion as AdapterQualificationKitVersion
+  if (
+    typeof snapshot.fixtureCorpusDigest !== "string" ||
+    !HEX_64_PATTERN.test(snapshot.fixtureCorpusDigest)
+  ) {
+    throw qualificationError(
+      "INVALID_QUALIFICATION_SNAPSHOT",
+      "a capability claim must carry the fixture-corpus sha256 digest",
+    )
+  }
+  if (
+    snapshot.fixtureCorpusDigest !== qualificationFixtureCorpusDigest(kitVersion)
+  ) {
+    throw qualificationError(
+      "INVALID_QUALIFICATION_SNAPSHOT",
+      `fixtureCorpusDigest does not match the kit ${kitVersion} corpus contract`,
+    )
+  }
+  if (
+    typeof snapshot.generatedAt !== "string" ||
+    !ISO_PATTERN.test(snapshot.generatedAt)
+  ) {
+    throw qualificationError(
+      "INVALID_QUALIFICATION_SNAPSHOT",
+      "generatedAt must be an ISO-8601 UTC timestamp",
+    )
+  }
+  const axes = snapshot.axes as Record<string, unknown> | undefined
+  if (
+    !axes ||
+    typeof axes !== "object" ||
+    Array.isArray(axes) ||
+    Object.keys(axes).some(
+      (key) =>
+        key !== "implemented" &&
+        key !== "fixtureConformant" &&
+        key !== "liveQualified",
+    ) ||
+    typeof axes.implemented !== "boolean" ||
+    typeof axes.fixtureConformant !== "boolean" ||
+    typeof axes.liveQualified !== "boolean"
+  ) {
+    throw qualificationError(
+      "INVALID_QUALIFICATION_SNAPSHOT",
+      "a capability claim must carry the fixtureConformant/liveQualified boundary axes",
+    )
+  }
+  if (!Array.isArray(snapshot.domains) || snapshot.domains.length === 0) {
+    throw qualificationError(
+      "INVALID_QUALIFICATION_SNAPSHOT",
+      "domains must be a non-empty array",
+    )
+  }
+  const versionDomains = qualificationKitDomains(kitVersion)
+  const corpusCounts = new Map<string, number>()
+  for (const [domain] of qualificationKitCaseContract(kitVersion)) {
+    corpusCounts.set(domain, (corpusCounts.get(domain) ?? 0) + 1)
+  }
+  const seenDomains = new Set<string>()
+  for (const entry of snapshot.domains as Array<Record<string, unknown>>) {
+    if (
+      !entry ||
+      typeof entry !== "object" ||
+      Array.isArray(entry) ||
+      Object.keys(entry).some(
+        (key) =>
+          key !== "domain" &&
+          key !== "status" &&
+          key !== "passed" &&
+          key !== "failed",
+      )
+    ) {
+      throw qualificationError(
+        "INVALID_QUALIFICATION_SNAPSHOT",
+        "qualification snapshot rows must carry exactly domain, status, passed and failed",
+      )
+    }
+    if (
+      typeof entry.domain !== "string" ||
+      !(versionDomains as readonly string[]).includes(entry.domain)
+    ) {
+      throw qualificationError(
+        "INVALID_QUALIFICATION_SNAPSHOT",
+        `unknown qualification domain for kit ${kitVersion}: ${String(entry.domain)}`,
+      )
+    }
+    if (seenDomains.has(entry.domain)) {
+      throw qualificationError(
+        "INVALID_QUALIFICATION_SNAPSHOT",
+        `duplicate qualification domain row: ${entry.domain}`,
+      )
+    }
+    seenDomains.add(entry.domain)
+    if (entry.status !== "supported" && entry.status !== "unsupported") {
+      throw qualificationError(
+        "INVALID_QUALIFICATION_SNAPSHOT",
+        `domain ${entry.domain} status must be supported or unsupported`,
+      )
+    }
+    if (
+      typeof entry.passed !== "number" ||
+      !Number.isSafeInteger(entry.passed) ||
+      entry.passed < 0 ||
+      typeof entry.failed !== "number" ||
+      !Number.isSafeInteger(entry.failed) ||
+      entry.failed < 0
+    ) {
+      throw qualificationError(
+        "INVALID_QUALIFICATION_SNAPSHOT",
+        `domain ${entry.domain} must report non-negative passed/failed counts`,
+      )
+    }
+    if (entry.passed + entry.failed !== corpusCounts.get(entry.domain)) {
+      throw qualificationError(
+        "INVALID_QUALIFICATION_SNAPSHOT",
+        `domain ${entry.domain} must account for every case in the kit ${kitVersion} corpus`,
+      )
+    }
+    if (entry.status !== snapshotDomainStatus(entry.passed, entry.failed)) {
+      throw qualificationError(
+        "INVALID_QUALIFICATION_SNAPSHOT",
+        `domain ${entry.domain} status does not match its passed/failed counts`,
+      )
+    }
+  }
+  for (const domain of versionDomains) {
+    if (!seenDomains.has(domain)) {
+      throw qualificationError(
+        "INVALID_QUALIFICATION_SNAPSHOT",
+        `missing qualification domain row: ${domain}`,
+      )
+    }
+  }
+  const typedRows = snapshot.domains as QualificationSnapshotDomainRow[]
+  const negotiationRow = typedRows.find(
+    (row) => row.domain === "capability_negotiation",
+  )
+  const expectedImplemented = negotiationRow?.status === "supported"
+  const expectedFixtureConformant =
+    expectedImplemented &&
+    typedRows.every((row) => row.status === "supported")
+  if (
+    axes.implemented !== expectedImplemented ||
+    axes.fixtureConformant !== expectedFixtureConformant
+  ) {
+    throw qualificationError(
+      "INVALID_QUALIFICATION_SNAPSHOT",
+      "evidence axes do not match the derived domain state",
+    )
+  }
+  return value as AdapterQualificationSnapshot
+}
+
+function compareKitVersions(left: string, right: string): number {
+  const a = left.split(".").map(Number)
+  const b = right.split(".").map(Number)
+  for (let index = 0; index < 3; index += 1) {
+    if (a[index] !== b[index]) return a[index] < b[index] ? -1 : 1
+  }
+  return 0
+}
+
+/**
+ * The release regression harness comparison. Both snapshots are revalidated
+ * (malformed evidence fails closed) and every capability row earned in the
+ * baseline must survive in the current snapshot: the exact Host version and
+ * kit version may only advance, no evidence axis may flip from true to
+ * false, no domain row may disappear, and no earned count may shrink. New or
+ * strengthened evidence is always allowed. Returns the machine-readable
+ * regression codes; an empty list means the release gate is green.
+ */
+export function compareQualificationSnapshots(
+  baseline: unknown,
+  current: unknown,
+): string[] {
+  const base = validateAdapterQualificationSnapshot(baseline)
+  const next = validateAdapterQualificationSnapshot(current)
+  const regressions: string[] = []
+  if (base.hostId !== next.hostId) {
+    regressions.push(`host_identity_changed:${base.hostId}->${next.hostId}`)
+  }
+  if (base.hostVersion !== next.hostVersion) {
+    regressions.push(
+      `host_version_drifted:${base.hostVersion}->${next.hostVersion}`,
+    )
+  }
+  if (compareKitVersions(next.kitVersion, base.kitVersion) < 0) {
+    regressions.push(
+      `kit_version_regressed:${base.kitVersion}->${next.kitVersion}`,
+    )
+  }
+  for (const axis of [
+    "implemented",
+    "fixtureConformant",
+    "liveQualified",
+  ] as const) {
+    if (base.axes[axis] && !next.axes[axis]) {
+      regressions.push(`evidence_axis_weakened:${axis}`)
+    }
+  }
+  const nextRows = new Map(next.domains.map((row) => [row.domain, row]))
+  for (const baseRow of base.domains) {
+    const nextRow = nextRows.get(baseRow.domain)
+    if (!nextRow) {
+      regressions.push(`capability_row_disappeared:${baseRow.domain}`)
+      continue
+    }
+    if (baseRow.status === "supported" && nextRow.status !== "supported") {
+      regressions.push(
+        `capability_row_weakened:${baseRow.domain}:supported->${nextRow.status}`,
+      )
+    }
+    if (nextRow.passed < baseRow.passed) {
+      regressions.push(
+        `evidence_count_shrunk:${baseRow.domain}:${baseRow.passed}->${nextRow.passed}`,
+      )
+    }
+    if (nextRow.failed > baseRow.failed) {
+      regressions.push(
+        `failure_count_grew:${baseRow.domain}:${baseRow.failed}->${nextRow.failed}`,
+      )
+    }
+  }
+  return regressions
 }

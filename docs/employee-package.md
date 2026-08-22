@@ -23,8 +23,8 @@ node ./dist/apps/cli/bin.js eval ../team-answer
 node ./dist/apps/cli/bin.js doctor
 ```
 
-After an Agent-native `0.2.0` or later release is actually published, the
-equivalent global commands will be:
+With the published `0.4.0` npm package installed globally, the equivalent
+commands are:
 
 ```bash
 digital-employee init ./team-answer --recipe minimal-answer.v1 --author your-team
@@ -116,6 +116,18 @@ optional approved local material; large or private knowledge should stay in an
 authorized external system rather than be published in the package. Every
 local file made available to a run must also be listed explicitly in `assets`;
 policy globs grant a maximum scope but never discover package files.
+
+## Knowledge source quality bar
+
+Any knowledge a package declares — in-package `knowledge/` material or an
+external source reached through a connector or MCP capability — must meet the
+[knowledge source quality bar](knowledge/knowledge-source-quality-bar.md):
+explicit read-only scope, named provenance and approval status, and a freshness
+story (a pinned revision, or a last-verified date under the shared review
+cadence). Shared assets that live outside the package follow the
+[knowledge asset convention](knowledge/asset-convention.md), including its
+public-safe boundary: credentials, tenant or account identifiers, internal
+URLs, and generated private indexes are never package content.
 
 ## Built-in recipes
 
@@ -232,7 +244,7 @@ The runnable version gates are Qoder CLI 1.1.x, Claude Code
 `>=2.1.214 <2.2.0`, Qwen Code exactly `0.17.1` and CodeBuddy Code exactly
 `2.106.4`; unverified versions fail closed. Codex exposes only an installation
 probe and documentation-derived capability data. Its `tool_allowlist` remains
-`unknown` because Codex CLI 0.146.0 cannot reliably remove every model-visible
+`unknown` because Codex CLI 0.148.0 cannot reliably remove every model-visible
 built-in tool, notably `apply_patch`; a package requiring the default-deny tool
 boundary is rejected even when the filesystem policy is read-only.
 

@@ -206,7 +206,7 @@ identity checks apply before launch as well as during execution. The final
 result must pass the employee output Schema. These fixtures are not a reusable
 third-party certification harness; live model entitlement has not been tested.
 
-Codex remains probe-only. Codex CLI 0.146.0 cannot reliably remove every
+Codex remains probe-only. Codex CLI 0.148.0 cannot reliably remove every
 model-visible built-in tool: disabling shell and unified execution still leaves
 paths such as `apply_patch`. Consequently it cannot claim the required
 default-deny `tool_allowlist`, even with a read-only filesystem policy.

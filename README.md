@@ -244,6 +244,7 @@ repository is not a hosted marketplace or a second Agent loop.
 - [Architecture](docs/architecture.md)
 - [Strategy](docs/strategy.md) and [roadmap](docs/roadmap.md)
 - [Verification](docs/verification.md) and [release process](docs/releasing.md)
+- [Knowledge asset convention](docs/knowledge/asset-convention.md) and [knowledge source quality bar](docs/knowledge/knowledge-source-quality-bar.md)
 - [Security policy](SECURITY.md)
 
 ## Community and support

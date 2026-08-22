@@ -117,6 +117,18 @@ authorized external system rather than be published in the package. Every
 local file made available to a run must also be listed explicitly in `assets`;
 policy globs grant a maximum scope but never discover package files.
 
+## Knowledge source quality bar
+
+Any knowledge a package declares — in-package `knowledge/` material or an
+external source reached through a connector or MCP capability — must meet the
+[knowledge source quality bar](knowledge/knowledge-source-quality-bar.md):
+explicit read-only scope, named provenance and approval status, and a freshness
+story (a pinned revision, or a last-verified date under the shared review
+cadence). Shared assets that live outside the package follow the
+[knowledge asset convention](knowledge/asset-convention.md), including its
+public-safe boundary: credentials, tenant or account identifiers, internal
+URLs, and generated private indexes are never package content.
+
 ## Built-in recipes
 
 The checked-in recipe packages live under `examples/recipes/` and are copied

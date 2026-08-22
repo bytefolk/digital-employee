@@ -1,0 +1,70 @@
+{
+  "schema": "adapter-qualification-snapshot.v1",
+  "release": "0.4.0",
+  "hostId": "reference-stdio-host",
+  "hostVersion": "1.0.0",
+  "kitVersion": "1.1.0",
+  "fixtureCorpusDigest": "a8d014419eab6a8efac8507b5307191f2161ea685171b813d7c673bb862ff106",
+  "generatedAt": "2026-08-16T00:00:00Z",
+  "axes": {
+    "implemented": true,
+    "fixtureConformant": true,
+    "liveQualified": false
+  },
+  "domains": [
+    {
+      "domain": "capability_negotiation",
+      "status": "supported",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "domain": "native_event_validation",
+      "status": "supported",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "domain": "single_terminal_outcome",
+      "status": "supported",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "domain": "deadline_cancel",
+      "status": "supported",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "domain": "process_tree_cleanup",
+      "status": "supported",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "domain": "credential_boundaries",
+      "status": "supported",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "domain": "filesystem_network_enforcement",
+      "status": "supported",
+      "passed": 2,
+      "failed": 0
+    },
+    {
+      "domain": "tool_mcp_enforcement",
+      "status": "supported",
+      "passed": 2,
+      "failed": 0
+    },
+    {
+      "domain": "output_schema",
+      "status": "supported",
+      "passed": 1,
+      "failed": 0
+    }
+  ]
+}

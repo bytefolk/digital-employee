@@ -1,10 +1,11 @@
 # Adapter qualification
 
 `runQualificationSuite` produces an `adapter-qualification-record.v1` record
-from repository-owned, offline evidence. Kit version `1.2.0` hardens every
+from repository-owned, offline evidence. Kit version `1.3.0` hardens every
 case with a wall-clock bound and requires direct evidence for cancellation,
-default-deny policy enforcement, secret handling, process-tree cleanup, and
-Adapter-enforced terminal output Schema validity.
+default-deny policy enforcement, secret handling, process-tree cleanup,
+Adapter-enforced terminal output Schema validity, and the read/search-only
+workspace projection.
 
 Qualification does not discover, install, or trust an Adapter. The caller
 registers the Adapter and supplies a working directory plus a deterministic
@@ -31,7 +32,7 @@ does not emit a record.
 
 ## Evidence matrix
 
-The record contains 18 cases across nine domains:
+The record contains 20 cases across ten domains:
 
 | Domain | Case | Required evidence |
 | --- | --- | --- |
@@ -53,6 +54,8 @@ The record contains 18 cases across nine domains:
 | `output_schema` | `invalid_schema_preflight` | An invalid Schema (the canonical `$async: true` hazard) is rejected before any `run.started` and before any model process, in exactly one typed final `run.failed`. |
 | `output_schema` | `cancel_buffered` | Cancellation wins over success: buffered partial output is never flushed as `run.completed`, and the run ends in exactly one typed final `run.failed`. |
 | `output_schema` | `secret_rejected` | A terminal carrying the credential sentinel is rejected in exactly one typed final `run.failed`; the sentinel never appears in events, errors, or the record. |
+| `readonly_projection` | `read_search_only` | A projection run ends in exactly one final `run.completed`, every tool event stays within the frozen read-only pair (`read_file`, `search_workspace`), and both tools are exercised. |
+| `readonly_projection` | `write_tool_refused` | A write through the projection is rejected with `qualification_filesystem_policy_denied` during preflight or after `run.started` in one final `run.failed`, and no tool event ever executes for it. |
 
 The sentinel scanner is bounded and cycle-safe. It inspects string and symbol
 data properties without invoking getters or custom serializers. Accessors,
@@ -97,13 +100,62 @@ The kit never calls a live model or provider itself. Fixture conformance is
 not vendor certification, entitlement validation, or a commercial deployment
 gate.
 
+## Evidence standard and per-release snapshot
+
+Every capability claim must carry four standardized, machine-checkable
+fields — this codifies what
+[`docs/agent-hosts.md`](agent-hosts.md) already states for the exact-version
+evidence table and the frozen vector corpora:
+
+1. **Exact Host version** (`hostId` + `hostVersion`). Ranges and unbounded
+   families are not evidence; the claim names the precise version the corpus
+   ran against.
+2. **Deterministic fixture version** (`kitVersion`). The versioned
+   qualification corpus the evidence was earned against; unknown versions
+   fail closed.
+3. **The evidence boundary** (`axes.implemented` / `axes.fixtureConformant` /
+   `axes.liveQualified`). `fixtureConformant` is repository-owned offline
+   evidence; `liveQualified` may only be set by digest-addressed
+   `liveEvidence` and is never produced by default CI.
+4. **Fixture-corpus digest** (`fixtureCorpusDigest`): sha256 over the
+   canonical JSON encoding of the kit's frozen `[domain, case]` contract in
+   declared order (`qualificationFixtureCorpusDigest`). A verifier recomputes
+   the digest from the claimed kit version instead of trusting the claimant.
+
+`createQualificationSnapshot(record, { release })` derives a machine-readable
+`adapter-qualification-snapshot.v1` claim from a qualification record, and
+`validateAdapterQualificationSnapshot` enforces the standard: a claim missing
+any required field, carrying an unknown field, naming an unknown kit version,
+carrying a digest that does not match the named corpus, omitting or
+duplicating a domain row, under-reporting the corpus counts, or asserting
+axes that disagree with its own rows is rejected. Snapshots never carry
+policy bytes, credentials, paths, or process IDs.
+
+The committed per-release snapshot lives at
+`fixtures/qualification/snapshots/v<release>.json`; the baseline is
+[`v0.4.0`](../fixtures/qualification/snapshots/v0.4.0.json) (kit `1.1.0`, the
+13-case corpus the v0.4.0 release gate proved against the reference stdio
+Host). The release regression harness re-runs the full vector set against the
+reference Host, derives the current snapshot, and compares it against the
+baseline with `compareQualificationSnapshots`, which fails closed when the
+Host identity or exact version drifts, the kit version regresses, an evidence
+axis flips from true to false, a previously earned domain row disappears, or
+an earned case count shrinks. New or strengthened evidence always passes. The
+harness runs in `tests/apps/stdio-agent-host.test.ts`, which is part of
+`npm run check` — executed by CI on every change and by the release workflow
+before any publish. Cutting a release means adding that release's snapshot
+file next to the baseline so the next harness run compares against it.
+
 ## Record compatibility
 
-New runs always emit kit `1.2.0` with the 18-case contract above. The v1
-record validator also accepts the two earlier published contracts under their
-own case sets: kit `1.1.0` (the 13-case contract ending in
-`terminal_output_matches_schema`) and kit `1.0.0` (the original nine-case
+New runs always emit kit `1.3.0` with the 20-case contract above. The v1
+record validator also accepts the three earlier published contracts under
+their own case sets and domain sets: kit `1.2.0` (the 18-case contract without
+`readonly_projection`), kit `1.1.0` (the 13-case contract ending in
+`terminal_output_matches_schema`), and kit `1.0.0` (the original nine-case
 contract with `cancel_stops_run` and `stream_terminates`). For every accepted
 version it rejects missing, extra, duplicated, or cross-domain cases and
 recomputes every domain count and evidence axis from the cases and optional
-live evidence. Unknown kit versions fail closed.
+live evidence. A pre-`1.3.0` record that carries `readonly_projection` fails
+closed, exactly like a `1.3.0` record that drops it. Unknown kit versions
+fail closed.

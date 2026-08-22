@@ -890,12 +890,19 @@ export async function deployHttp(
         throw new TypeError("http_process_listening_ack_failed")
       }
       await assertLockOwned?.()
-    } catch {
+    } catch (error) {
       if (!await cleanup()) return cleanupUnverified()
+      // A missing listening ack means the runtime child never bound the
+      // endpoint — most often because the requested port is already in use.
+      // Tell the user that instead of the misleading state-write sentence.
+      const listenFailed = error instanceof TypeError &&
+        error.message === "http_process_listening_ack_failed"
       return outcome(
         "failed",
         "http_process_state_write_failed",
-        t("deploy.error_state_write", { code: "http_process_state_write_failed" }),
+        listenFailed
+          ? t("deploy.error_http_listen_failed")
+          : t("deploy.error_state_write", { code: "http_process_state_write_failed" }),
       )
     }
     const finalize = (stateDigest: string): Promise<boolean> => {

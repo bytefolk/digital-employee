@@ -42,8 +42,8 @@ compatibility runtime.
 
 Run the source-built `deploy --help --locale en`, `zh-CN`, or `ja` for the
 complete current value and option list. Help exits 0 without a prompt, config
-write, provider call, or process start. These source changes are newer than the
-tagged `0.3.0` release.
+write, provider call, or process start. Package-bound deploy first shipped in
+the tagged `0.4.0` release.
 
 ## Outcomes and channel truth
 

@@ -36,6 +36,7 @@
 - [ ] Compatibility, migration, and cross-repository effects are stated below.
 - [ ] New dependencies and licenses were reviewed, or no dependency changed.
 - [ ] `npm run check` and `npm audit --omit=dev --audit-level=high` pass, or an exact NOT VERIFIED boundary is recorded.
+- [ ] Behavior changes carry a matching docs delta, or this body records the explicit no-doc-needed reason (CONTRIBUTING.md, "Documentation consistency").
 
 <!-- Security findings, compatibility range, migration requirements, and evidence visibility. -->
 

@@ -1,20 +1,21 @@
 # Verification ledger
 
-Last reviewed: 2026-08-20
+Last reviewed: 2026-08-22
 
 This file distinguishes shipped code from the environments in which it has
 actually been exercised. A passing fixture test is not presented as a live
 provider integration.
 
-Dated counts below are historical snapshots tied to their stated date. The
-current package-bound deploy changes are newer than public `0.3.0`; their final
-exact-PR-head test counts and package sizes remain pending and are deliberately
-not inferred from an earlier run.
+Dated counts below are historical snapshots tied to their stated date. Public
+`0.4.0` is the current tagged release and contains the package-bound deploy;
+changes merged after that tag are not themselves a published release, and
+their exact-head test counts and package sizes are deliberately not inferred
+from an earlier run.
 
 | Path | Evidence | Result |
 | --- | --- | --- |
 | Local answer and escalation | Public example files, extractive model, real CLI process | Verified |
-| Automated suite (historical source snapshot) | `npm run check` on Node.js 24.13.0 | 1,176/1,176 tests plus strict TypeScript, build and the repository security scan passed on 2026-08-10; this is not a final-current-head claim for the newer deploy changes, and provider fixtures do not make live model requests |
+| Automated suite (historical source snapshot) | `npm run check` on Node.js 24.13.0 | 1,176/1,176 tests plus strict TypeScript, build and the repository security scan passed on 2026-08-10; this historical snapshot is not a current-head claim, and provider fixtures do not make live model requests |
 | Coverage gate (historical pre-deploy baseline) | `npm run test:coverage` on Node.js 22.23.2 | 343/343 tests on 2026-08-04; 91.97% line, 73.48% branch and 90.44% function coverage; not presented as coverage for the newer deploy surface |
 | Strict TypeScript | `npm run typecheck` | 0 errors across shipped runtime sources |
 | Agent-host install probes | Real local version/init probes plus bounded fixture processes | Qoder CLI 1.1.17, Codex CLI 0.148.0, Qwen Code 0.17.1 and CodeBuddy Code 2.106.4 found locally; Claude Code 2.1.209 is below the verified range and its probe failed; live authentication/model access not tested |
@@ -25,12 +26,12 @@ not inferred from an earlier run.
 | Issue #113 capability evidence | Deterministic marker fixtures across all four runnable Adapters plus the exact-version table in `docs/agent-hosts.md` | Schema bytes asserted absent from argv, process environment values, and the public event stream on Qoder, Claude, Qwen and CodeBuddy; exact locked Host versions named (Qoder `1.1.x` family / fixture `1.1.12`, Claude Code `>=2.1.214 <2.2.0`, Qwen Code `0.17.1`, CodeBuddy Code `2.106.4`); fixture conformance only with `liveQualified: false`; no tool, MCP, write, network or approval authority added; the later versioned release proving generic downstream selection remains a separate release gate |
 | Probe-only compatibility | CLI integration fixture and source audit | Codex CLI 0.148.0 remains probe-only because `apply_patch` and other model-visible built-ins cannot all be reliably removed; its bounded `--version` subprocess probe does not authenticate, invoke a model or execute tools; missing service keys and unverified runnable-host versions fail closed |
 | Employee package | `init`, static `validate`, schema parity and hostile path fixtures | Atomic scaffold verified; malformed Skill/YAML/JSON Schema, direct/nested traversal, symlinks, glob artifacts and policy mismatches rejected |
-| Package-bound deploy (current source, unreleased) | Built-CLI and direct fault fixtures in `tests/apps/deploy-cli.test.ts`; clean installed-tarball consumer gate in `release.yml` | The source test surface covers exact package/cwd binding, localized automation and help, private atomic state, HTTP health/ask readback, activation and cleanup faults, locks, races and replay fences. A release must additionally install the exact root tgz in a clean prefix, scaffold a recipe, report the installed version, start a fake-Qoder HTTP deployment, read health/ask, and prove PID cleanup. Final current-PR-head results are pending; `0.3.0` does not contain deploy. DingTalk fixtures remain E3 only and real provider E4 remains external HOLD. |
+| Package-bound deploy | Built-CLI and direct fault fixtures in `tests/apps/deploy-cli.test.ts`; clean installed-tarball consumer gate in `release.yml` | The source test surface covers exact package/cwd binding, localized automation and help, private atomic state, HTTP health/ask readback, activation and cleanup faults, locks, races and replay fences. The release gate additionally installs the exact root tgz in a clean prefix, scaffolds a recipe, reports the installed version, starts a fake-Qoder HTTP deployment, reads health/ask, and proves PID cleanup. Deploy shipped in public `0.4.0` through that workflow; `0.3.0` predates deploy. DingTalk fixtures remain E3 only and real provider E4 remains external HOLD. |
 | Publisher-owned Runner kernel | Protocol, lease, replay, package snapshot and executor fixtures | Trusted-key Ed25519 task/receipt envelope verification, canonical event hash chains, signed monotonic renewals, fencing identity, nonce replay rejection, exact local package digest, read-only one-run snapshot, lease abort and stable signed failure receipts verified |
 | Cross-repository Runner path | Manual compiled framework and private-platform acceptance harness; not yet a committed CI job | Platform claim → local package/Agent Host → 4 uploaded events → Runner-signed receipt → independent usage verification → settled Credit completed on 2026-08-04; the platform never received a local path, package bytes or Host credential |
 | Real-local mem/doc read path (#42 Phase A) | Manual `scripts/real-local-harness.mjs` run against actual pinned services (mem `3335ebe`, doc `b22ff1d`), plus offline loopback-fake host/matrix tests in CI | 9/9 scenarios passed on 2026-08-06 (two-session granted resume with stable locators, cross-principal/workspace denial, wrong-revision/unauthorized/revoked-or-unlisted document reads, unreachable service, unsupported matrix); evidence class `real-local-e2e`, secret scan empty |
 | MCP declaration | TypeScript and public Schema fixtures | stdio and HTTPS declarations accept environment names only; inline HTTP auth fields, insecure HTTP and duplicate servers rejected |
-| Compiled package | Public `v0.3.0` artifacts; current-source `npm pack --json` and release consumer gate | `0.3.0` is the historical public root/core release. Current-source release policy requires immutable archive digest checks plus clean-tarball import/init/setup/deploy/health/ask/PID-cleanup verification; final current-PR-head file counts and byte sizes are pending. |
+| Compiled package | Public `v0.4.0` and `v0.3.0` artifacts; current-source `npm pack --json` and release consumer gate | `0.4.0` is the current public root/core release; `0.3.0` remains public and historical. Current-source release policy requires immutable archive digest checks plus clean-tarball import/init/setup/deploy/health/ask/PID-cleanup verification; per-change file counts and byte sizes are recorded per change, not inferred from a tag. |
 | Second profile | Explicitly allowlisted `minimal-reader` fixture through source and compiled runtimes | Answered with one approved citation; no core/CLI switch change |
 | Dependency audit | `npm audit --audit-level=high` | 0 known vulnerabilities |
 | Container | Built the current source `Dockerfile`; ran it with no arguments, then with explicit `legacy serve` | Default Agent-native help verified; explicit compatibility `/health` and `/v1/ask` verified |

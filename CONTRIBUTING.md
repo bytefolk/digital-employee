@@ -24,6 +24,22 @@ and must never become a runtime dependency.
 Create a focused branch, add tests for user-visible behavior, and open a pull
 request against `main`. Keep generated data and credentials out of commits.
 
+## Documentation consistency
+
+Docs are the public contract for shipped behavior. A pull request that changes
+shipped behavior — commands, protocols, schemas, support matrices, deploy or
+release policy — must carry the matching `docs/` (or README/INSTALL) delta in
+the same change. If a behavior-changing pull request legitimately needs no doc
+delta, the PR body must state the explicit no-doc-needed reason; the PR
+template checklist carries the flag, and reviewers treat a missing delta with
+no recorded reason as a blocking finding.
+
+A doc that contradicts shipped behavior is drift: repair it with the smallest
+truthful edit the in-repo evidence supports, and never invent verification
+results to close a gap. Context and knowledge assets additionally follow the
+last-verified-date and review-cadence convention in
+[docs/knowledge/knowledge-source-quality-bar.md](docs/knowledge/knowledge-source-quality-bar.md).
+
 ## Product direction and issue routing
 
 Read the [product strategy](docs/strategy.md) for the stable scope boundary and

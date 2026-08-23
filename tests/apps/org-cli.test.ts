@@ -494,6 +494,26 @@ test("org apply fails closed on stray non-position entries under positions/", as
   assert.equal(await readFile(paths.model, "utf8"), beforeModel)
 })
 
+test("org apply fails closed on duplicate position ids", async (t) => {
+  const home = await freshHome(t)
+  const env = cliEnvironment(home)
+  const target = await initWorkspace(t, home, env)
+  const paths = statePaths(target)
+  assert.equal(runCli(["org", "apply", target, "--json"], env, home).status, 0)
+  const beforeModel = await readFile(paths.model, "utf8")
+
+  // Clone issue-researcher to the top level: one id at two locations.
+  await craftHirePackage(target, [], "issue-researcher", VALID_HIRE_BUDGET)
+
+  const result = runCli(["org", "apply", target, "--json"], env, home)
+  assert.equal(result.status, 1)
+  assert.equal(
+    (JSON.parse(result.stdout) as Record<string, unknown>).code,
+    "workspace_org_tree_duplicate_position",
+  )
+  assert.equal(await readFile(paths.model, "utf8"), beforeModel)
+})
+
 test("org commands outside a workspace fail closed and point at workspace init", async (t) => {
   const home = await freshHome(t)
   const env = cliEnvironment(home)

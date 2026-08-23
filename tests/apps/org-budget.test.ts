@@ -562,3 +562,31 @@ test("org-tree.v1 frozen shape: fixture validates; budget and updatedAt are mand
     "tree without updatedAt must fail against the frozen schema",
   )
 })
+
+test("org-tree.v1 v0 increment: name and mode are optional; an invalid mode is rejected", async () => {
+  const schema = JSON.parse(
+    await readFile(publishedOrgTreeSchemaPath, "utf8"),
+  ) as Record<string, unknown>
+  const fixture = JSON.parse(
+    await readFile(orgTreeFixturePath, "utf8"),
+  ) as Record<string, unknown>
+  // Optional display fields: removing name and mode from the root node still
+  // validates (additive, non-breaking increment over the frozen required set).
+  const withoutDisplay = JSON.parse(JSON.stringify(fixture)) as Record<string, unknown>
+  const rootNode = (withoutDisplay.tree as Array<Record<string, unknown>>)[0]!
+  delete rootNode.name
+  delete rootNode.mode
+  assert.equal(
+    evaluateSchema(schema, withoutDisplay, schema),
+    true,
+    "node without optional name/mode must still validate (v0 increment)",
+  )
+  // An invalid mode value is rejected.
+  const badMode = JSON.parse(JSON.stringify(fixture)) as Record<string, unknown>
+  ;(badMode.tree as Array<Record<string, unknown>>)[0]!.mode = "full_access"
+  assert.equal(
+    evaluateSchema(schema, badMode, schema),
+    false,
+    "node with an invalid mode must fail against the frozen schema",
+  )
+})

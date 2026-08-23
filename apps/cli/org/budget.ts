@@ -61,6 +61,8 @@ export const ORGANIZATION_NAME_MAX_LENGTH = 64
 
 const POSITION_PACKAGE_MODES = ["read_only", "approval_required"] as const
 
+export type PositionMode = (typeof POSITION_PACKAGE_MODES)[number]
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
@@ -426,6 +428,10 @@ export function organizationNameSchema(): Record<string, unknown> {
     pattern: ORGANIZATION_NAME_PATTERN,
     maxLength: ORGANIZATION_NAME_MAX_LENGTH,
   }
+}
+
+export function positionModeSchema(): Record<string, unknown> {
+  return { enum: [...POSITION_PACKAGE_MODES] }
 }
 
 export function budgetScopeSchema(): Record<string, unknown> {

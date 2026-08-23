@@ -8,7 +8,9 @@
   "tree": [
     {
       "id": "repo-owner",
+      "name": "Repo Owner",
       "reportTo": null,
+      "mode": "read_only",
       "budget": {
         "perTask": { "tokens": 40000, "iterations": 12 },
         "perDay": { "tokens": 400000, "iterations": 96 }
@@ -16,7 +18,9 @@
       "children": [
         {
           "id": "community-operator",
+          "name": "Community Operator",
           "reportTo": "repo-owner",
+          "mode": "read_only",
           "budget": {
             "perTask": { "tokens": 20000, "iterations": 8 },
             "perDay": { "tokens": 200000, "iterations": 64 }
@@ -25,7 +29,9 @@
         },
         {
           "id": "issue-researcher",
+          "name": "Issue Researcher",
           "reportTo": "repo-owner",
+          "mode": "read_only",
           "budget": {
             "perTask": { "tokens": 20000, "iterations": 8 },
             "perDay": { "tokens": 200000, "iterations": 64 }
@@ -34,7 +40,9 @@
         },
         {
           "id": "release-engineer",
+          "name": "Release Engineer",
           "reportTo": "repo-owner",
+          "mode": "read_only",
           "budget": {
             "perTask": { "tokens": 20000, "iterations": 8 },
             "perDay": { "tokens": 200000, "iterations": 64 }

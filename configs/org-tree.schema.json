@@ -63,6 +63,11 @@
           "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
           "maxLength": 64
         },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
         "reportTo": {
           "anyOf": [
             {
@@ -73,6 +78,12 @@
               "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
               "maxLength": 64
             }
+          ]
+        },
+        "mode": {
+          "enum": [
+            "read_only",
+            "approval_required"
           ]
         },
         "budget": {

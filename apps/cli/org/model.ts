@@ -36,11 +36,13 @@ import {
   WORKSPACE_ORG_SCHEMA_ID,
   organizationNameSchema,
   positionBudgetDefs,
+  positionModeSchema,
   validateOrganizationDocument,
   validatePositionBudget,
 } from "./budget.js"
 import type {
   PositionBudget,
+  PositionMode,
   ValidatedOrganizationDocument,
   ValidatedOrganizationRole,
 } from "./budget.js"
@@ -576,10 +578,16 @@ export async function applyOrganization(
  * reporting line, budget declaration subset, children. The node deliberately
  * carries only what the org-tree consumer needs; the full position
  * declaration stays in the organization model.
+ *
+ * v0 increment (pre-merge additive): `name` (human-readable display name for
+ * org-chart rendering) and `mode` (read-only/approval lock state source).
+ * Both are optional in the published schema; the builder always emits them.
  */
 export interface OrgTreeNode {
   id: string
+  name: string
   reportTo: string | null
+  mode: PositionMode
   budget: PositionBudget
   children: OrgTreeNode[]
 }
@@ -616,7 +624,9 @@ export function buildOrgTree(
     depth = Math.max(depth, level)
     return {
       id: role.id,
+      name: role.name,
       reportTo: role.reportTo,
+      mode: role.mode,
       budget: role.budget,
       children: (childrenByParent.get(role.id) ?? []).map((child) =>
         build(child, level + 1),
@@ -681,9 +691,11 @@ export function buildOrgTreeSchema(): Record<string, unknown> {
         required: ["id", "reportTo", "budget", "children"],
         properties: {
           id: organizationNameSchema(),
+          name: { type: "string", minLength: 1, maxLength: 128 },
           reportTo: {
             anyOf: [{ type: "null" }, organizationNameSchema()],
           },
+          mode: positionModeSchema(),
           budget: { $ref: "#/$defs/positionBudget" },
           children: {
             type: "array",

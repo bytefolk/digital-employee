@@ -416,18 +416,20 @@ export function validateOrganizationDocument(
 }
 
 /**
- * Build the workspace-org.v1 JSON Schema (draft 2020-12). The published file
- * configs/workspace-org.schema.json must be byte-identical to
- * `JSON.stringify(buildWorkspaceOrgSchema(), null, 2) + "\n"`; the
- * schema-consistency test enforces this and the sample-agreement property.
+ * Shared JSON Schema fragments for the organization contracts. Both
+ * workspace-org.v1 and org-tree.v1 are built from these builders so the name
+ * and budget declarations stay byte-stable across the published schemas.
  */
-export function buildWorkspaceOrgSchema(): Record<string, unknown> {
-  const nameSchema = {
+export function organizationNameSchema(): Record<string, unknown> {
+  return {
     type: "string",
     pattern: ORGANIZATION_NAME_PATTERN,
     maxLength: ORGANIZATION_NAME_MAX_LENGTH,
   }
-  const budgetScope = {
+}
+
+export function budgetScopeSchema(): Record<string, unknown> {
+  return {
     type: "object",
     additionalProperties: false,
     minProperties: 1,
@@ -444,6 +446,31 @@ export function buildWorkspaceOrgSchema(): Record<string, unknown> {
       },
     },
   }
+}
+
+export function positionBudgetDefs(): Record<string, unknown> {
+  return {
+    positionBudget: {
+      type: "object",
+      additionalProperties: false,
+      required: [...BUDGET_SCOPE_KEYS],
+      properties: {
+        perTask: { $ref: "#/$defs/budgetScope" },
+        perDay: { $ref: "#/$defs/budgetScope" },
+      },
+    },
+    budgetScope: budgetScopeSchema(),
+  }
+}
+
+/**
+ * Build the workspace-org.v1 JSON Schema (draft 2020-12). The published file
+ * configs/workspace-org.schema.json must be byte-identical to
+ * `JSON.stringify(buildWorkspaceOrgSchema(), null, 2) + "\n"`; the
+ * schema-consistency test enforces this and the sample-agreement property.
+ */
+export function buildWorkspaceOrgSchema(): Record<string, unknown> {
+  const nameSchema = organizationNameSchema()
   return {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     $id: WORKSPACE_ORG_SCHEMA_ID,
@@ -481,14 +508,7 @@ export function buildWorkspaceOrgSchema(): Record<string, unknown> {
             name: { type: "string", minLength: 1, maxLength: 128 },
             description: { type: "string", maxLength: 2000 },
             reportTo: {
-              anyOf: [
-                { type: "null" },
-                {
-                  type: "string",
-                  pattern: ORGANIZATION_NAME_PATTERN,
-                  maxLength: ORGANIZATION_NAME_MAX_LENGTH,
-                },
-              ],
+              anyOf: [{ type: "null" }, organizationNameSchema()],
             },
             package: {
               type: "object",
@@ -521,17 +541,6 @@ export function buildWorkspaceOrgSchema(): Record<string, unknown> {
       },
       updatedAt: { type: "string", minLength: 1 },
     },
-    $defs: {
-      positionBudget: {
-        type: "object",
-        additionalProperties: false,
-        required: [...BUDGET_SCOPE_KEYS],
-        properties: {
-          perTask: { $ref: "#/$defs/budgetScope" },
-          perDay: { $ref: "#/$defs/budgetScope" },
-        },
-      },
-      budgetScope,
-    },
+    $defs: positionBudgetDefs(),
   }
 }

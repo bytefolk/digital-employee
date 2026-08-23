@@ -17,6 +17,7 @@ export const DISTRIBUTION_ASSET_MAPPINGS = Object.freeze([
   ["configs/dingtalk-dws.example.json", "dist/configs/dingtalk-dws.example.json"],
   ["configs/employee-mcp.schema.json", "dist/configs/employee-mcp.schema.json"],
   ["configs/employee-package.schema.json", "dist/configs/employee-package.schema.json"],
+  ["configs/org-tree.schema.json", "dist/configs/org-tree.schema.json"],
   ["configs/profile.schema.json", "dist/configs/profile.schema.json"],
   ["configs/schema.json", "dist/configs/schema.json"],
   ["configs/workspace-org.schema.json", "dist/configs/workspace-org.schema.json"],

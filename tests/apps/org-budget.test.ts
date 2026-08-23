@@ -27,6 +27,7 @@ import {
   validateOrganizationDocument,
   validatePositionBudget,
 } from "../../apps/cli/org/budget.js"
+import { buildOrgTreeSchema } from "../../apps/cli/org/model.js"
 import {
   OSS_MAINTAINER_TEMPLATE,
   renderOrganizationFile,
@@ -34,6 +35,14 @@ import {
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const publishedSchemaPath = path.join(root, "configs", "workspace-org.schema.json")
+const publishedOrgTreeSchemaPath = path.join(root, "configs", "org-tree.schema.json")
+const orgTreeFixturePath = path.join(
+  root,
+  "tests",
+  "apps",
+  "fixtures",
+  "org-tree-oss-maintainer.json",
+)
 
 function failureCode(error: unknown): string {
   assert.ok(error instanceof TypeError)
@@ -517,4 +526,39 @@ test("AC-001: malformed organization documents fail closed at the document level
       `expected fail-closed for: ${sample.name}`,
     )
   }
+})
+
+test("published org-tree.schema.json matches the code-side builder", async () => {
+  const published = await readFile(publishedOrgTreeSchemaPath, "utf8")
+  assert.equal(published, `${JSON.stringify(buildOrgTreeSchema(), null, 2)}\n`)
+})
+
+test("org-tree.v1 frozen shape: fixture validates; budget and updatedAt are mandatory", async () => {
+  const schema = JSON.parse(
+    await readFile(publishedOrgTreeSchemaPath, "utf8"),
+  ) as Record<string, unknown>
+  const fixture = JSON.parse(
+    await readFile(orgTreeFixturePath, "utf8"),
+  ) as Record<string, unknown>
+  assert.equal(
+    evaluateSchema(schema, fixture, schema),
+    true,
+    "oss-maintainer org-tree fixture must validate against the frozen schema",
+  )
+  // The budget declaration subset is mandatory on every node.
+  const withoutBudget = JSON.parse(JSON.stringify(fixture)) as Record<string, unknown>
+  delete (withoutBudget.tree as Array<Record<string, unknown>>)[0]!.budget
+  assert.equal(
+    evaluateSchema(schema, withoutBudget, schema),
+    false,
+    "node without a budget subset must fail against the frozen schema",
+  )
+  // The applied-state updatedAt stamp is mandatory (org.updated alignment).
+  const withoutStamp = JSON.parse(JSON.stringify(fixture)) as Record<string, unknown>
+  delete withoutStamp.updatedAt
+  assert.equal(
+    evaluateSchema(schema, withoutStamp, schema),
+    false,
+    "tree without updatedAt must fail against the frozen schema",
+  )
 })

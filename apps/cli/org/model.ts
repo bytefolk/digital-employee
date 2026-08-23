@@ -34,6 +34,8 @@ import path from "node:path"
 
 import {
   WORKSPACE_ORG_SCHEMA_ID,
+  organizationNameSchema,
+  positionBudgetDefs,
   validateOrganizationDocument,
   validatePositionBudget,
 } from "./budget.js"
@@ -569,10 +571,16 @@ export async function applyOrganization(
   }
 }
 
-/** Reporting-tree node for org-tree.v1. */
+/**
+ * Reporting-tree node for org-tree.v1 (frozen minimal shape): position id,
+ * reporting line, budget declaration subset, children. The node deliberately
+ * carries only what the org-tree consumer needs; the full position
+ * declaration stays in the organization model.
+ */
 export interface OrgTreeNode {
   id: string
   reportTo: string | null
+  budget: PositionBudget
   children: OrgTreeNode[]
 }
 
@@ -581,6 +589,8 @@ export interface OrgTree {
   schemaVersion: typeof ORG_TREE_SCHEMA_VERSION
   business: string
   owner: string
+  /** Applied-state stamp from the organization model; aligns org.updated. */
+  updatedAt: string
   positionCount: number
   depth: number
   tree: OrgTreeNode[]
@@ -607,6 +617,7 @@ export function buildOrgTree(
     return {
       id: role.id,
       reportTo: role.reportTo,
+      budget: role.budget,
       children: (childrenByParent.get(role.id) ?? []).map((child) =>
         build(child, level + 1),
       ),
@@ -618,8 +629,69 @@ export function buildOrgTree(
     schemaVersion: ORG_TREE_SCHEMA_VERSION,
     business: model.business,
     owner: model.owner,
+    updatedAt: model.updatedAt,
     positionCount: model.roles.length,
     depth,
     tree,
+  }
+}
+
+export const ORG_TREE_SCHEMA_ID =
+  "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/org-tree.schema.json" as const
+
+/**
+ * Build the org-tree.v1 JSON Schema (draft 2020-12) for the frozen minimal
+ * tree shape. The published file configs/org-tree.schema.json must be
+ * byte-identical to `JSON.stringify(buildOrgTreeSchema(), null, 2) + "\n"`;
+ * the schema-consistency test enforces this.
+ */
+export function buildOrgTreeSchema(): Record<string, unknown> {
+  return {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    $id: ORG_TREE_SCHEMA_ID,
+    title: "org-tree.v1 reporting tree (frozen minimal shape)",
+    type: "object",
+    additionalProperties: false,
+    required: [
+      "schemaVersion",
+      "business",
+      "owner",
+      "updatedAt",
+      "positionCount",
+      "depth",
+      "tree",
+    ],
+    properties: {
+      schemaVersion: { const: ORG_TREE_SCHEMA_VERSION },
+      business: organizationNameSchema(),
+      owner: organizationNameSchema(),
+      updatedAt: { type: "string", minLength: 1 },
+      positionCount: { type: "integer", minimum: 1 },
+      depth: { type: "integer", minimum: 1 },
+      tree: {
+        type: "array",
+        minItems: 1,
+        items: { $ref: "#/$defs/orgTreeNode" },
+      },
+    },
+    $defs: {
+      orgTreeNode: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "reportTo", "budget", "children"],
+        properties: {
+          id: organizationNameSchema(),
+          reportTo: {
+            anyOf: [{ type: "null" }, organizationNameSchema()],
+          },
+          budget: { $ref: "#/$defs/positionBudget" },
+          children: {
+            type: "array",
+            items: { $ref: "#/$defs/orgTreeNode" },
+          },
+        },
+      },
+      ...positionBudgetDefs(),
+    },
   }
 }

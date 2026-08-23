@@ -554,8 +554,17 @@ test("AC-002: org tree renders hierarchy and depth; --json passes the org-tree.v
 
   const json = runCli(["org", "tree", target, "--json"], env, home)
   assert.equal(json.status, 0, json.stderr)
-  const fixture = await readJson(orgTreeFixture)
-  assert.deepEqual(JSON.parse(json.stdout), fixture)
+  const parsed = JSON.parse(json.stdout) as Record<string, unknown>
+  const fixture = (await readJson(orgTreeFixture)) as Record<string, unknown>
+  // updatedAt is the applied-state timestamp: assert the ISO shape, then mask
+  // it to the fixture value so the frozen-shape comparison stays
+  // deterministic.
+  assert.match(
+    String(parsed.updatedAt),
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/,
+  )
+  parsed.updatedAt = fixture.updatedAt
+  assert.deepEqual(parsed, fixture)
 
   // org tree is read-only: it never materializes organization state.
   await assert.rejects(stat(path.join(target, ".digital-employee")))

@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/org-tree.schema.json",
+  "title": "org-tree.v1 reporting tree (frozen minimal shape)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "business",
+    "owner",
+    "updatedAt",
+    "positionCount",
+    "depth",
+    "tree"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "org-tree.v1"
+    },
+    "business": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "maxLength": 64
+    },
+    "owner": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "maxLength": 64
+    },
+    "updatedAt": {
+      "type": "string",
+      "minLength": 1
+    },
+    "positionCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "depth": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "tree": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/orgTreeNode"
+      }
+    }
+  },
+  "$defs": {
+    "orgTreeNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "reportTo",
+        "budget",
+        "children"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 64
+        },
+        "reportTo": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "maxLength": 64
+            }
+          ]
+        },
+        "budget": {
+          "$ref": "#/$defs/positionBudget"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/orgTreeNode"
+          }
+        }
+      }
+    },
+    "positionBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "perTask",
+        "perDay"
+      ],
+      "properties": {
+        "perTask": {
+          "$ref": "#/$defs/budgetScope"
+        },
+        "perDay": {
+          "$ref": "#/$defs/budgetScope"
+        }
+      }
+    },
+    "budgetScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "tokens": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 1000000000
+        },
+        "iterations": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 1000000000
+        }
+      }
+    }
+  }
+}

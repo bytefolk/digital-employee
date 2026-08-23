@@ -20,6 +20,7 @@ export const DISTRIBUTION_ASSET_MAPPINGS = Object.freeze([
   ["configs/org-tree.schema.json", "dist/configs/org-tree.schema.json"],
   ["configs/profile.schema.json", "dist/configs/profile.schema.json"],
   ["configs/schema.json", "dist/configs/schema.json"],
+  ["configs/turn-envelope.schema.json", "dist/configs/turn-envelope.schema.json"],
   ["configs/workspace-org.schema.json", "dist/configs/workspace-org.schema.json"],
   ["locales/README.md", "dist/locales/README.md"],
   ["locales/en.json", "dist/locales/en.json"],

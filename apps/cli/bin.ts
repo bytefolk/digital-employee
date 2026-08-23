@@ -28,6 +28,7 @@ import { evaluateEmployeePackage } from "./employee-eval.js";
 import { deploy, renderDeployParseFailure } from "./deploy/index.js";
 import { workspace, renderWorkspaceParseFailure } from "./workspace/index.js";
 import { org, renderOrgParseFailure } from "./org/index.js";
+import { turn } from "./turn/index.js";
 import { setup } from "./setup.js";
 
 type EmployeeResult = Awaited<ReturnType<DigitalEmployee["answer"]>>;
@@ -53,6 +54,7 @@ interface CommandValues {
   template?: string;
   tool?: string;
   context?: string;
+  position?: string;
   yes: boolean;
   help: boolean;
 }
@@ -69,6 +71,7 @@ Agent-native usage:
   digital-employee org tree [workspace] [--json]
   digital-employee org apply [workspace] [--json]
   digital-employee org scope <position> [workspace] [--tool <name> | --context <path>] [--json]
+  digital-employee turn run [workspace] --position <id> (--stdin | --input-file <path>)
   digital-employee deploy [package-path] [--package path] --channel <id> --engine <id> --runtime agent-native|standalone-v1 [options]
   digital-employee doctor [--engine claude-code|qoder|codex|qwen-code|codebuddy] [--json]
   digital-employee init <directory> [--recipe minimal-answer.v1|structured-action.v1] [--name employee-name] [--author author]
@@ -117,6 +120,7 @@ function parseCommand(argv: string[]) {
       template: { type: "string" },
       tool: { type: "string" },
       context: { type: "string" },
+      position: { type: "string" },
       yes: { type: "boolean", short: "y", default: false },
       help: { type: "boolean", short: "h", default: false }
     }
@@ -567,7 +571,7 @@ async function main() {
     throw error;
   }
   const { command, values, positionals, providedOptions } = parsed;
-  if (command === "help" || (values.help && command !== "deploy" && command !== "workspace" && command !== "org")) {
+  if (command === "help" || (values.help && command !== "deploy" && command !== "workspace" && command !== "org" && command !== "turn")) {
     process.stdout.write(usage());
     return;
   }
@@ -618,6 +622,15 @@ async function main() {
     tool: values.tool,
     context: values.context,
     providedOptions,
+  });
+  if (command === "turn") return turn({
+    subcommand: positionals[0],
+    args: positionals.slice(1),
+    position: values.position,
+    stdin: values.stdin,
+    inputFile: values.inputFile,
+    json: values.json,
+    help: values.help,
   });
   if (command === "doctor") return doctor(values);
   if (command === "init") return init(values, positionals);

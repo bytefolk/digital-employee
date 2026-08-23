@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fullstack-ai-infra.dev/schemas/turn-envelope.schema.json",
+  "title": "turn-envelope.v1 sealed turn request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "workspaceRef",
+    "positionId",
+    "turnId",
+    "input",
+    "envelopeDigest"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "turn-envelope.v1"
+    },
+    "workspaceRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "positionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "turnId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "input": {},
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maxIterations"
+      ],
+      "properties": {
+        "maxIterations": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxTokens": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "positionBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "perTask",
+        "perDay"
+      ],
+      "properties": {
+        "perTask": {
+          "$ref": "#/$defs/budgetScope"
+        },
+        "perDay": {
+          "$ref": "#/$defs/budgetScope"
+        }
+      }
+    },
+    "taskId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "dayKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "deadline": {
+      "type": "string"
+    },
+    "envelopeDigest": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "budgetScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "tokens": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 1000000000
+        },
+        "iterations": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 1000000000
+        }
+      }
+    }
+  }
+}

@@ -7,7 +7,10 @@
 Digital Employee 是一个本地优先、对话优先的数字组织工作区。长期方向（由
 [Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)
 跟踪）：把一个业务目录变成一支可直接点名的 AI 团队——一个目录 = 一项业务，一个岗位 =
-一个可寻址数字员工，一次对话 = 带岗位 Context 与权限边界的工作。
+一个可寻址数字员工，一次对话 = 带岗位 Context 与权限边界的工作。岗位运行在内建的、TypeScript 原生
+执行引擎之上，它是默认 Host
+（[Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165)，
+design 状态）；外部 Agent Host 适配器只是选项，不是依赖。
 
 ## Digital Employee 处在哪一层
 
@@ -18,8 +21,8 @@ Agent 框架（Claude Code、Qoder、Qwen Code、CodeBuddy、Codex……）回�
 
 我们正在靠拢的卖点：**门槛很低、不用敲命令**——业务负责人不需要写 prompt 模板、不需要
 手动配置 Agent Host；说一句话、喊一个岗位名，就能拿到带出处的结果，整个组织仍由负责人
-兜底。**注意：这是规划中的方向，尚未发布**：`workspace` / `org` / `chat` 命令面在当前
-源码中不存在（见下方状态表）。
+兜底。**注意：这是规划中的方向，尚未发布**：`org` / `chat` 命令面在当前源码中不存在；
+`workspace init` 仅以 `0.4.0` 之后当前源码中的原型形式存在（见下方状态表）。
 
 ## 能力状态
 
@@ -32,9 +35,11 @@ Agent 框架（Claude Code、Qoder、Qwen Code、CodeBuddy、Codex……）回�
 | package-bound `deploy` | **已发布**（`0.4.0`），仅限文档化 fail-closed 边界（HTTP 可到 `ready`；钉钉对账外部 HOLD） |
 | 员工包 / Skill / Schema / eval 契约与 Agent Host Adapter | **已发布**（`0.4.0`）；Host Adapter 为 `preview` 与 `fixture-conformant`，未 live-qualified |
 | `standalone-v1` 兼容运行时 | **已发布**兼容路径；不是新主线能力的目标路径 |
-| 旧路线 deploy 治理与 Runner/Host 资格验收收尾（#90/#70/#86/#137/#113/#125/#52/#46/#34/#136） | **开发中**，仅作为旧路线收尾，不扩展 |
-| `workspace init`、`org tree` / `org apply`、`chat @岗位` | **规划中**（design 状态，Epic #155 M1） |
-| `mem` + `context` 长期 Context 与岗位权限边界 | **规划中**（design 状态，Epic #155 M1/M2） |
+| 2026-08-23 pivot 之后的旧轨 issue | 按 #164 批准的台账处置——KEEP 11 / REPURPOSE 9 / PARK 5；见[旧轨处置台账](docs/roadmap.zh-CN.md#旧轨收尾与-issue-处置) |
+| `workspace init`（oss-maintainer 模板） | 当前源码已**交付**原型（`0.4.0` 之后，#156）；不属于已发布 `0.4.0` 制品 |
+| `org tree` / `org apply`、`chat @岗位` | **规划中**（design 状态，Epic #155 第一里程碑） |
+| `mem` + `context` 长期 Context 与岗位权限边界 | **规划中**（design 状态，Epic #155 第一里程碑 / M2） |
+| 内建执行引擎（默认 Host，S1 只读核心） | **规划中**（design 状态，Epic #165；与第一里程碑对齐，截止 2026-09-30） |
 | oss-maintainer 展示案例（quickstart 形态） | **规划中**（Epic #155 M1） |
 | 渠道扩展（飞书/企微） | **规划中更后期**；不属于首个里程碑 |
 
@@ -129,7 +134,7 @@ Runner 应当只做出站操作：拉取并认领任务、接收平台签名租�
 完整接入顺序、伪代码和生产缺口见 [Runner 实践路径](docs/runner.md)，信任边界见
 [ADR 0002](docs/decisions/0002-runner-execution-boundary.md)。当前没有对外宣称可直接
 部署的 `runner start` 网络服务；卖家自有长期进程、本地持久 replay/outbox、断线重连和
-出站平台客户端属于旧路线待收尾能力，收尾后不再扩展。服务端设备注册、任务分发、
+出站平台客户端属于旧路线能力；旧轨已收尾而非扩展，保留范围见[旧轨处置台账](docs/roadmap.zh-CN.md#旧轨收尾与-issue-处置)。服务端设备注册、任务分发、
 `UsageVerifier`、Quote、Credit 和结算 API 属于私有平台。
 
 每条 runnable Adapter 都是无状态、one-shot，要求操作方显式提供服务 API Key/Token，
@@ -371,10 +376,12 @@ DWS 的安装、授权和完整能力请查看
 | Claude Code `>=2.1.214 <2.2.0`、Qwen Code `0.17.1`、CodeBuddy Code `2.106.4` 上下文 Adapter | 已发布（`0.4.0`）；未使用真实模型权益验收 |
 | 绑定员工包的 `deploy`：HTTP 可验证就绪、Console 等待前台操作 | 已发布（`0.4.0`）；钉钉对账受当前 DWS 分页契约阻断且无真实供应商 E4 证据 |
 | 签名任务、包摘要、本机快照、租约 fencing、事件链、Runner 签名回执 | 已发布（V0.3 源码技术预览） |
-| 卖家自有长期 Runner 进程、本地持久 replay/outbox 和重连 | 开发中，仅旧路线收尾；新主线不扩展 |
+| 卖家自有长期 Runner 进程、本地持久 replay/outbox 和重连 | 旧轨已收尾；保留范围以[处置台账](docs/roadmap.zh-CN.md#旧轨收尾与-issue-处置) KEEP 线为准 |
 | 服务端设备注册、任务分发、用量核验、Quote/Credit 和结算 | 私有平台；不进入本框架仓库 |
-| `workspace init`、`org tree` / `org apply`、`chat @岗位` | 规划中；Epic #155 M1 |
-| `mem` + `context` 长期 Context、岗位权限边界 | 规划中；Epic #155 |
+| `workspace init`（oss-maintainer 模板） | 当前源码已交付原型（`0.4.0` 之后，#156）；不属于已发布制品 |
+| `org tree` / `org apply`、`chat @岗位` | 规划中；Epic #155 第一里程碑 |
+| `mem` + `context` 长期 Context、岗位权限边界 | 规划中；Epic #155 第一里程碑/M2 |
+| 内建执行引擎（默认 Host，S1 只读核心） | 规划中；Epic #165，与第一里程碑对齐（截止 2026-09-30） |
 | oss-maintainer 展示案例 | 规划中；Epic #155 |
 | Codex CLI 运行 Adapter | 仅探测；受阻于无法可靠移除所有模型可见内建工具 |
 | `standalone-v1` 岗位及渠道、知识源、模型、工具 registry | 已发布；兼容路径 |

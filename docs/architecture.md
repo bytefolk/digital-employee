@@ -1,8 +1,20 @@
 # Architecture
 
 Digital Employee is an Agent-native employee packaging CLI and outer service
-runtime. It reuses a capable Agent host instead of implementing a second
-general-purpose Agent loop.
+runtime. The Host adapter layer described below reuses a capable Agent host
+instead of implementing a second general-purpose Agent loop around it.
+
+> **Mainline pivot note (2026-08-23).** The product North Star is now the
+> local digital-organization workspace (see the [strategy](strategy.md)).
+> Workspace positions run on a built-in, TypeScript-native execution engine as
+> the default Host
+> ([Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165);
+> design-stage — the S1 slice is a read-only core, not delivered yet). The
+> outer-runtime and Host-adapter ownership described in this document remains
+> valid for the shipped one-shot adapter paths and for external Agent Host
+> adapters, which continue as an option rather than a dependency. The old
+> Runner track is wrapped up per the
+> [old-track disposition ledger](roadmap.md#old-track-disposition-ledger).
 
 The [product strategy](strategy.md) is the normative scope contract, and the
 [roadmap](roadmap.md) maps that contract to delivery gates and issues. This

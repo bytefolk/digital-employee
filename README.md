@@ -8,7 +8,11 @@ workspace. The long-term direction (tracked in
 turn one business directory into a directly addressable AI team — a directory
 is one business, a position is one addressable digital employee, and a
 conversation is work carried out with that position's Context and permission
-boundary. The roadmap and strategy live in
+boundary. Positions run on a built-in, TypeScript-native execution engine as
+the default Host
+([Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165),
+design state); external Agent Host adapters remain an option, not a
+dependency. The roadmap and strategy live in
 [docs/strategy.md](docs/strategy.md) and [docs/roadmap.md](docs/roadmap.md).
 
 ## Where Digital Employee sits
@@ -23,9 +27,10 @@ of orchestrating tools by hand.
 The pitch we are moving toward: the barrier to entry is low — a business owner
 does not need to write prompts or wire up an Agent Host by hand. Name a
 position, get an answer with its source, and the owner stays accountable for
-the whole organization. **This direction is planned, not yet shipped**: the
-`workspace` / `org` / `chat` command surface does not exist in the current
-source (see the status table below).
+the whole organization. **This direction is planned, not yet shipped**: the `org` / `chat` command
+surface does not exist in the current source, and `workspace init` exists
+only as a prototype shipped in current source after `0.4.0` (see the status
+table below).
 
 ## Capability status
 
@@ -39,9 +44,11 @@ source (see the status table below).
 | package-bound `deploy` | **Released** in `0.4.0` within its documented fail-closed boundary (HTTP can reach `ready`; DingTalk reconciliation is externally HOLD) |
 | Employee-package / Skill / Schema / eval contracts, Agent Host Adapters | **Released** in `0.4.0`; Host adapters are `preview` and `fixture-conformant`, not live-qualified |
 | `standalone-v1` compatibility runtime | **Released** compatibility path; not the target for new mainline capabilities |
-| Old-track deploy governance and Runner/Host qualification wrap-up (#90/#70/#86/#137/#113/#125/#52/#46/#34/#136) | **In development** only as old-track wrap-up; not extended |
-| `workspace init`, `org tree` / `org apply`, `chat @position` | **Planned** (design state, Epic #155 M1) |
-| Long-term Context via `mem` + `context`, permission boundaries | **Planned** (design state, Epic #155 M1/M2) |
+| Old-track issues after the 2026-08-23 pivot | Disposed per the approved #164 ledger — KEEP 11 / REPURPOSE 9 / PARK 5; see the [old-track disposition ledger](docs/roadmap.md#old-track-wrap-up-and-issue-disposition) |
+| `workspace init` (oss-maintainer template) | **Shipped** in current source as a prototype after `0.4.0` (#156); not part of the published `0.4.0` artifact |
+| `org tree` / `org apply`, `chat @position` | **Planned** (design state, Epic #155 first milestone) |
+| Long-term Context via `mem` + `context`, permission boundaries | **Planned** (design state, Epic #155 first milestone / M2) |
+| Built-in execution engine (default Host, S1 read-only core) | **Planned** (design state, Epic #165; aligned with the first milestone, due 2026-09-30) |
 | oss-maintainer showcase (quickstart form) | **Planned** (Epic #155 M1) |
 | Channel expansion (Lark/WeCom) | **Planned later**; excluded from the first milestone |
 
@@ -146,8 +153,10 @@ billable facts; Runner-attested tokens never debit Credits directly.
 See the [Runner integration path](docs/runner.md) and [ADR 0002](docs/decisions/0002-runner-execution-boundary.md).
 There is no claim that a deployable `runner start` network daemon exists yet;
 the seller-owned daemon, durable local replay/outbox, reconnect and outbound
-platform client remain open-framework work on the old track, which is wrapping
-up rather than being extended. Server-side device registration, task dispatch,
+platform client remain open-framework work on the old track, which is
+finished rather than extended; the surviving scope is recorded in the
+[old-track disposition ledger](docs/roadmap.md#old-track-wrap-up-and-issue-disposition).
+Server-side device registration, task dispatch,
 `UsageVerifier`, Quote, Credit and settlement APIs remain private platform
 work.
 
@@ -253,17 +262,24 @@ docker run --rm -p 3000:3000 digital-employee:candidate \
   --host 0.0.0.0 --port 3000
 ```
 
-## What the framework owns
+## What the product owns
 
+- the workspace skeleton and organization model: the directory tree is the org
+  chart, and every hire carries a budget (skeleton shipped as a prototype in
+  current source; organization commands planned, not delivered);
+- position conversation with Context and permission boundaries (planned, not
+  delivered);
+- the built-in TypeScript-native execution engine as the default Host, with
+  external Agent Host adapters retained as an option (planned; the S1 slice is
+  a read-only core);
 - portable, versioned employee packages and deterministic package digests;
-- default-deny Agent Host adapters and runtime policy;
+- default-deny Agent Host adapters and runtime policy for one-shot runs;
 - sealed local execution inputs, normalized events, and signed receipts;
 - truthful deployment outcomes, lifecycle state, and recovery boundaries.
 
-The selected Agent Host still owns model inference, context, and its native
-tool loop. Employees run on the publisher's or operator's own machine; this
-repository is not a hosted marketplace or a second Agent loop. Marketplace,
-billing, settlement and other company-internal transactions stay private.
+Employees run on the publisher's or operator's own machine; this repository is
+not a hosted marketplace. Marketplace, billing, settlement and other
+company-internal transactions stay private.
 
 ## Documentation
 

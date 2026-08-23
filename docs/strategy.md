@@ -18,17 +18,21 @@ The workspace model is the product, not a command collection:
 | Mapping | Meaning |
 | --- | --- |
 | One directory = one business | `workspace init` turns a local directory into a business workspace with an organization tree, positions, and a business Context area. |
-| One position = one addressable digital employee | `chat @position` addresses a named position directly; the position id is the stable identity that survives sessions and Host changes. |
+| One position = one addressable digital employee | `chat @position` addresses a named position directly; the position id is the stable identity that survives sessions and Host changes. Every hired position carries a budget before the change takes effect. |
 | One conversation = work with position Context and permission boundary | A conversation loads only that position's Context slice and runs inside its Authority Scope; out-of-scope requests are refused, not silently widened. |
-| Organization hierarchy = business owner → digital employees | The owner sees the business whole, delegates work, and is accountable for the result; workers see only the slice their position is allowed to see. |
+| Organization hierarchy = business owner → digital employees | The owner sees the business whole, delegates work, and is accountable for the result; workers see only the slice their position is allowed to see. Budget-exceeded reports escalate along the reporting line — the reporting chain and budget governance share one escalation mechanism. |
 | Long-term Context foundation = mem + context | Decisions and task state persist to the memory plane (`mem`), and session text is distilled into a context graph; a new session recalls and continues without Host-native session resume. |
+| Built-in engine = default Host | Positions run on a built-in, TypeScript-native execution engine; external Agent Host adapters remain an option, not a dependency. |
 | Open source builds the brand; transactions stay inside the company | The open repository owns the workspace framework and the public narrative; marketplace, billing, settlement and company-internal transactions are private work and never enter this repository. |
 
-Digital Employee does not implement another general-purpose model or tool loop.
-The selected Agent Host owns model access, context and its native Agent loop;
-this framework owns the workspace, the position address book, the permission
-boundary and the long-term Context path. Local create, validate and run
-workflows do not require a marketplace.
+Digital Employee does not implement another general-purpose model. Positions
+run on a built-in, TypeScript-native execution engine that is the workspace's
+default Host
+([Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165));
+external Agent Host adapters remain an option, not a dependency. This
+repository owns the workspace, the position address book, the permission
+boundary, the long-term Context path and the built-in engine. Local create,
+validate and run workflows do not require a marketplace.
 
 `answer-agent` and the `standalone-v1` compatibility runtime are historical
 first employee use cases, not the product definition. The released
@@ -36,6 +40,28 @@ first employee use cases, not the product definition. The released
 package-bound `deploy` commands validate employee packages and execute bounded
 local runs; they are the foundation the workspace mainline builds on, not the
 workspace itself.
+
+### Built-in execution engine (default Host)
+
+The workspace runs positions on a built-in, TypeScript-native execution engine
+— an independently designed clean-room implementation of a five-layer
+capability model (prompt / context / harness / loop / graph), tracked by
+[Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165).
+
+- **S1 — read-only engine core (due 2026-09-30, aligned with the first
+  milestone):** turn-contract execution, per-turn context assembly, loop
+  control with fail-safe termination, structural fail-closed (no tool surface,
+  no network egress, no write authority — enforced by construction), and
+  per-turn evidence records. Design state today; not delivered.
+- **S2 — harness layer (M2–M3):** tool dispatch, MCP client, approval gates,
+  sandboxing and runtime enforcement of position permission boundaries; S2
+  extends the S1 zero-tool baseline and never weakens it. Planned.
+- **S3 — graph layer (M4+):** cross-position routing, parallelism and
+  delegation orchestration over the organization model. Planned.
+
+Engine narrative discipline: the engine is independently original. Public
+documents in this repository do not name third-party agent frameworks;
+capability decisions cite this repository's own requirement records.
 
 ## North Star metric: Digital-Organization Work Loop
 
@@ -79,13 +105,22 @@ remain private company-internal concerns.
   and `chat @position` (the first milestone is tracked in
   [Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155));
 - the organization model `organization.v1alpha1`, workspace metadata, and the
-  position package references;
+  position package references; the directory tree is the org chart — the
+  workspace directory is the enterprise, each position is a subdirectory
+  holding its employee package, and the parent-child directory relation is the
+  reporting relationship (#157);
+- position budget governance: every hire carries a budget before the change
+  takes effect; budget caps are enforced by the engine loop layer;
+  budget-exceeded reports escalate along the reporting line (#157);
 - position permission boundaries: Context Scope (which business slice a
   position can recall) and Authority Scope (which tools a position can call),
   with owner/worker defaults and no silent inheritance;
 - long-term Context integration: `mem` R1-level memory plane writes and recalls
   plus rule-based `context` fact distillation, decoupling continuity from
   Host-native session resume;
+- the built-in TypeScript-native execution engine as the default Host
+  (design; the S1 slice is a read-only core), with external Agent Host
+  adapters retained as an option (#165);
 - the already released employee-package, Skill, Schema, eval and Host Adapter
   contracts, plus `init` / `doctor` / `validate` / `eval` / one-shot `run` /
   `setup` / package-bound `deploy`, which the workspace builds on;
@@ -96,10 +131,12 @@ remain private company-internal concerns.
 
 ### Out of scope for this open repository
 
-- a replacement for an Agent Host's model and native tool loop;
+- a replacement for an Agent Host's model access and commercial service; the
+  built-in engine executes positions locally, and adapters to external Hosts
+  remain an option;
 - cloud hosting of employee packages, Agent Hosts, model accounts, credentials
   or application/service robots;
-- marketplace accounts, listings, search, ranking, reviews, rentals, dynamic
+- marketplace accounts, listings, discovery, ranking, reviews, rentals, dynamic
   pricing, Quote, Credit, billing, settlement, or any company-internal
   transaction — this is private work (see the boundary below);
 - channel expansion (Lark #77 / WeCom #78) in the first milestone; the first
@@ -108,9 +145,10 @@ remain private company-internal concerns.
   explicit authority allowlist derivation;
 - Host-native session resume as a requirement; long-term continuity is rebuilt
   from `mem` + `context` each turn (#102);
-- hard-coded document, drive, DWS, memory or business-system integrations in
-  the core; those capabilities enter through explicit MCP, connector or adapter
-  boundaries;
+- hard-coded document, drive, DWS or business-system integrations in the core;
+  those capabilities enter through explicit MCP, connector or adapter
+  boundaries; long-term Context enters through the explicit memory-plane
+  boundary;
 - React, a design system or a marketplace UI in runtime packages.
 
 ## Boundary with the previous mainline (Runner / security / deploy governance)
@@ -118,19 +156,21 @@ remain private company-internal concerns.
 The previous public mainline was **Builder → Seller Runner → Trusted
 execution** ([Epic #25](https://github.com/fullstack-ai-infra/digital-employee/issues/25)).
 The strategy decision of 2026-08-14 pivots the product mainline to the
-**local digital-organization workspace** ([Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)).
+**local digital-organization workspace** ([Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)),
+and the 2026-08-23 decision record
+[#164](https://github.com/fullstack-ai-infra/digital-employee/issues/164)
+fixes the old-track disposition ledger.
 
-- The old track is **wrapping up, not extended**: the released foundation
+- The old track is **finished, not extended**: the released foundation
   (`init`/`validate`/`eval`/`run`, package contracts, Host Adapters, the
   preview Runner kernel) remains supported and is the substrate for the new
-  mainline. Remaining old-track issues (deploy governance, Host/Runner
-  qualification, security audit) are finished only where required to close out
-  the old track; no new capability is added to them.
+  mainline. No new capability is added to the old track.
 - Every open old-track issue carries an explicit **KEEP / REPURPOSE / PARK**
-  disposition in the [roadmap](roadmap.md). KEEP items join the new mainline,
-  REPURPOSE items are re-scoped onto the workspace command surface, and PARK
-  items freeze after the old track wraps up. Dispositions are recorded, not
-  destructive: issues are not mass-rewritten or closed by this strategy.
+  disposition in the [roadmap](roadmap.md), per the approved #164 ledger:
+  **KEEP 11 / REPURPOSE 9 / PARK 5**. Execution has happened: PARK issues are
+  closed as not planned; REPURPOSE issues carry a disposition comment and stay
+  open; KEEP issues are untouched. Dispositions are recorded, not destructive:
+  issues are not mass-rewritten, and no issue is silently dropped.
 - The private marketplace story is unchanged and remains inside the company:
   the open repository never implements listings, pricing, billing, settlement,
   or company-internal transactions.
@@ -147,36 +187,47 @@ The strategy decision of 2026-08-14 pivots the product mainline to the
    explicit deployment credential; it may consume provider credits.
 4. Bind a validated package to a truthful local deployment outcome with the
    package-bound `deploy` command within its documented fail-closed boundary.
+5. Create a workspace skeleton with `workspace init --template oss-maintainer`
+   (prototype shipped in current source after `0.4.0`; the target must be a
+   missing or empty directory — any other target fails closed).
 
-The `workspace init`, `org tree` / `org apply` and `chat @position` commands
-do **not** exist in the current source; they are **design** state tracked by
-[Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155).
-Do not describe them as available. Consult the
+`org tree` / `org apply`, `chat @position`, permission-boundary enforcement,
+mem-backed long-term Context and the built-in engine do **not** exist in the
+current source; they are **design** state tracked by
+[Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)
+and
+[Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165).
+Do not describe planned capabilities as available. Consult the
 [verification ledger](verification.md) for exact evidence.
 
 ### Target end-to-end path (new mainline)
 
-1. The user runs `workspace init ./<business> --template oss-maintainer` (or
-   `minimal` / `org-root`) and gets a workspace with an organization tree and
-   per-position employee packages.
+1. The user runs `workspace init ./<business> --template oss-maintainer` and
+   gets a workspace with an organization tree and per-position employee
+   packages. (Prototype shipped in current source.)
 2. The user inspects the organization with `org tree` and sees who is
-   addressable and what each position can see and do.
+   addressable and what each position can see and do. (Planned.)
 3. The user asks `chat @repo-owner` (owner delegates, worker executes) or
    `chat @issue-researcher` (narrow Context, narrow permission) and receives a
-   result with citations and a traceable delegation chain.
+   result with citations and a traceable delegation chain. (Planned.)
 4. Decisions and task state persist to the `mem` memory plane; session text is
-   collected for `context` distillation.
+   collected for `context` distillation. (Planned; the recall seam is asserted
+   first, mem-backed recall is M2 scope.)
 5. A new session or Host recalls the same position memory and continues the
-   work.
+   work. (Planned.)
 6. An organizational change runs through `org apply`: Context survives, and
-   permission scopes are recomputed without silent expansion.
+   permission scopes are recomputed without silent expansion; a hire without
+   an allocated budget fails closed. (Planned.)
 
 ## Milestone contract
 
 The roadmap owns dates and issue membership. These milestone outcomes and gates
 define the stable sequence.
 
-### M1 — Digital-Organization Workspace (first milestone)
+### W1 — Workspace closed loop (first milestone, due 2026-09-30)
+
+Engine S1 (#165) and the workspace sub-issues I-01..I-07 align on this
+milestone.
 
 **User outcome:** a user turns one business directory into a directly
 addressable AI team and reproduces the first showcase case (oss-maintainer)
@@ -196,32 +247,49 @@ paths) → `mem` persistence → new-session recall.
   back to the owner; unbound positions fail closed;
 - after a conversation, `mem` contains a position decision record with
   source/task provenance, and a new session recalls and can restate it;
-- `org apply` preserves Context and recomputes permission scopes;
+- `org apply` preserves Context and recomputes permission scopes; a hire
+  without an allocated budget is rejected fail-closed with a stable error;
+- the four oss-maintainer packages run end to end on the built-in engine with
+  zero external host and zero credentials, a forced budget or doom-loop
+  termination is demonstrated, and every showcase turn carries an evidence
+  record under the #140 standard (#165 AC-001..AC-004);
 - all claims use the evidence vocabulary below, and no fixture-only path is
   presented as live-qualified.
 
 **Non-goals:** channels (CLI-only), marketplace/transaction work, full RBAC,
-and Host-native session resume.
+Host-native session resume, and any weakening of the S1 structural
+guarantees.
 
-### M2 — Context depth and org lifecycle
+### M2–M3 — Context depth, org lifecycle and engine harness
 
 **User outcome:** the workspace keeps learning: session text is distilled into
-a rule-based entity graph, and `org apply` becomes the trusted way to change
-the organization.
+a rule-based entity graph, `org apply` becomes the trusted way to change the
+organization, and the engine grows a harness layer above the read-only core.
 
 **Gate:** rule-based `context` distillation (#162) is idempotent and drives
-narrow-slice recall; `org apply` audits organizational changes. Channel output
-rendering (#160) is owned outside this pivot and is not a gate here.
+narrow-slice recall; `org apply` audits organizational changes; mem-backed
+recall is in productive use (#161); the engine S2 harness layer (tool
+dispatch, MCP client, approval gates, sandboxing, runtime enforcement of
+position permission boundaries) extends the S1 zero-tool baseline without
+weakening it (#165). Channel output rendering (#160) is owned outside this
+pivot and is not a gate here.
 
 **Non-goals:** channel expansion, marketplace/transaction work, and full RBAC.
+
+### M4+ — Engine graph layer
+
+The engine S3 graph layer provides cross-position routing, parallelism and
+delegation orchestration over the organization model, with permission checks
+at every hop (#165). Planned; scope binds only after M2–M3 closes.
 
 ### Old-track wrap-up
 
 The old Runner/deploy/security track is not a milestone on the new mainline.
 Its open issues carry an explicit disposition in the
 [roadmap](roadmap.md) — KEEP (joins the new mainline), REPURPOSE (re-scoped
-onto the workspace surface), or PARK (frozen after wrap-up). No new old-track
-capability is scheduled.
+onto the workspace/engine lines), or PARK (closed as not planned with a
+revival condition). The approved #164 ledger is already executed; no new
+old-track capability is scheduled.
 
 ## Evidence maturity vocabulary
 
@@ -235,7 +303,7 @@ notes. Never infer a stronger term from a weaker one.
 | **fixture-conformant** | The locked Adapter/protocol path passes repository-owned deterministic fixtures. It is not vendor certification, live authentication, model entitlement or commercial qualification. |
 | **live-qualified** | A named, locked integration path has passed a recorded test with real provider/service credentials in an approved environment, including declared policy and cleanup gates. This does not grant resale rights or prove all versions. |
 | **design** | A reviewed target, contract or decision with no claim that an executable implementation exists. |
-| **private** | Implemented or planned outside this public repository. Public interfaces may reference it, but this repository must not claim or absorb its implementation. |
+| **private** | Implemented or planned outside this public repository. Public interfaces may reference it, but this repository must not claim or incorporate its implementation. |
 
 Use `unsupported` or `probe-only` where applicable; neither is a synonym for
 preview. Legal permission for unattended operation or resale is a separate
@@ -257,13 +325,17 @@ Before adding a requirement or issue, answer these questions in order:
 4. Is it a server-side device-registration, task-dispatch, `UsageVerifier` or
    settlement implementation? If yes, it is private work; only the
    interoperable client/protocol boundary belongs here.
-5. Does it create another model or tool loop around an Agent Host? If yes,
-   reject or redesign it as a package, Host Adapter or outer-runtime concern.
+5. Does it create another model or tool loop? The built-in engine is the
+   workspace's default execution path; do not add a second loop around it. New
+   position capabilities enter through the engine capability-model slices
+   (S1 read-only core first); external Agent Host integration enters through
+   version-gated adapters, never through the portable package contract.
 6. Is it vendor-specific? Put enforcement and projection in a version-gated
    Host Adapter, never in the portable package contract.
-7. Is it a channel (Lark/WeCom), document, drive, DWS, memory or business
+7. Is it a channel (Lark/WeCom), document, drive, DWS or business
    capability? Prefer explicit MCP/connector/adapter extension over a core
-   dependency, and keep channel expansion out of the first milestone.
+   dependency, and keep channel expansion out of the first milestone;
+   long-term Context enters through the memory-plane boundary.
 8. Is it a UI? A local operator UI may consume public APIs without entering
    runtime packages; marketplace UI is private.
 9. What evidence term applies today, and what observable gate would promote it?

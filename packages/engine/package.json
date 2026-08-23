@@ -1,0 +1,37 @@
+{
+  "name": "@fullstack-ai-infra/digital-employee-engine",
+  "version": "0.4.0",
+  "description": "Built-in, TypeScript-native execution engine (read-only S1 core) for digital employees. Clean-room, dependency-light, no tool surface.",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fullstack-ai-infra/digital-employee.git"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "prepack": "npm --prefix ../.. run build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ajv": "8.20.0"
+  },
+  "license": "Apache-2.0"
+}

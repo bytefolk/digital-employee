@@ -31,6 +31,10 @@
     "./host-runtime": {
       "types": "./dist/apps/cli/host-runtime.d.ts",
       "import": "./dist/apps/cli/host-runtime.js"
+    },
+    "./engine": {
+      "types": "./dist/packages/engine/index.d.ts",
+      "import": "./dist/packages/engine/index.js"
     }
   },
   "workspaces": [

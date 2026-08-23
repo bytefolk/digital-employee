@@ -1,5 +1,10 @@
 import type { SafeValue } from "../../core/src/contracts.js"
 
+import {
+  validatePositionBudgetDeclaration,
+  type PositionBudgetDeclaration,
+} from "./budget.js"
+
 /**
  * Built-in execution engine protocol identity.
  *
@@ -9,6 +14,7 @@ import type { SafeValue } from "../../core/src/contracts.js"
  */
 export const ENGINE_PROTOCOL_VERSION = "engine.v1" as const
 export const ENGINE_ID = "built-in" as const
+export const ENGINE_VERSION = "0.1.0" as const
 
 /**
  * Terminal reasons are this repository's own enumeration. They are NOT a
@@ -98,6 +104,14 @@ export interface EngineTurnRequest {
   /** ISO 8601 UTC deadline; exceeding fails closed. */
   deadline?: string
   signal?: AbortSignal
+  /**
+   * Position budget declaration from the organization model (per-task and
+   * per-day caps). When present, taskId and dayKey are mandatory so the
+   * ledger can attribute consumption.
+   */
+  positionBudget?: PositionBudgetDeclaration
+  taskId?: string
+  dayKey?: string
 }
 
 const MAX_ID_LENGTH = 256
@@ -178,6 +192,18 @@ export function validateTurnRequest(
         "deadline must be a valid ISO 8601 timestamp",
       )
     }
+  }
+  if (request.positionBudget !== undefined) {
+    try {
+      validatePositionBudgetDeclaration(request.positionBudget)
+    } catch {
+      throw new EngineRequestError(
+        "engine.input_invalid",
+        "positionBudget must be fully allocated (perTask and perDay caps)",
+      )
+    }
+    assertBoundedId(request.taskId, "taskId")
+    assertBoundedId(request.dayKey, "dayKey")
   }
   return request
 }

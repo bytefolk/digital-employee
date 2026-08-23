@@ -196,9 +196,11 @@ function validateName(value: string, detail: string): void {
 /**
  * Code-side validation of a workspace-org.v1 organization document. Mirrors
  * the published JSON Schema keyword-for-keyword (required fields, types,
- * additionalProperties: false, budget contract) so the schema-consistency
- * test can assert both surfaces agree on the same sample set. Fails closed
- * with stable codes on any violation.
+ * additionalProperties: false, budget contract) and is a fail-closed
+ * superset of it: unique role ids, owner membership/root, resolved reporting
+ * lines, and acyclic reporting chains are enforced here as well because JSON
+ * Schema cannot express them. Fails closed with stable codes on any
+ * violation.
  */
 export function validateOrganizationDocument(
   value: unknown,
@@ -388,6 +390,19 @@ export function validateOrganizationDocument(
   for (const role of roles) {
     if (role.reportTo !== null && !seen.has(role.reportTo)) {
       throw invalidDocument(`role_${role.id}_dangling_report_to`)
+    }
+  }
+  for (const role of roles) {
+    const visited = new Set<string>()
+    let current: ValidatedOrganizationRole | undefined = role
+    while (current) {
+      if (visited.has(current.id)) throw invalidDocument("reporting_cycle")
+      visited.add(current.id)
+      const superior: string | null = current.reportTo
+      current =
+        superior === null
+          ? undefined
+          : roles.find((entry) => entry.id === superior)
     }
   }
   return {

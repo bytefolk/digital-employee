@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "org-tree.v1",
+  "business": "oss",
+  "owner": "repo-owner",
+  "positionCount": 4,
+  "depth": 2,
+  "tree": [
+    {
+      "id": "repo-owner",
+      "reportTo": null,
+      "children": [
+        {
+          "id": "community-operator",
+          "reportTo": "repo-owner",
+          "children": []
+        },
+        {
+          "id": "issue-researcher",
+          "reportTo": "repo-owner",
+          "children": []
+        },
+        {
+          "id": "release-engineer",
+          "reportTo": "repo-owner",
+          "children": []
+        }
+      ]
+    }
+  ]
+}

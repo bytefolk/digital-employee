@@ -159,8 +159,36 @@ export interface WorkspaceFile {
   content: Uint8Array
 }
 
-function positionPortablePath(roleId: string, relative: string): string {
-  return `./positions/${roleId}/${relative}`
+/**
+ * Directory segments (ancestors first) of a role's position directory under
+ * `positions/`. The parent-child directory relation is the reporting
+ * relationship (#157 REQ-004): a role reporting to another role nests inside
+ * its superior's directory.
+ */
+export function workspaceRoleDirectorySegments(
+  template: WorkspaceTemplate,
+  roleId: string,
+): string[] {
+  const segments: string[] = []
+  let current: string | null = roleId
+  const seen = new Set<string>()
+  while (current !== null) {
+    if (seen.has(current)) {
+      throw new TypeError("workspace_template_reporting_cycle")
+    }
+    seen.add(current)
+    segments.unshift(current)
+    const role = template.roles.find((entry) => entry.id === current)
+    if (!role) {
+      throw new TypeError(`workspace_template_unknown_report_to:${current}`)
+    }
+    current = role.reportTo
+  }
+  return segments
+}
+
+function positionPortablePath(segments: string[], relative: string): string {
+  return `./positions/${segments.join("/")}/${relative}`
 }
 
 function jsonFile(value: unknown): Uint8Array {
@@ -308,36 +336,48 @@ reviewed knowledge for the position before running \`eval\`.
 
 /**
  * Render the employee package file set for one position. The package follows
- * the same contract as the built-in recipes so existing `validate` accepts it.
+ * the same contract as the built-in recipes so existing `validate` accepts
+ * it, and carries a `budget.json` declaration that `org apply` reads as the
+ * position's budget source (#157 REQ-006). The directory path encodes the
+ * reporting line (#157 REQ-004).
  */
 export function renderPositionPackageFiles(
+  template: WorkspaceTemplate,
   role: WorkspaceTemplateRole,
 ): WorkspaceFile[] {
   const manifest = manifestForRole(role)
+  const segments = workspaceRoleDirectorySegments(template, role.id)
   return [
     {
-      portablePath: positionPortablePath(role.id, "employee.json"),
+      portablePath: positionPortablePath(segments, "employee.json"),
       content: jsonFile(manifest),
     },
     {
-      portablePath: positionPortablePath(role.id, "SKILL.md"),
+      portablePath: positionPortablePath(segments, "SKILL.md"),
       content: Buffer.from(skillForRole(role), "utf8"),
     },
     {
-      portablePath: positionPortablePath(role.id, "schemas/input.schema.json"),
+      portablePath: positionPortablePath(segments, "schemas/input.schema.json"),
       content: jsonFile(INPUT_SCHEMA),
     },
     {
-      portablePath: positionPortablePath(role.id, "schemas/output.schema.json"),
+      portablePath: positionPortablePath(segments, "schemas/output.schema.json"),
       content: jsonFile(OUTPUT_SCHEMA),
     },
     {
-      portablePath: positionPortablePath(role.id, "knowledge/README.md"),
+      portablePath: positionPortablePath(segments, "knowledge/README.md"),
       content: Buffer.from(KNOWLEDGE_README, "utf8"),
     },
     {
-      portablePath: positionPortablePath(role.id, "evals/cases.json"),
+      portablePath: positionPortablePath(segments, "evals/cases.json"),
       content: jsonFile(EVAL_CASES),
+    },
+    {
+      portablePath: positionPortablePath(segments, "budget.json"),
+      content: jsonFile({
+        perTask: { ...role.budget.perTask },
+        perDay: { ...role.budget.perDay },
+      }),
     },
   ]
 }
@@ -414,7 +454,11 @@ export function renderOrganizationFile(
         name: digests[role.id]?.name ?? role.id,
         version: digests[role.id]?.version ?? WORKSPACE_POSITION_PACKAGE_VERSION,
         digest: digests[role.id]?.digest ?? "",
-        localReference: path.join(directory, "positions", role.id),
+        localReference: path.join(
+          directory,
+          "positions",
+          ...workspaceRoleDirectorySegments(template, role.id),
+        ),
       },
       mode: role.mode,
       memoryScope: role.memoryScope,
@@ -485,7 +529,7 @@ export function renderSkeletonFiles(
 ): WorkspaceFile[] {
   const files: WorkspaceFile[] = [contextSkeleton(business)]
   for (const role of template.roles) {
-    files.push(...renderPositionPackageFiles(role))
+    files.push(...renderPositionPackageFiles(template, role))
   }
   files.push(renderWorkspaceManifest(template, business, createdAt))
   return files

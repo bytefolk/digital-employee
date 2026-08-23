@@ -27,6 +27,7 @@ import {
 import { evaluateEmployeePackage } from "./employee-eval.js";
 import { deploy, renderDeployParseFailure } from "./deploy/index.js";
 import { workspace, renderWorkspaceParseFailure } from "./workspace/index.js";
+import { org, renderOrgParseFailure } from "./org/index.js";
 import { setup } from "./setup.js";
 
 type EmployeeResult = Awaited<ReturnType<DigitalEmployee["answer"]>>;
@@ -50,6 +51,8 @@ interface CommandValues {
   runtime?: string;
   package?: string;
   template?: string;
+  tool?: string;
+  context?: string;
   yes: boolean;
   help: boolean;
 }
@@ -63,6 +66,9 @@ function usage() {
 Agent-native usage:
   digital-employee setup [directory] [--name employee-name] [--recipe minimal-answer.v1|structured-action.v1] [--json]
   digital-employee workspace init <directory> --template oss-maintainer [--json]
+  digital-employee org tree [workspace] [--json]
+  digital-employee org apply [workspace] [--json]
+  digital-employee org scope <position> [workspace] [--tool <name> | --context <path>] [--json]
   digital-employee deploy [package-path] [--package path] --channel <id> --engine <id> --runtime agent-native|standalone-v1 [options]
   digital-employee doctor [--engine claude-code|qoder|codex|qwen-code|codebuddy] [--json]
   digital-employee init <directory> [--recipe minimal-answer.v1|structured-action.v1] [--name employee-name] [--author author]
@@ -109,6 +115,8 @@ function parseCommand(argv: string[]) {
       runtime: { type: "string" },
       package: { type: "string" },
       template: { type: "string" },
+      tool: { type: "string" },
+      context: { type: "string" },
       yes: { type: "boolean", short: "y", default: false },
       help: { type: "boolean", short: "h", default: false }
     }
@@ -552,10 +560,14 @@ async function main() {
       renderWorkspaceParseFailure(argv.slice(1), error);
       return;
     }
+    if (argv[0] === "org") {
+      renderOrgParseFailure(argv.slice(1), error);
+      return;
+    }
     throw error;
   }
   const { command, values, positionals, providedOptions } = parsed;
-  if (command === "help" || (values.help && command !== "deploy" && command !== "workspace")) {
+  if (command === "help" || (values.help && command !== "deploy" && command !== "workspace" && command !== "org")) {
     process.stdout.write(usage());
     return;
   }
@@ -595,6 +607,16 @@ async function main() {
     locale: values.locale,
     json: values.json,
     help: values.help,
+    providedOptions,
+  });
+  if (command === "org") return org({
+    subcommand: positionals[0],
+    args: positionals.slice(1),
+    locale: values.locale,
+    json: values.json,
+    help: values.help,
+    tool: values.tool,
+    context: values.context,
     providedOptions,
   });
   if (command === "doctor") return doctor(values);

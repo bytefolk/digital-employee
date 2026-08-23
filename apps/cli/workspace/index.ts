@@ -41,6 +41,7 @@ import {
   resolveWorkspaceTemplate,
   renderSkeletonFiles,
   renderOrganizationFile,
+  workspaceRoleDirectorySegments,
   workspaceTemplateIds,
 } from "./templates.js"
 import type {
@@ -127,7 +128,7 @@ function writeRecoveryGuidance(
   }
 }
 
-function safeFailureCode(error: unknown, fallback: string): string {
+export function safeFailureCode(error: unknown, fallback: string): string {
   if (!(error instanceof Error)) return fallback
   const match = error.message.match(/^([A-Za-z][A-Za-z0-9_.-]{0,127})/)
   return match?.[1]?.toLowerCase() ?? fallback
@@ -328,7 +329,11 @@ async function computePositionDigests(
 ): Promise<Record<string, WorkspacePositionDigest>> {
   const digests: Record<string, WorkspacePositionDigest> = {}
   for (const role of template.roles) {
-    const positionDirectory = path.join(directory, "positions", role.id)
+    const positionDirectory = path.join(
+      directory,
+      "positions",
+      ...workspaceRoleDirectorySegments(template, role.id),
+    )
     digests[role.id] = {
       name: role.id,
       version: WORKSPACE_POSITION_PACKAGE_VERSION,
@@ -350,7 +355,11 @@ async function verifyWorkspace(
 ): Promise<void> {
   for (const role of template.roles) {
     const inspection = await inspectEmployeePackage(
-      path.join(directory, "positions", role.id),
+      path.join(
+        directory,
+        "positions",
+        ...workspaceRoleDirectorySegments(template, role.id),
+      ),
     )
     if (inspection.manifest.name !== role.id) {
       throw new TypeError("workspace_position_package_name_mismatch")

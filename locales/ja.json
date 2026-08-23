@@ -117,6 +117,9 @@
   "workspace.recovery_workspace_init_template_missing": "テンプレート id を指定してください：digital-employee workspace init <directory> --template oss-maintainer。",
   "workspace.recovery_workspace_init_target_already_exists": "存在しないまたは空のディレクトリを選んでください。{directory} には既に内容があり変更されていないため、{template} テンプレートは書き込まれませんでした。",
   "workspace.recovery_workspace_init_write_failed": "ワークスペースの状態は残っていません。ファイルシステムの問題を解決してから digital-employee workspace init {directory} --template {template} を再実行してください。",
+  "workspace.recovery_workspace_org_budget_missing": "ポジションに予算を宣言してください：すべてのポジションに perTask と perDay の両スコープが必要で、それぞれ少なくとも 1 つの正の整数上限（tokens/iterations）を宣言する必要があります。",
+  "workspace.recovery_workspace_org_budget_not_allocated": "予算をフル割り当てしてください：perTask と perDay の両方が存在し、それぞれが少なくとも 1 つの正の整数上限（tokens または iterations）を宣言する必要があります。",
+  "workspace.recovery_workspace_org_budget_invalid": "予算上限を修正してください：すべての上限は 1000000000 以下の正の整数でなければならず、許可されるキーは perTask、perDay、tokens、iterations のみです。",
   "workspace.init_done": "テンプレート {template} から {directory} にワークスペース {business} を作成しました（{count} 職位）：",
   "workspace.init_file": "  書き込み済み {path}",
   "workspace.init_next_steps": "次のステップ：positions/*/SKILL.md を確認し、knowledge のプレースホルダーを承認済みコンテンツに置き換えてから、各職位で `digital-employee validate positions/<id>` を実行してください。"

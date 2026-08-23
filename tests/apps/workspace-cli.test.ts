@@ -102,6 +102,32 @@ test("AC-001: workspace init materializes the oss-maintainer skeleton on a clean
     assert.match(String(pkg.digest), /^sha256:[a-f0-9]{64}$/)
     assert.equal(pkg.localReference, path.join(target, "positions", String(role.id)))
   }
+  // Every position carries a fully allocated budget declaration (#157 REQ-006).
+  const expectedBudgets: Record<string, unknown> = {
+    "repo-owner": {
+      perTask: { tokens: 40_000, iterations: 12 },
+      perDay: { tokens: 400_000, iterations: 96 },
+    },
+    "issue-researcher": {
+      perTask: { tokens: 20_000, iterations: 8 },
+      perDay: { tokens: 200_000, iterations: 64 },
+    },
+    "release-engineer": {
+      perTask: { tokens: 20_000, iterations: 8 },
+      perDay: { tokens: 200_000, iterations: 64 },
+    },
+    "community-operator": {
+      perTask: { tokens: 20_000, iterations: 8 },
+      perDay: { tokens: 200_000, iterations: 64 },
+    },
+  }
+  for (const role of roles) {
+    assert.deepEqual(
+      role.budget,
+      expectedBudgets[String(role.id)],
+      `budget for ${String(role.id)}`,
+    )
+  }
 
   const manifest = await readJson(path.join(target, "workspace.json"))
   assert.equal(manifest.schemaVersion, "workspace.v1alpha1")

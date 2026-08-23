@@ -117,6 +117,9 @@
   "workspace.recovery_workspace_init_template_missing": "Provide a template id: digital-employee workspace init <directory> --template oss-maintainer.",
   "workspace.recovery_workspace_init_target_already_exists": "Choose a directory that is missing or empty; {directory} already has content and was left untouched, so the {template} template was not written.",
   "workspace.recovery_workspace_init_write_failed": "No workspace state is left behind; resolve the filesystem issue and rerun digital-employee workspace init {directory} --template {template}.",
+  "workspace.recovery_workspace_org_budget_missing": "Declare a budget for the position: every position needs a budget with perTask and perDay scopes, each carrying at least one of tokens/iterations as a positive integer cap.",
+  "workspace.recovery_workspace_org_budget_not_allocated": "Fully allocate the budget: both perTask and perDay must be present and each must declare at least one positive integer cap (tokens and/or iterations).",
+  "workspace.recovery_workspace_org_budget_invalid": "Fix the budget caps: every cap must be a positive integer at most 1000000000, and only the keys perTask, perDay, tokens, and iterations are allowed.",
   "workspace.init_done": "Created workspace {business} at {directory} from template {template} with {count} positions:",
   "workspace.init_file": "  wrote {path}",
   "workspace.init_next_steps": "Next steps: review positions/*/SKILL.md, replace the knowledge placeholders with approved content, then run `digital-employee validate positions/<id>` for each position."

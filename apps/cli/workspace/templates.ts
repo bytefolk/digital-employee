@@ -15,8 +15,13 @@
 import path from "node:path"
 
 import type { EmployeePackageManifest } from "../../../packages/core/src/employee-package.js"
+import {
+  WORKSPACE_ORG_SCHEMA_ID,
+  WORKSPACE_ORG_SCHEMA_VERSION,
+} from "../org/budget.js"
+import type { PositionBudget } from "../org/budget.js"
 
-export const WORKSPACE_ORG_SCHEMA_VERSION = "workspace-org.v1" as const
+export { WORKSPACE_ORG_SCHEMA_VERSION }
 export const WORKSPACE_MANIFEST_SCHEMA_VERSION = "workspace.v1alpha1" as const
 
 export const WORKSPACE_TEMPLATE_IDS = ["oss-maintainer"] as const
@@ -32,6 +37,12 @@ export interface WorkspaceTemplateRole {
   toolAllow: string[]
   toolDeny: string[]
   metadata: Record<string, string>
+  /**
+   * Mandatory budget declaration (#157 REQ-006): every hired position
+   * corresponds to exactly one fully allocated budget. Units are tokens and
+   * iteration counts only; there is no currency dimension (#155 non-goal).
+   */
+  budget: PositionBudget
 }
 
 export interface WorkspaceTemplate {
@@ -47,6 +58,19 @@ export const WORKSPACE_POSITION_PACKAGE_AUTHOR = "your-team" as const
 export const WORKSPACE_POSITION_PACKAGE_LICENSE = "Apache-2.0" as const
 
 const READ_ONLY_TOOL_ALLOW = ["Read", "Grep", "Glob"] as const
+
+/**
+ * oss-maintainer budget declarations (V1 design placeholders, #157 REQ-006).
+ * Units: tokens and iteration counts per task / per day.
+ */
+const REPO_OWNER_BUDGET: PositionBudget = {
+  perTask: { tokens: 40_000, iterations: 12 },
+  perDay: { tokens: 400_000, iterations: 96 },
+}
+const SUBORDINATE_BUDGET: PositionBudget = {
+  perTask: { tokens: 20_000, iterations: 8 },
+  perDay: { tokens: 200_000, iterations: 64 },
+}
 
 /**
  * oss-maintainer: a repo-owner lead with three read-only subordinate
@@ -71,6 +95,7 @@ export const OSS_MAINTAINER_TEMPLATE: WorkspaceTemplate = {
       toolAllow: [...READ_ONLY_TOOL_ALLOW],
       toolDeny: [],
       metadata: {},
+      budget: REPO_OWNER_BUDGET,
     },
     {
       id: "issue-researcher",
@@ -83,6 +108,7 @@ export const OSS_MAINTAINER_TEMPLATE: WorkspaceTemplate = {
       toolAllow: [...READ_ONLY_TOOL_ALLOW],
       toolDeny: [],
       metadata: {},
+      budget: SUBORDINATE_BUDGET,
     },
     {
       id: "release-engineer",
@@ -95,6 +121,7 @@ export const OSS_MAINTAINER_TEMPLATE: WorkspaceTemplate = {
       toolAllow: [...READ_ONLY_TOOL_ALLOW],
       toolDeny: [],
       metadata: {},
+      budget: SUBORDINATE_BUDGET,
     },
     {
       id: "community-operator",
@@ -107,6 +134,7 @@ export const OSS_MAINTAINER_TEMPLATE: WorkspaceTemplate = {
       toolAllow: [...READ_ONLY_TOOL_ALLOW],
       toolDeny: [],
       metadata: {},
+      budget: SUBORDINATE_BUDGET,
     },
   ],
 }
@@ -352,6 +380,7 @@ export interface RenderedOrganization {
     toolAllow: string[]
     toolDeny: string[]
     metadata: Record<string, string>
+    budget: PositionBudget
   }>
   updatedAt: string
 }
@@ -371,8 +400,7 @@ export function renderOrganizationFile(
   updatedAt: string,
 ): WorkspaceFile {
   const organization: RenderedOrganization = {
-    $schema:
-      "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/workspace-org.schema.json",
+    $schema: WORKSPACE_ORG_SCHEMA_ID,
     schemaVersion: WORKSPACE_ORG_SCHEMA_VERSION,
     business,
     description: template.description,
@@ -393,6 +421,10 @@ export function renderOrganizationFile(
       toolAllow: [...role.toolAllow],
       toolDeny: [...role.toolDeny],
       metadata: { ...role.metadata },
+      budget: {
+        perTask: { ...role.budget.perTask },
+        perDay: { ...role.budget.perDay },
+      },
     })),
     updatedAt,
   }

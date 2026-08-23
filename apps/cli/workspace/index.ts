@@ -48,6 +48,7 @@ import type {
   WorkspacePositionDigest,
   WorkspaceTemplate,
 } from "./templates.js"
+import { validateOrganizationBudgets } from "../org/budget.js"
 
 export interface WorkspaceOptions {
   subcommand?: string
@@ -372,6 +373,16 @@ async function verifyWorkspace(
   ) {
     throw new TypeError("workspace_organization_file_invalid")
   }
+  // Budget contract is fail-closed (#157 REQ-006): a position without a fully
+  // allocated budget declaration never passes verification.
+  validateOrganizationBudgets(
+    (organization.roles as Array<{ id?: unknown; budget?: unknown }>).map(
+      (role) => ({
+        id: typeof role.id === "string" ? role.id : "",
+        budget: role.budget,
+      }),
+    ),
+  )
 }
 
 async function workspaceInit(options: WorkspaceInitOptions): Promise<void> {

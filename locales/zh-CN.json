@@ -117,6 +117,9 @@
   "workspace.recovery_workspace_init_template_missing": "请提供模板 id：digital-employee workspace init <directory> --template oss-maintainer。",
   "workspace.recovery_workspace_init_target_already_exists": "请换一个不存在或为空的目录；{directory} 已有内容且保持原样，{template} 模板未写入。",
   "workspace.recovery_workspace_init_write_failed": "未留下任何工作区状态；解决文件系统问题后重新运行 digital-employee workspace init {directory} --template {template}。",
+  "workspace.recovery_workspace_org_budget_missing": "请为该岗位声明预算：每个岗位都必须包含 perTask 与 perDay 两个预算范围，且各自至少声明 tokens/iterations 中的一个正整数上限。",
+  "workspace.recovery_workspace_org_budget_not_allocated": "请把预算配齐：perTask 与 perDay 必须同时存在，且各自至少声明一个正整数上限（tokens 和/或 iterations）。",
+  "workspace.recovery_workspace_org_budget_invalid": "请修正预算上限：每个上限必须是不超过 1000000000 的正整数，且只允许 perTask、perDay、tokens、iterations 这些键。",
   "workspace.init_done": "已从模板 {template} 在 {directory} 创建工作区 {business}，共 {count} 个岗位：",
   "workspace.init_file": "  已写入 {path}",
   "workspace.init_next_steps": "下一步：审阅 positions/*/SKILL.md，用已审核的内容替换 knowledge 占位文件，然后对每个岗位运行 `digital-employee validate positions/<id>`。"

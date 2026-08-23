@@ -19,6 +19,7 @@ export const DISTRIBUTION_ASSET_MAPPINGS = Object.freeze([
   ["configs/employee-package.schema.json", "dist/configs/employee-package.schema.json"],
   ["configs/profile.schema.json", "dist/configs/profile.schema.json"],
   ["configs/schema.json", "dist/configs/schema.json"],
+  ["configs/workspace-org.schema.json", "dist/configs/workspace-org.schema.json"],
   ["locales/README.md", "dist/locales/README.md"],
   ["locales/en.json", "dist/locales/en.json"],
   ["locales/ja.json", "dist/locales/ja.json"],

@@ -102,5 +102,22 @@
   "deploy.outcome_failed": "部署失败（{code}）。",
   "deploy.http_endpoint": "HTTP 端点：{endpoint}",
   "deploy.help": "digital-employee deploy [package-path] [options]\n\n  在任何部署副作用前校验并绑定精确员工包。\n  package-path 默认为当前目录，且最多只能提供一个位置路径。\n  --package 是等价形式，不能与位置参数 package-path 同时使用。\n\n  渠道能力：\n    可用：                   http（仅通过认证读回后 ready）\n    预览 / 等待外部操作：   console | dingtalk（pending_external_action；不会 ready）\n    不可用：                 lark | wecom\n  Agent-native 引擎：    claude-code | qoder | qwen-code | codebuddy\n  standalone-v1 引擎：   extractive | openai-compatible（仅 legacy 命令）\n  运行时：               agent-native（默认）；包绑定 standalone-v1 不受支持\n  语言：                 {locales}\n  结果：                 ready=退出 0；pending_external_action=退出 2；unsupported/failed/invalid=退出 1\n\n选项：\n  --package <path>    员工包路径（最多一个位置路径；两种形式互斥）\n  --channel <id>      部署渠道\n  --engine <id>       所选运行时支持且当前可用的引擎\n  --runtime <id>      agent-native；standalone-v1 请使用 `digital-employee legacy ...`\n  --name <name>       本地部署显示名\n  --locale <code>     生效语言（{locales}）\n  --port <number>     本机 HTTP 端口（仅 http；默认 3000）\n  --yes               跳过确认；必须提供 channel、engine、runtime\n  --help              显示帮助，不触发提示、写配置、调用服务商或创建进程\n\n稳定默认值：\n  package=当前目录；name=数字员工助手；--yes 下 locale=en。\n\n示例：\n  digital-employee deploy\n  digital-employee deploy ./my-employee --channel http --engine qoder --runtime agent-native\n  digital-employee deploy --package ./my-employee --channel http --engine qoder --runtime agent-native --locale zh-CN --name 我的助手 --yes",
-  "deploy.recovery_deploy_interrupted": "部署在完成前被中断。重新运行同一条命令：它会回读已保存的绑定，校验或清理残留的本地状态，并恢复到就绪或报告确切的阻塞步骤。"
+  "deploy.recovery_deploy_interrupted": "部署在完成前被中断。重新运行同一条命令：它会回读已保存的绑定，校验或清理残留的本地状态，并恢复到就绪或报告确切的阻塞步骤。",
+  "workspace.help": "Digital Employee 工作区命令\n\n用法：\n  digital-employee workspace init <directory> --template <id> [options]\n  digital-employee workspace help\n\n模板：oss-maintainer\n\nworkspace init 会在不存在或为空的目录中生成业务工作区骨架（organization.v1alpha1.json、workspace.json、positions/、context/），绝不修改非空目标。\n\n选项：\n  --template <id>   要生成的工作区模板（必填）\n  --locale <code>   输出语言（{locales}）\n  --json            机器可读输出\n\n示例：\n  digital-employee workspace init ./oss --template oss-maintainer",
+  "workspace.help_init": "用法：digital-employee workspace init <directory> --template <id> [--locale {locales}] [--json]\n\n在不存在或为空的目录中生成工作区骨架（organization.v1alpha1.json、workspace.json、positions/、context/）。\n\n选项：\n  --template <id>   要生成的工作区模板（oss-maintainer）\n  --locale <code>   输出语言（{locales}）\n  --json            机器可读输出",
+  "workspace.error_invalid_value": "无效的 {field}。支持的取值：{supported}。",
+  "workspace.error_aborted": "工作区命令未执行（{code}）。",
+  "workspace.error_incompatible_options": "工作区选项互斥（{code}）。",
+  "workspace.error_missing_template": "必须提供工作区模板（{code}）。",
+  "workspace.error_invalid_template": "无效的工作区模板（{code}）。",
+  "workspace.error_target_already_exists": "工作区目标目录已存在且未被修改（{code}）。",
+  "workspace.error_unknown_subcommand": "未知的工作区子命令（{code}）。",
+  "workspace.error_write_failed": "工作区文件写入失败（{code}）。",
+  "workspace.recovery_workspace_init_directory_required": "请提供目标目录：digital-employee workspace init <directory> --template oss-maintainer。",
+  "workspace.recovery_workspace_init_template_missing": "请提供模板 id：digital-employee workspace init <directory> --template oss-maintainer。",
+  "workspace.recovery_workspace_init_target_already_exists": "请换一个不存在或为空的目录；{directory} 已有内容且保持原样，{template} 模板未写入。",
+  "workspace.recovery_workspace_init_write_failed": "未留下任何工作区状态；解决文件系统问题后重新运行 digital-employee workspace init {directory} --template {template}。",
+  "workspace.init_done": "已从模板 {template} 在 {directory} 创建工作区 {business}，共 {count} 个岗位：",
+  "workspace.init_file": "  已写入 {path}",
+  "workspace.init_next_steps": "下一步：审阅 positions/*/SKILL.md，用已审核的内容替换 knowledge 占位文件，然后对每个岗位运行 `digital-employee validate positions/<id>`。"
 }

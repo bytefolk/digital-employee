@@ -102,5 +102,22 @@
   "deploy.outcome_failed": "デプロイ失敗（{code}）。",
   "deploy.http_endpoint": "HTTPエンドポイント：{endpoint}",
   "deploy.help": "digital-employee deploy [package-path] [options]\n\n  デプロイ副作用の前に、正確な従業員パッケージを検証して固定します。\n  package-pathのデフォルトは現在のディレクトリで、位置引数は最大1つです。\n  --packageは同等の形式で、位置引数package-pathとは併用できません。\n\n  チャンネル能力：\n    利用可能：                 http（認証済みreadback後のみready）\n    プレビュー / 外部操作待ち： console | dingtalk（pending_external_action；readyにはならない）\n    利用不可：                 lark | wecom\n  Agent-nativeエンジン：   claude-code | qoder | qwen-code | codebuddy\n  standalone-v1エンジン：  extractive | openai-compatible（legacyコマンドのみ）\n  ランタイム：             agent-native（デフォルト）。パッケージ指定standalone-v1は未対応\n  言語：                   {locales}\n  結果：                   ready=終了0、pending_external_action=終了2、unsupported/failed/invalid=終了1\n\nオプション：\n  --package <path>    パッケージパス（位置引数は最大1つ、2形式は競合）\n  --channel <id>      デプロイチャンネル\n  --engine <id>       選択ランタイムで対応し、現在利用可能なエンジン\n  --runtime <id>      agent-native。standalone-v1は`digital-employee legacy ...`を使用\n  --name <name>       ローカルデプロイ表示名\n  --locale <code>     有効ロケール（{locales}）\n  --port <number>     ループバックHTTPポート（httpのみ、デフォルト3000）\n  --yes               確認を省略。channel、engine、runtimeが必須\n  --help              プロンプト、設定書込、プロバイダー、プロセスなしでヘルプを表示\n\n安定したデフォルト：\n  package=現在のディレクトリ、name=デジタル従業員、--yes時locale=en。\n\n例：\n  digital-employee deploy\n  digital-employee deploy ./my-employee --channel http --engine qoder --runtime agent-native\n  digital-employee deploy --package ./my-employee --channel http --engine qoder --runtime agent-native --locale ja --name マイボット --yes",
-  "deploy.recovery_deploy_interrupted": "デプロイは完了前に中断されました。同じコマンドを再実行してください。保存済みバインドを読み戻し、不完全なローカル状態を検証・清理したうえで、ready へ回復するか正確なブロック手順を報告します。"
+  "deploy.recovery_deploy_interrupted": "デプロイは完了前に中断されました。同じコマンドを再実行してください。保存済みバインドを読み戻し、不完全なローカル状態を検証・清理したうえで、ready へ回復するか正確なブロック手順を報告します。",
+  "workspace.help": "Digital Employee ワークスペースコマンド\n\n使い方：\n  digital-employee workspace init <directory> --template <id> [options]\n  digital-employee workspace help\n\nテンプレート：oss-maintainer\n\nworkspace init は、存在しないまたは空のディレクトリにビジネスワークスペースの雛形（organization.v1alpha1.json、workspace.json、positions/、context/）を生成します。空でない対象は変更しません。\n\nオプション：\n  --template <id>   生成するワークスペーステンプレート（必須）\n  --locale <code>   出力ロケール（{locales}）\n  --json            機械可読出力\n\n例：\n  digital-employee workspace init ./oss --template oss-maintainer",
+  "workspace.help_init": "使い方：digital-employee workspace init <directory> --template <id> [--locale {locales}] [--json]\n\n存在しないまたは空のディレクトリにワークスペースの雛形（organization.v1alpha1.json、workspace.json、positions/、context/）を生成します。\n\nオプション：\n  --template <id>   生成するワークスペーステンプレート（oss-maintainer）\n  --locale <code>   出力ロケール（{locales}）\n  --json            機械可読出力",
+  "workspace.error_invalid_value": "無効な {field}。対応する値：{supported}。",
+  "workspace.error_aborted": "ワークスペースコマンドは実行されませんでした（{code}）。",
+  "workspace.error_incompatible_options": "ワークスペースのオプションが競合しています（{code}）。",
+  "workspace.error_missing_template": "ワークスペーステンプレートを指定してください（{code}）。",
+  "workspace.error_invalid_template": "無効なワークスペーステンプレートです（{code}）。",
+  "workspace.error_target_already_exists": "ワークスペースの対象ディレクトリは既に存在しており、変更されませんでした（{code}）。",
+  "workspace.error_unknown_subcommand": "不明なワークスペースサブコマンドです（{code}）。",
+  "workspace.error_write_failed": "ワークスペースファイルを書き込めませんでした（{code}）。",
+  "workspace.recovery_workspace_init_directory_required": "対象ディレクトリを指定してください：digital-employee workspace init <directory> --template oss-maintainer。",
+  "workspace.recovery_workspace_init_template_missing": "テンプレート id を指定してください：digital-employee workspace init <directory> --template oss-maintainer。",
+  "workspace.recovery_workspace_init_target_already_exists": "存在しないまたは空のディレクトリを選んでください。{directory} には既に内容があり変更されていないため、{template} テンプレートは書き込まれませんでした。",
+  "workspace.recovery_workspace_init_write_failed": "ワークスペースの状態は残っていません。ファイルシステムの問題を解決してから digital-employee workspace init {directory} --template {template} を再実行してください。",
+  "workspace.init_done": "テンプレート {template} から {directory} にワークスペース {business} を作成しました（{count} 職位）：",
+  "workspace.init_file": "  書き込み済み {path}",
+  "workspace.init_next_steps": "次のステップ：positions/*/SKILL.md を確認し、knowledge のプレースホルダーを承認済みコンテンツに置き換えてから、各職位で `digital-employee validate positions/<id>` を実行してください。"
 }

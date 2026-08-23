@@ -3,225 +3,206 @@
 [简体中文](roadmap.zh-CN.md)
 
 This roadmap turns the stable [product strategy](strategy.md) into an
-executable issue graph. [Epic #25](https://github.com/fullstack-ai-infra/digital-employee/issues/25)
-is the delivery index. Issue labels and milestones are the source of truth for
-current status; this document defines sequence, ownership and acceptance gates,
-not delivery dates or full issue specifications.
+executable issue graph. [Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)
+(Local digital-organization workspace) is the delivery index for the new
+mainline; [Epic #25](https://github.com/fullstack-ai-infra/digital-employee/issues/25)
+stays open only as the old-track wrap-up index. Issue labels and milestones are
+the source of truth for current status; this document defines sequence,
+ownership and acceptance gates, not delivery dates or full issue
+specifications.
 
 ## Shipped baseline
 
 | Area | Evidence in the current source | Maturity and remaining boundary |
 | --- | --- | --- |
-| Agent-native authoring | Host-neutral `init`, package-aware `validate`, bounded `doctor`, the `minimal-answer.v1` and `structured-action.v1` recipes, and executable offline contract evals | **shipped** in current source and the `0.3.0` root artifact; fixture eval does not prove live model entitlement |
+| Employee-package authoring | Host-neutral `init`, package-aware `validate`, bounded `doctor`, the `minimal-answer.v1` and `structured-action.v1` recipes, and executable offline contract evals | **shipped** in current source and the public `0.4.0` artifact; fixture eval does not prove live model entitlement |
 | Local Agent Host execution | Version-gated one-shot paths for Qoder CLI, Claude Code, Qwen Code and CodeBuddy Code | **preview** and **fixture-conformant**; live entitlement is not proven |
 | Codex | Discovery and readiness diagnosis | **probe-only**; it is not a runnable Adapter |
 | Runner kernel | Package digest and sealed snapshot, signed task/lease verification, replay port, hash-chained events and signed receipt for one task | **preview** embeddable kernel; no long-running Runner or public network SDK is shipped |
-| Compatibility runtime | `standalone-v1` answer-agent runtime and connectors | **shipped** compatibility path; not the target for new general Agent capabilities |
+| Compatibility runtime | `standalone-v1` answer-agent runtime and connectors | **shipped** compatibility path; not the target for new mainline capabilities |
+| Deploy command | Package-bound `deploy` with truthful local outcome and fail-closed recovery | **preview** surface; HTTP can reach `ready`; DingTalk reconciliation is externally HOLD |
 
-All application/service employees execute on a publisher- or operator-owned
-computer or server. The target long-running seller Runner is public framework
-work, but it is not delivered by the current one-shot preview.
+The `workspace init`, `org tree` / `org apply` and `chat @position` commands
+do **not** exist in the current source. They are **design** state owned by the
+new mainline below.
 
-## Delivery graph
+## Delivery graph (new mainline)
 
 ```mermaid
 flowchart LR
-  E25["#25 North Star epic"]
+  E155["#155 Epic: Local digital-organization workspace"]
 
-  I32["#32 Strategy and roadmap"] --> I31["#31 Neutral scaffolds, recipes and evals"] --> I26["#26 v0.3 release verification"]
-  E25 --> I32
-
-  I29["#29 Authenticated outbound transport"] --> I35["#35 Runner lifecycle"]
-  I27["#27 Local deployments and durable recovery"] --> I35
-  I28["#28 Usage evidence semantics"] --> I35
-  I35 --> I37["#37 Signed end-to-end integration"]
-  I28 --> I38["#38 Runner protocol compatibility and golden vectors"]
-  I37 --> I38
-  E25 --> I29
-  E25 --> I27
-  E25 --> I28
-
-  I31 --> I39["#39 Employee-package compatibility and golden vectors"] --> I14["#14 Deterministic distribution lifecycle"] --> M2G["M2 gate"]
-  I40["#40 Agent-host compatibility and golden vectors"] --> I30["#30 Adapter conformance kit"] --> I33["#33 External stdio Adapter protocol"] --> I36["#36 MCP conformance and recipes"] --> M2G
-  I30 -. research input .-> I34["#34 Codex re-qualification (non-gating)"]
-  I12["#12 Write preview and audit contract"] --> M2G
-  I12 --> I19["#19 Local operator console (non-gating experience)"]
-  I14 --> I19
-  I35 --> I19
-  I38 --> M2G
-  E25 --> I40
-  E25 --> I12
+  I01["I-01 #156 workspace init"] --> I02["I-02 #157 org tree / org apply"]
+  I02 --> I03["I-03 #158 chat @position"]
+  I01 --> I04["I-04 #159 permission boundaries"]
+  I03 --> I05["I-05 #161 mem long-term Context"]
+  I03 --> I06["I-06 #162 context distillation (P1)"]
+  I03 --> I07["I-07 #163 oss-maintainer showcase"]
+  E155 --> I01
+  E155 --> I02
+  E155 --> I03
+  E155 --> I04
+  E155 --> I05
+  E155 --> I06
+  E155 --> I07
+  E155 --> I08["I-08 #164 strategy/roadmap/README pivot"]
+  I01 --> M1G["M1 gate (first milestone)"]
+  I02 --> M1G
+  I03 --> M1G
+  I04 --> M1G
+  I05 --> M1G
+  I07 --> M1G
+  I06 -. non-gating .-> M2G["M2 gate"]
+  I02 --> M2G
+  I06 --> M2G
 ```
 
 The normative ordering is:
 
-- M0: [#32](https://github.com/fullstack-ai-infra/digital-employee/issues/32)
-  → [#31](https://github.com/fullstack-ai-infra/digital-employee/issues/31)
-  → [#26](https://github.com/fullstack-ai-infra/digital-employee/issues/26).
-- M1: [#29](https://github.com/fullstack-ai-infra/digital-employee/issues/29)
-  + [#27](https://github.com/fullstack-ai-infra/digital-employee/issues/27)
-  + [#28](https://github.com/fullstack-ai-infra/digital-employee/issues/28)
-  → [#35](https://github.com/fullstack-ai-infra/digital-employee/issues/35)
-  → [#37](https://github.com/fullstack-ai-infra/digital-employee/issues/37).
-  Parts of #35 may be implemented while its inputs are being designed, but the
-  gate closes only in this order.
-- M2 package/distribution chain:
-  #31 → [#39](https://github.com/fullstack-ai-infra/digital-employee/issues/39)
-  → [#14](https://github.com/fullstack-ai-infra/digital-employee/issues/14)
-  → M2 gate.
-- M2 Host/capability chain:
-  [#40](https://github.com/fullstack-ai-infra/digital-employee/issues/40)
-  → [#30](https://github.com/fullstack-ai-infra/digital-employee/issues/30)
-  → [#33](https://github.com/fullstack-ai-infra/digital-employee/issues/33)
-  → [#36](https://github.com/fullstack-ai-infra/digital-employee/issues/36)
-  → M2 gate.
-  [#34](https://github.com/fullstack-ai-infra/digital-employee/issues/34) is a
-  non-gating research watchlist item informed by #30, not a condition for M2
-  closure.
-- M2 Runner protocol stability chain:
-  [#28](https://github.com/fullstack-ai-infra/digital-employee/issues/28)
-  + [#37](https://github.com/fullstack-ai-infra/digital-employee/issues/37)
-  → [#38](https://github.com/fullstack-ai-infra/digital-employee/issues/38)
-  → M2 gate.
-- M2 write-trust gate:
-  [#12](https://github.com/fullstack-ai-infra/digital-employee/issues/12)
-  → M2 gate.
-- Non-gating experience track:
-  #12 + #14 + #35
-  → [#19](https://github.com/fullstack-ai-infra/digital-employee/issues/19).
-  #19 consumes stable public contracts but does not gate M0, M1, M2 or a
-  framework release.
+- **M1 (first milestone, marked):** [#156](https://github.com/fullstack-ai-infra/digital-employee/issues/156)
+  → [#157](https://github.com/fullstack-ai-infra/digital-employee/issues/157)
+  → [#158](https://github.com/fullstack-ai-infra/digital-employee/issues/158),
+  with [#159](https://github.com/fullstack-ai-infra/digital-employee/issues/159)
+  and [#161](https://github.com/fullstack-ai-infra/digital-employee/issues/161)
+  closing the permission and memory loop, and
+  [#163](https://github.com/fullstack-ai-infra/digital-employee/issues/163)
+  proving the oss-maintainer showcase end to end.
+- [#162](https://github.com/fullstack-ai-infra/digital-employee/issues/162)
+  (context distillation) is P1 and non-gating for M1.
+- [#164](https://github.com/fullstack-ai-infra/digital-employee/issues/164)
+  (this pivot) is parallel and does not block M1.
+- **M2:** context distillation depth and `org apply` lifecycle become the next
+  gate. Channel output rendering
+  ([#160](https://github.com/fullstack-ai-infra/digital-employee/issues/160))
+  is owned outside this pivot and is not scheduled here.
 
-## M0 — Builder Ready
+## M1 — Digital-Organization Workspace (first milestone)
 
-**User outcome:** an author can install the Agent-native framework, create a
-host-neutral employee that is not forced into the answer-agent shape, validate
-and evaluate it, and complete a documented local run.
+**User outcome:** a user turns one business directory into a directly
+addressable AI team with long-term Context and permission boundaries, and
+reproduces the first showcase case (oss-maintainer) end to end.
 
 | Story | Deliverable | Dependency | Team |
 | --- | --- | --- | --- |
-| [#32](https://github.com/fullstack-ai-infra/digital-employee/issues/32) | Make strategy and roadmap the repository source of truth | Epic #25 | Product architecture |
-| [#31](https://github.com/fullstack-ai-infra/digital-employee/issues/31) | Add neutral scaffolds, checked-in recipes and executable evals | #32 | Builder experience |
-| [#26](https://github.com/fullstack-ai-infra/digital-employee/issues/26) | Publish and independently verify v0.3 artifacts | #31 | Release engineering |
+| [#156](https://github.com/fullstack-ai-infra/digital-employee/issues/156) | `workspace init` prototype with oss-maintainer template | Epic #155 | Workspace |
+| [#157](https://github.com/fullstack-ai-infra/digital-employee/issues/157) | Organization model with `org tree` / `org apply` | #156 | Org model |
+| [#158](https://github.com/fullstack-ai-infra/digital-employee/issues/158) | `chat @position` conversation bridge (turn contract) | #102, #156 | Chat bridge |
+| [#159](https://github.com/fullstack-ai-infra/digital-employee/issues/159) | Position permission boundaries (Context Scope + Authority Scope) | #156 | Governance |
+| [#161](https://github.com/fullstack-ai-infra/digital-employee/issues/161) | Long-term Context integration (mem R1-level) | #158, mem #68 | Memory |
+| [#163](https://github.com/fullstack-ai-infra/digital-employee/issues/163) | oss-maintainer showcase (quickstart form) | #156, #158 | Adoption |
+| [#162](https://github.com/fullstack-ai-infra/digital-employee/issues/162) | Context fact distillation integration (rule-based) | #158, context | Context (P1, non-gating) |
 
-**Gate:** a clean-machine quickstart is repeatable; at least two materially
-different employees use the same contracts; evals execute; failures are
-actionable and fail closed; support claims use the strategy's evidence
-vocabulary; published artifacts are independently verified.
+**Gate:** clean-machine `workspace init` → `org tree` → `chat @position`
+(owner and worker paths) works; Context slices are narrow and permission
+boundaries hold; decisions persist to `mem` and a new session recalls them;
+`org apply` preserves Context and recomputes permissions; the showcase is
+reproducible from the quickstart; every claim uses the evidence vocabulary.
 
-**Release evidence:** the historical core-package dry-run defect is no longer
-present. The release workflow actually packs the root and
-`./packages/core` targets separately, verifies each archive's identity,
-contents and digest, and performs clean-consumer checks. Root and standalone
-core `0.3.0` artifacts are public. Issue labels and milestones remain the
-source of truth for current status; this evidence does not by itself declare an
-Issue closed. Current push and repair releases run the full clean-installed
-consumer journey; historical asset-backfill runs intentionally use the tagged
-release's own checks plus import-only compatibility verification.
+**Non-goals:** channels (CLI-only), marketplace/transaction work, full RBAC,
+and Host-native session resume.
 
-## M1 — Seller Runner Ready
+## M2 — Context depth and org lifecycle
 
-**User outcome:** a seller can keep an employee online on a machine they
-control and accept authentic platform work without an inbound port, package
-upload or disclosure of the Agent Host credential.
+**User outcome:** the workspace keeps learning: session text is distilled into
+a rule-based entity graph, and `org apply` becomes the trusted way to change
+the organization.
 
 | Story | Deliverable | Dependency | Team |
 | --- | --- | --- | --- |
-| [#29](https://github.com/fullstack-ai-infra/digital-employee/issues/29) | Authenticated outbound transport and device-key rotation contract | Epic #25 | Runner protocol |
-| [#27](https://github.com/fullstack-ai-infra/digital-employee/issues/27) | Local deployment registry, durable replay/outbox and crash recovery | Epic #25 | Runner reliability |
-| [#28](https://github.com/fullstack-ai-infra/digital-employee/issues/28) | Provider-neutral usage evidence semantics | Epic #25 | Protocol and trust |
-| [#35](https://github.com/fullstack-ai-infra/digital-employee/issues/35) | `runner init/doctor/start/status` lifecycle | #29 + #27 + #28 | Runner lifecycle |
-| [#37](https://github.com/fullstack-ai-infra/digital-employee/issues/37) | Signed task → local Runner → Host → signed receipt integration proof | #35 | Integration and security |
+| [#162](https://github.com/fullstack-ai-infra/digital-employee/issues/162) | Rule-based context distillation drives narrow-slice recall | #158, context | Context |
+| [#157](https://github.com/fullstack-ai-infra/digital-employee/issues/157) | `org apply` audits organizational changes | #156 | Org model |
 
-**Gate:** the public Runner lifecycle and local bindings survive restart and
-network interruption; replayed or stale attempts fail before launch; a
-committed mock-control-plane test covers claim through receipt; observable
-evidence proves that local paths, package bytes and Host credentials never
-reach the control plane.
+**Non-goals:** channel expansion (Lark/WeCom), marketplace/transaction work,
+and full RBAC.
 
-## M2 — Framework v1 / Trust Ready
+## Old-track wrap-up and issue disposition
 
-**User outcome:** builders and integrators can independently validate and
-interoperate with employee packages, Agent Hosts and Runner protocols through
-versioned, language-neutral compatibility contracts, while distribution and
-side effects retain explicit verification and fail-closed trust boundaries.
+The old mainline (**Builder → Seller Runner → Trusted execution**, epic #25)
+is wrapping up and is not extended. Every open issue carries an explicit
+**KEEP / REPURPOSE / PARK** disposition. KEEP joins the new mainline;
+REPURPOSE is re-scoped onto the workspace command surface; PARK freezes after
+the old track wraps up. Dispositions are recorded, not destructive: issues are
+not mass-rewritten or closed by this roadmap, and a future engineering issue
+executes any disposition that implies code.
 
-| Story | Deliverable | Dependency | Team |
-| --- | --- | --- | --- |
-| [#39](https://github.com/fullstack-ai-infra/digital-employee/issues/39) | Stabilize employee-package compatibility and language-neutral golden vectors | #31 | Builder and distribution |
-| [#14](https://github.com/fullstack-ai-infra/digital-employee/issues/14) | Deterministic archive, verify/install/rollback lifecycle | #39 | Distribution |
-| [#40](https://github.com/fullstack-ai-infra/digital-employee/issues/40) | Stabilize agent-host compatibility and language-neutral golden vectors | Shipped Agent Host baseline | Host qualification |
-| [#30](https://github.com/fullstack-ai-infra/digital-employee/issues/30) | Reusable Adapter conformance and qualification kit | #40 | Host qualification |
-| [#33](https://github.com/fullstack-ai-infra/digital-employee/issues/33) | External stdio Agent Host Adapter protocol and SDK | #30 | Host extensibility |
-| [#36](https://github.com/fullstack-ai-infra/digital-employee/issues/36) | MCP conformance and synthetic memory/document recipes | #33 | Capability ecosystem |
-| [#38](https://github.com/fullstack-ai-infra/digital-employee/issues/38) | Stabilize Runner protocol compatibility and language-neutral golden vectors | #28 + #37 | Runner protocol |
-| [#12](https://github.com/fullstack-ai-infra/digital-employee/issues/12) | Write preview, approval, idempotency and audit contract | Epic #25 | Tool safety |
+### New mainline (Epic #155 and its sub-issues)
 
-**Gate:** employee-package, Agent Host and Runner contracts each have
-language-neutral golden vectors, version negotiation, unknown-field behavior
-and deterministic migration rules; archive inspection and rollback reject
-tampering without executing package code; one external sample Adapter passes
-the conformance kit without a core dispatch change; usage evidence remains
-separate from Quote/Credit math; write capabilities are default-deny and
-satisfy #12.
+| Issue | Title | Disposition |
+| --- | --- | --- |
+| [#155](https://github.com/fullstack-ai-infra/digital-employee/issues/155) | [Epic] Local digital-organization workspace | **KEEP** — new mainline delivery index; supersedes #25 as North Star |
+| [#156](https://github.com/fullstack-ai-infra/digital-employee/issues/156) | feat(workspace): `workspace init` prototype | **KEEP** — M1 |
+| [#157](https://github.com/fullstack-ai-infra/digital-employee/issues/157) | feat(org): organization model, `org tree` / `org apply` | **KEEP** — M1 |
+| [#158](https://github.com/fullstack-ai-infra/digital-employee/issues/158) | feat(chat): `chat @position` conversation bridge | **KEEP** — M1 |
+| [#159](https://github.com/fullstack-ai-infra/digital-employee/issues/159) | feat(org): position permission boundaries | **KEEP** — M1 |
+| [#161](https://github.com/fullstack-ai-infra/digital-employee/issues/161) | feat(mem): long-term Context integration (R1-level) | **KEEP** — M1 |
+| [#162](https://github.com/fullstack-ai-infra/digital-employee/issues/162) | feat(context): fact distillation integration (rule-based) | **KEEP** — M2 (P1) |
+| [#163](https://github.com/fullstack-ai-infra/digital-employee/issues/163) | showcase: oss-maintainer case (quickstart form) | **KEEP** — M1 |
+| [#164](https://github.com/fullstack-ai-infra/digital-employee/issues/164) | docs(strategy): pivot strategy/roadmap/README | **KEEP** — this pivot; parallel, non-blocking |
 
-### Non-gating experience track
+> Not part of this pivot: [#160](https://github.com/fullstack-ai-infra/digital-employee/issues/160)
+> (UX: channel output rendering) is owned outside Epic #155 and is intentionally
+> left untouched here. It is noted only so that no open issue is silently dropped
+> from this accounting; this roadmap assigns it no disposition or milestone.
 
-| Story | Experience outcome | Prerequisites | Team |
-| --- | --- | --- | --- |
-| [#19](https://github.com/fullstack-ai-infra/digital-employee/issues/19) | Optional local operator console over stable public framework APIs | #12 + #14 + #35 | Local operator UX |
+### Old-track issues (25 open at execution time)
 
-#19 belongs to the `Experience — Local Operator UX` milestone. It may begin
-after its inputs stabilize, but its absence cannot block M0, M1, M2 or a
-framework release.
+| Issue | Title | Disposition |
+| --- | --- | --- |
+| [#25](https://github.com/fullstack-ai-infra/digital-employee/issues/25) | [Epic] North Star: Builder → Seller Runner → Trusted execution | **PARK** — superseded North Star; stays open only as the old-track wrap-up index, no new capability |
+| [#91](https://github.com/fullstack-ai-infra/digital-employee/issues/91) | [Epic] Adoption: verified deploy and clean-machine Quickstart | **REPURPOSE** — adoption epic re-scoped onto the new command surface: clean-machine walkthrough and showcase adoption (#163) |
+| [#141](https://github.com/fullstack-ai-infra/digital-employee/issues/141) | docs(adoption): collect clean-machine install notes | **REPURPOSE** — install-note collection moves to the workspace/org/chat quickstart path |
+| [#142](https://github.com/fullstack-ai-infra/digital-employee/issues/142) | docs(adoption): three reproducible showcase cases | **REPURPOSE** — becomes the oss-maintainer showcase (#163) plus workspace-surface cases |
+| [#144](https://github.com/fullstack-ai-infra/digital-employee/issues/144) | feat(product): scenario pipeline, value acceptance, roadmap ordering (#25) | **REPURPOSE** — product-track ownership stays; re-point from #25 ordering to Epic #155 ordering and value acceptance for the showcase |
+| [#102](https://github.com/fullstack-ai-infra/digital-employee/issues/102) | RFC(runtime): employee-bound turn contract | **KEEP** — turn contract is the input contract for `chat @position` (#158); epic #155 depends on it |
+| [#104](https://github.com/fullstack-ai-infra/digital-employee/issues/104) | RFC(runtime): retention and recovery for audit evidence | **KEEP** — audit-evidence retention joins the workspace loop (mem provenance) |
+| [#19](https://github.com/fullstack-ai-infra/digital-employee/issues/19) | RFC: external control-surface adapter for diagnostics | **KEEP** — local control-surface seam; non-gating for M1/M2 |
+| [#90](https://github.com/fullstack-ai-infra/digital-employee/issues/90) | feat(cli): bind deploy to the exact employee package | **PARK** — deploy governance wrap-up; not extended on the new mainline |
+| [#70](https://github.com/fullstack-ai-infra/digital-employee/issues/70) | feat(cli): truthful local deploy orchestration | **PARK** — deploy governance wrap-up; not extended on the new mainline |
+| [#86](https://github.com/fullstack-ai-infra/digital-employee/issues/86) | feat(cli): deterministic localized deploy help | **PARK** — deploy governance wrap-up; not extended on the new mainline |
+| [#139](https://github.com/fullstack-ai-infra/digital-employee/issues/139) | feat(ux): deploy CLI and install-path experience | **PARK** — deploy-CLI UX is not extended; outsider install-path friction is already owned by #141 and the #163 walkthrough |
+| [#137](https://github.com/fullstack-ai-infra/digital-employee/issues/137) | chore(security): Runner/deploy state security audit | **PARK** — old-track security audit completes as wrap-up, then freezes |
+| [#113](https://github.com/fullstack-ai-infra/digital-employee/issues/113) | feat(host): qualify Qoder structured_output | **PARK** — Host qualification wraps up; no new Host capability on the old track |
+| [#125](https://github.com/fullstack-ai-infra/digital-employee/issues/125) | test(cli): claude-stream-agent-host protocol normalizer | **PARK** — old-track Host test; wrap up as evidence, then freeze |
+| [#52](https://github.com/fullstack-ai-infra/digital-employee/issues/52) | fix(host): truthful qualification deadline/cleanup/deny evidence | **PARK** — old-track Host qualification evidence; wrap up, then freeze |
+| [#46](https://github.com/fullstack-ai-infra/digital-employee/issues/46) | fix(host): complete agent-host.v1 corpus/validator observations | **PARK** — old-track Host qualification evidence; wrap up, then freeze |
+| [#55](https://github.com/fullstack-ai-infra/digital-employee/issues/55) | fix(host): complete real-local Phase A hardening | **PARK** — old-track Host hardening; wrap up, then freeze |
+| [#34](https://github.com/fullstack-ai-infra/digital-employee/issues/34) | research(host): re-qualify Codex CLI | **PARK** — old-track research watchlist; frozen unless a new mainline need appears |
+| [#138](https://github.com/fullstack-ai-infra/digital-employee/issues/138) | chore(qualification): provision live machines/credentials | **PARK** — depends on PARK'd items #125/#77/#78; freeze |
+| [#136](https://github.com/fullstack-ai-infra/digital-employee/issues/136) | feat(release): versioned release proving downstream selection | **PARK** — final gate of the old-track release story (#113); completes as wrap-up, then freezes |
+| [#77](https://github.com/fullstack-ai-infra/digital-employee/issues/77) | feat(channel): Lark official bootstrap | **PARK** — channel expansion excluded from the new mainline's first milestone |
+| [#78](https://github.com/fullstack-ai-infra/digital-employee/issues/78) | feat(channel): WeCom enterprise app boundary | **PARK** — channel expansion excluded from the new mainline's first milestone |
+| [#97](https://github.com/fullstack-ai-infra/digital-employee/issues/97) | chore(governance): remove single-person review bottleneck | **KEEP** — repo governance continues on the new mainline |
+| [#95](https://github.com/fullstack-ai-infra/digital-employee/issues/95) | chore(governance): enforce revisioned Issue requirements | **KEEP** — repo governance continues; this pivot itself consumes it |
 
-### Non-gating research watchlist
+## Blockers and decision points
 
-| Story | Research question | Revisit when | Team |
-| --- | --- | --- | --- |
-| [#34](https://github.com/fullstack-ai-infra/digital-employee/issues/34) | Can Codex satisfy the default-deny runnable Adapter contract? | #30 is reusable and upstream exposes an enforceable tool boundary | Host qualification |
-
-#34 can improve Host coverage, but it is not required to close M2 and must not
-weaken the qualification gate for any other Host.
+- #158 (`chat @position`) waits for the #102 turn contract to be approved;
+  the chat bridge must reuse it, not invent a second conversation model.
+- #161 waits for #158 plus the mem R1-level memory plane
+  (mem #68); position-agent token identity (mem #74) may fall back to a
+  temporary token for the first milestone, recorded explicitly in #161.
+- #163 waits for #156 and #158; the showcase is the end-to-end acceptance
+  artifact for M1.
+- The old-track wrap-up is sequenced only by closing-out work; it never blocks
+  M1 or M2.
 
 ## Team ownership
 
 | Team | Accountable issues | Boundary |
 | --- | --- | --- |
-| Product architecture | #25, #32 | North Star, scope, dependency graph and evidence language |
-| Builder, distribution and release | #31, #26, #39, #14 | Author workflow, recipes/evals, package compatibility, artifacts and distribution lifecycle |
-| Runner and protocol | #29, #27, #28, #35, #37, #38 | Seller-machine client, durability, public transport, end-to-end proof and protocol compatibility |
-| Host qualification | #40, #30, #33, #34 | Agent-host compatibility, Adapter evidence, external protocol and host admission |
-| Capability and tool trust | #36, #12 | MCP/recipe conformance and safe side effects |
-| Local operator UX | #19 | Optional local console consuming public APIs after Runner, write-trust and distribution contracts |
+| Product | #155, #164, #144 | North Star, scope, dependency graph, evidence language and roadmap ordering |
+| Workspace | #156, #157, #159 | Workspace init, organization model, permission boundaries |
+| Chat and memory | #158, #161, #162 | Turn bridge, long-term Context, context distillation |
+| Adoption | #163, #91, #141, #142 | Showcase, clean-machine walkthrough and adoption content |
+| Repo governance | #95, #97 | Requirement/acceptance ledgers and review-bottleneck removal |
 
-## Blockers and decision points
+## Private work (stays inside the company)
 
-- The historical #26 core-package dry-run defect is resolved in the release
-  workflow; current #26 status still comes from its Issue labels and milestone.
-- #35 cannot close until #29, #27 and #28 are accepted; parallel code does not
-  waive those contracts. #37 then proves the combined path.
-- #39 waits for #31; #14 then consumes its stable package compatibility line.
-- #40 must establish Agent Host compatibility before #30, #33 and #36 can
-  close in sequence.
-- #38 waits for #28 and #37; its compatibility and golden-vector evidence is a
-  required M2 gate.
-- #12 is an independent required M2 gate.
-- #19 waits for #12, #14 and #35 as a non-gating experience consumer; it cannot
-  delay a milestone or framework release.
-
-## Private control-plane backlog
-
-The following work is intentionally **private** and must be tracked outside
-this repository: marketplace accounts, listings, discovery, ratings and rental;
-server-side device registration and credential issuance; production task and
-lease scheduling; event ingestion and independent `UsageVerifier`; immutable
-Quote creation, Credit ledger, pricing, billing, refunds, payout, tax and
-settlement; marketplace UI and operator administration.
-
-Only interoperable client and protocol contracts required by the public Runner
-belong here. A private service must never receive package bytes, local paths or
-Host credentials, and must never execute the employee.
+Marketplace accounts, listings, discovery, ratings, rental, dynamic pricing,
+Quote, Credit, billing, settlement, and any company-internal transaction stay
+private and are tracked outside this repository. The open repository never
+implements them. Channel expansion (Lark/WeCom) is out of scope for the first
+milestone.
 
 ## Maintaining this roadmap
 
@@ -234,3 +215,6 @@ Host credentials, and must never execute the employee.
   enforceable capability boundary, version range and observable evidence.
 - Do not add calendar promises here. Sequence follows gates and dependency
   evidence.
+- Keep the disposition table in sync with open issues; a disposition is
+  recorded here, executed by an owning engineering issue, and never used to
+  silently close an issue.

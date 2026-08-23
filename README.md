@@ -2,22 +2,51 @@
 
 [简体中文](README.zh-CN.md)
 
-Digital Employee is an open-source CLI, employee-package contract, and local
-execution framework for portable digital employees. It lets an Agent Host such
-as Qoder CLI, Claude Code, Qwen Code, or CodeBuddy Code own the model loop while
-the framework owns package integrity, policy, host adapters, and execution
-evidence.
+Digital Employee is a local-first, conversation-first digital-organization
+workspace. The long-term direction (tracked in
+[Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)):
+turn one business directory into a directly addressable AI team — a directory
+is one business, a position is one addressable digital employee, and a
+conversation is work carried out with that position's Context and permission
+boundary. The roadmap and strategy live in
+[docs/strategy.md](docs/strategy.md) and [docs/roadmap.md](docs/roadmap.md).
 
-## Developer preview
+## Where Digital Employee sits
+
+Agent frameworks (Claude Code, Qoder, Qwen Code, CodeBuddy, Codex…) answer
+**how work gets done**; multi-agent systems answer **how work gets operated**.
+Digital Employee answers **who to ask and who is responsible**: it maps a
+business into addressable positions with visible context and permission
+boundaries, so a user can name the right digital employee for the job instead
+of orchestrating tools by hand.
+
+The pitch we are moving toward: the barrier to entry is low — a business owner
+does not need to write prompts or wire up an Agent Host by hand. Name a
+position, get an answer with its source, and the owner stays accountable for
+the whole organization. **This direction is planned, not yet shipped**: the
+`workspace` / `org` / `chat` command surface does not exist in the current
+source (see the status table below).
+
+## Capability status
 
 > [!WARNING]
 > Digital Employee is under active development. Interfaces and package formats
 > may change before a stable release.
 
-The public npm release is `0.4.0`. It includes `init`, `doctor`, `validate`,
-`eval`, one-shot `run`, the convenience `setup` command, and the package-bound
-`deploy` command. See the [install guide](INSTALL.md) for the exact published
-boundary.
+| Capability | Status |
+| --- | --- |
+| `init`, `doctor`, `validate`, `eval`, one-shot `run`, `setup` | **Released** in public npm `0.4.0`; fixture `eval` does not prove live model entitlement |
+| package-bound `deploy` | **Released** in `0.4.0` within its documented fail-closed boundary (HTTP can reach `ready`; DingTalk reconciliation is externally HOLD) |
+| Employee-package / Skill / Schema / eval contracts, Agent Host Adapters | **Released** in `0.4.0`; Host adapters are `preview` and `fixture-conformant`, not live-qualified |
+| `standalone-v1` compatibility runtime | **Released** compatibility path; not the target for new mainline capabilities |
+| Old-track deploy governance and Runner/Host qualification wrap-up (#90/#70/#86/#137/#113/#125/#52/#46/#34/#136) | **In development** only as old-track wrap-up; not extended |
+| `workspace init`, `org tree` / `org apply`, `chat @position` | **Planned** (design state, Epic #155 M1) |
+| Long-term Context via `mem` + `context`, permission boundaries | **Planned** (design state, Epic #155 M1/M2) |
+| oss-maintainer showcase (quickstart form) | **Planned** (Epic #155 M1) |
+| Channel expansion (Lark/WeCom) | **Planned later**; excluded from the first milestone |
+
+Nothing in the planned rows is available today. Do not use a source `main`
+checkout, PR, or candidate as if it were a published capability.
 
 ## Run
 
@@ -117,9 +146,10 @@ billable facts; Runner-attested tokens never debit Credits directly.
 See the [Runner integration path](docs/runner.md) and [ADR 0002](docs/decisions/0002-runner-execution-boundary.md).
 There is no claim that a deployable `runner start` network daemon exists yet;
 the seller-owned daemon, durable local replay/outbox, reconnect and outbound
-platform client remain open-framework work. Server-side device registration,
-task dispatch, `UsageVerifier`, Quote, Credit and settlement APIs remain private
-platform work.
+platform client remain open-framework work on the old track, which is wrapping
+up rather than being extended. Server-side device registration, task dispatch,
+`UsageVerifier`, Quote, Credit and settlement APIs remain private platform
+work.
 
 Every runnable adapter is stateless and one-shot. It requires an explicit
 deployment service credential and never reuses a personal CLI login. Unlike
@@ -232,7 +262,8 @@ docker run --rm -p 3000:3000 digital-employee:candidate \
 
 The selected Agent Host still owns model inference, context, and its native
 tool loop. Employees run on the publisher's or operator's own machine; this
-repository is not a hosted marketplace or a second Agent loop.
+repository is not a hosted marketplace or a second Agent loop. Marketplace,
+billing, settlement and other company-internal transactions stay private.
 
 ## Documentation
 

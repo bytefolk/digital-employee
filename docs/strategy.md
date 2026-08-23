@@ -9,221 +9,219 @@ direction into milestones and work items. Implementation status belongs in the
 
 ## North Star
 
-> Digital Employee is an open Agent-native CLI, local execution framework and
-> protocol that lets a portable, verifiable employee package run safely through
-> an existing Agent Host on a publisher-owned machine and produce normalized
-> events and verifiable execution evidence for an optional private control
-> plane—without hosting the employee or implementing the marketplace.
+> Digital Employee is a local-first, conversation-first digital-organization
+> workspace: it turns one business directory into a directly addressable AI
+> team with long-term Context and permission boundaries.
+
+The workspace model is the product, not a command collection:
+
+| Mapping | Meaning |
+| --- | --- |
+| One directory = one business | `workspace init` turns a local directory into a business workspace with an organization tree, positions, and a business Context area. |
+| One position = one addressable digital employee | `chat @position` addresses a named position directly; the position id is the stable identity that survives sessions and Host changes. |
+| One conversation = work with position Context and permission boundary | A conversation loads only that position's Context slice and runs inside its Authority Scope; out-of-scope requests are refused, not silently widened. |
+| Organization hierarchy = business owner → digital employees | The owner sees the business whole, delegates work, and is accountable for the result; workers see only the slice their position is allowed to see. |
+| Long-term Context foundation = mem + context | Decisions and task state persist to the memory plane (`mem`), and session text is distilled into a context graph; a new session recalls and continues without Host-native session resume. |
+| Open source builds the brand; transactions stay inside the company | The open repository owns the workspace framework and the public narrative; marketplace, billing, settlement and company-internal transactions are private work and never enter this repository. |
 
 Digital Employee does not implement another general-purpose model or tool loop.
 The selected Agent Host owns model access, context and its native Agent loop;
-this framework owns the package, adapter, policy and local execution boundary.
-Local create, validate and run workflows do not require a marketplace.
+this framework owns the workspace, the position address book, the permission
+boundary and the long-term Context path. Local create, validate and run
+workflows do not require a marketplace.
 
-`answer-agent` is the historical first employee use case, not the product
-definition. Its checked-in implementation belongs to `standalone-v1`. This
-Builder delivery provides only the bounded Agent-native `minimal-answer.v1` and
-`structured-action.v1` recipes for offline package/Schema fixture-contract
-conformance. They do not certify any model, Agent, Agent Host, MCP integration,
-live response or response quality. `standalone-v1` remains a compatibility
-path, not the target for new general Agent capabilities.
+`answer-agent` and the `standalone-v1` compatibility runtime are historical
+first employee use cases, not the product definition. The released
+`init` / `doctor` / `validate` / `eval` / one-shot `run` / `setup` /
+package-bound `deploy` commands validate employee packages and execute bounded
+local runs; they are the foundation the workspace mainline builds on, not the
+workspace itself.
 
-## North Star metric: Verified Local Employee Run
+## North Star metric: Digital-Organization Work Loop
 
-A **Verified Local Employee Run** is a run for which:
+A **Digital-Organization Work Loop** is a verified end-to-end loop for which:
 
-1. the employee executes on the publisher or operator's own computer or server;
-2. the selected package identity, version and digest match the bytes executed;
-3. a registered Agent Host satisfies the required policy and capability gates;
-4. the run produces one valid terminal result, a bounded normalized event
-   chain and a Runner-signed receipt that can be verified with trusted keys;
-5. the platform receives no local package path, employee package artifact bytes or
-   Agent Host credential.
+1. `workspace init` creates a business workspace and every generated employee
+   package passes `validate`;
+2. `org tree` renders the organization hierarchy with parent/child positions;
+3. `chat @position` completes one bounded conversation with that position's
+   Context slice and Authority Scope, producing a machine-readable result with
+   citations and, where delegated, a traceable task chain;
+4. decisions and task state persist to the memory plane (`mem`) with source
+   and task provenance, and session text is collected for context distillation;
+5. a new session (possibly on another Host) recalls the same position memory
+   and can continue the work;
+6. `org apply` after an organizational change preserves Context and recomputes
+   permission scopes without silent expansion.
 
-This metric measures the framework's end-to-end execution contract. A Runner
-signature proves origin and integrity, not that token or cost claims are
-billable. Runner-attested usage becomes eligible for settlement only after a
-separate private-platform `UsageVerifier` approves it against an immutable
-Quote. Credits, prices and seller proceeds are never part of this metric.
+This metric measures the workspace closed loop. A passing `eval` on offline
+fixtures verifies contract conformance, not live model entitlement or response
+quality; the evidence vocabulary below governs every claim about the loop.
 
 ## Direct users and jobs to be done
 
 | Direct user | Job to be done |
 | --- | --- |
-| Employee author or publisher | Define a role once with portable Skill instructions, task/result Schemas, declared assets, evals and capability requirements; validate it and run it through compatible Agent Hosts without embedding vendor commands in the package. |
-| Runner operator | Keep the employee package, Agent Host, credentials and execution on a machine they control; use an outbound-only Runner to accept authentic tasks, enforce the selected release and policy, recover safely and return verifiable evidence. |
-| Private-platform integrator | Register immutable employee release identity and digest, dispatch signed work and verify events, receipts and usage without hosting the employee package or holding the operator's Agent Host credentials. |
+| Business owner | Turn a business directory into a workspace, see the whole organization, delegate work to named positions and remain accountable for the result. |
+| Position worker | Answer when addressed by role, operate only inside its Context slice and Authority Scope, and hand escalation back to the owner instead of widening scope. |
+| Integrator / operator | Bind positions to installed Agent Hosts, keep decisions and task state in the memory plane, and recompute permissions when the organization changes. |
+| Open-source contributor | Understand which capability is released, which is planned, and where the boundary with the old Runner/deploy track sits. |
 
 The buyer or end user benefits from the result but is not a direct user of this
-open framework. Buyer accounts, discovery, rental and payment are private
-marketplace concerns.
+open framework. Marketplace accounts, discovery, rental, payment and settlement
+remain private company-internal concerns.
 
 ## Product scope
 
 ### In scope for this open repository
 
-- the `digital-employee` CLI for creating, validating, diagnosing, evaluating,
-  packaging and running portable employees;
-- the host-neutral employee package, Skill, Schema, declared asset, eval and MCP
-  declaration contracts;
-- Agent Host adapters, capability negotiation, version gates, normalized events
-  and a safe external-adapter extension contract;
-- one-shot local execution and the long-running, seller-owned `runner start`
-  client that runs on the publisher or operator's machine;
-- local deployment bindings, package resolution, device-key handling, durable
-  replay/outbox state, reconnect, cancellation and process lifecycle for that
-  Runner client;
-- package digests, sealed per-run snapshots, signed task and lease verification,
-  hash-chained events and Runner-signed receipts;
-- provider-neutral raw usage claims and integrity-verification primitives;
-- mock or reference control-plane fixtures needed to test the public protocol
-  without importing a private platform implementation;
-- policy, audit metadata, redaction, escalation and observability at the local
-  framework boundary.
+- the workspace command surface: `workspace init`, `org tree` / `org apply`,
+  and `chat @position` (the first milestone is tracked in
+  [Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155));
+- the organization model `organization.v1alpha1`, workspace metadata, and the
+  position package references;
+- position permission boundaries: Context Scope (which business slice a
+  position can recall) and Authority Scope (which tools a position can call),
+  with owner/worker defaults and no silent inheritance;
+- long-term Context integration: `mem` R1-level memory plane writes and recalls
+  plus rule-based `context` fact distillation, decoupling continuity from
+  Host-native session resume;
+- the already released employee-package, Skill, Schema, eval and Host Adapter
+  contracts, plus `init` / `doctor` / `validate` / `eval` / one-shot `run` /
+  `setup` / package-bound `deploy`, which the workspace builds on;
+- package digests, sealed per-run snapshots, normalized events, signed receipts
+  and the audit/redaction/observability boundary at the local framework edge;
+- the verification ledger and evidence vocabulary that keep every public claim
+  honest.
 
 ### Out of scope for this open repository
 
-- a replacement for Claude Code, Qoder CLI, Codex, Qwen Code, CodeBuddy Code or
-  another Agent Host's model and native tool loop;
+- a replacement for an Agent Host's model and native tool loop;
 - cloud hosting of employee packages, Agent Hosts, model accounts, credentials
   or application/service robots;
 - marketplace accounts, listings, search, ranking, reviews, rentals, dynamic
-  pricing or Quote creation;
-- Credit ledgers, billable-usage policy, payment, refund, revenue sharing, tax or
-  settlement;
-- private-platform server implementations for device registration and identity
-  issuance, task dispatch, `UsageVerifier`, Quote, Credit or settlement;
-- hard-coded document, drive, DWS, memory or business-system integrations in the
-  core. Those capabilities enter through explicit MCP, connector or adapter
+  pricing, Quote, Credit, billing, settlement, or any company-internal
+  transaction — this is private work (see the boundary below);
+- channel expansion (Lark #77 / WeCom #78) in the first milestone; the first
+  milestone is CLI-only;
+- a full RBAC system; the first milestone ships owner/worker defaults plus an
+  explicit authority allowlist derivation;
+- Host-native session resume as a requirement; long-term continuity is rebuilt
+  from `mem` + `context` each turn (#102);
+- hard-coded document, drive, DWS, memory or business-system integrations in
+  the core; those capabilities enter through explicit MCP, connector or adapter
   boundaries;
-- React, a design system or a marketplace UI in runtime packages. A future local
-  operator UI may consume public runtime APIs, while marketplace UI remains
-  private.
+- React, a design system or a marketplace UI in runtime packages.
 
-## Open framework and private marketplace boundary
+## Boundary with the previous mainline (Runner / security / deploy governance)
 
-All application/service employees execute on the publisher or operator's own
-machine. The platform is a control plane, never an employee hosting plane.
+The previous public mainline was **Builder → Seller Runner → Trusted
+execution** ([Epic #25](https://github.com/fullstack-ai-infra/digital-employee/issues/25)).
+The strategy decision of 2026-08-14 pivots the product mainline to the
+**local digital-organization workspace** ([Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)).
 
-| Open `digital-employee` framework | Private marketplace control plane |
-| --- | --- |
-| Employee source package and deterministic local digest | Listing and immutable release identity referencing that digest |
-| Host Adapter, local credentials and process/sandbox policy | Server-side device registration and trusted key registry |
-| Seller-owned `runner start`, local replay/outbox and outbound client | Task creation, dispatch, lease service and authenticated server API |
-| Normalized events, usage claims, event chain and signed receipt | Event ingestion, independent `UsageVerifier` and dispute policy |
-| Public signature, lease and receipt verification primitives | Quote, reservation, Credit ledger, billing and settlement |
-
-The platform must not send a local path, arbitrary command, module or credential
-to the Runner. It must not receive package bytes or copy Host execution code into
-the control plane. The Runner initiates every network connection; publisher
-machines do not expose an inbound platform port.
+- The old track is **wrapping up, not extended**: the released foundation
+  (`init`/`validate`/`eval`/`run`, package contracts, Host Adapters, the
+  preview Runner kernel) remains supported and is the substrate for the new
+  mainline. Remaining old-track issues (deploy governance, Host/Runner
+  qualification, security audit) are finished only where required to close out
+  the old track; no new capability is added to them.
+- Every open old-track issue carries an explicit **KEEP / REPURPOSE / PARK**
+  disposition in the [roadmap](roadmap.md). KEEP items join the new mainline,
+  REPURPOSE items are re-scoped onto the workspace command surface, and PARK
+  items freeze after the old track wraps up. Dispositions are recorded, not
+  destructive: issues are not mass-rewritten or closed by this strategy.
+- The private marketplace story is unchanged and remains inside the company:
+  the open repository never implements listings, pricing, billing, settlement,
+  or company-internal transactions.
 
 ## Practice path
 
 ### What the current source supports
 
-1. Build the current source checkout.
-2. Create an employee package with `init` and edit its `SKILL.md`, task/result
-   Schemas, explicitly declared assets and eval cases.
-3. Run static `validate`, then use `doctor --engine` for bounded local Host
-   diagnosis. These steps do not prove model entitlement.
-4. Provide an explicit deployment credential and use `run --engine` for a real,
-   one-shot local Agent/model run. It may consume provider credits.
-5. Embedders can use the preview Runner kernel to compute a package digest,
-   verify a signed task and lease, execute one local task, produce a hash-chained
-   event stream and sign a receipt.
+1. Build the current source checkout or install the public `0.4.0` release.
+2. Create and validate an employee package with `init` and `validate`, then
+   use `doctor --engine` for bounded local Host diagnosis. These steps do not
+   prove model entitlement.
+3. Run a real one-shot local Agent/model run with `run --engine` after an
+   explicit deployment credential; it may consume provider credits.
+4. Bind a validated package to a truthful local deployment outcome with the
+   package-bound `deploy` command within its documented fail-closed boundary.
 
-The current source does not ship a deployable long-running `runner start`
-process, durable local replay/outbox, reconnecting platform client or public
-platform network SDK. Adapter-specific deterministic fixtures do not constitute
-live model entitlement or commercial deployment qualification. Consult the
+The `workspace init`, `org tree` / `org apply` and `chat @position` commands
+do **not** exist in the current source; they are **design** state tracked by
+[Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155).
+Do not describe them as available. Consult the
 [verification ledger](verification.md) for exact evidence.
 
-### Target end-to-end path
+### Target end-to-end path (new mainline)
 
-1. The author creates, validates and evaluates a host-neutral employee package.
-2. The framework produces a deterministic package artifact and digest.
-3. The operator binds the employee release to a locally installed Agent Host,
-   legal service credential, sandbox and operating policy.
-4. The operator starts the open, outbound-only seller Runner.
-5. The private platform registers only release identity, digest, compatible
-   Engine metadata and marketplace data, then dispatches a signed task and
-   lease after a buyer accepts an immutable Quote.
-6. The Runner verifies task, lease, device identity, replay claim and exact
-   local package bytes, creates a sealed snapshot and invokes the local Host.
-7. The framework emits bounded normalized events and usage claims, builds an
-   event chain and submits a Runner-signed terminal receipt.
-8. The private platform verifies identity, signatures, lease and event chain;
-   its independent `UsageVerifier` decides billable facts before Quote/Credit
-   settlement.
+1. The user runs `workspace init ./<business> --template oss-maintainer` (or
+   `minimal` / `org-root`) and gets a workspace with an organization tree and
+   per-position employee packages.
+2. The user inspects the organization with `org tree` and sees who is
+   addressable and what each position can see and do.
+3. The user asks `chat @repo-owner` (owner delegates, worker executes) or
+   `chat @issue-researcher` (narrow Context, narrow permission) and receives a
+   result with citations and a traceable delegation chain.
+4. Decisions and task state persist to the `mem` memory plane; session text is
+   collected for `context` distillation.
+5. A new session or Host recalls the same position memory and continues the
+   work.
+6. An organizational change runs through `org apply`: Context survives, and
+   permission scopes are recomputed without silent expansion.
 
 ## Milestone contract
 
 The roadmap owns dates and issue membership. These milestone outcomes and gates
 define the stable sequence.
 
-### M0 — Builder Ready
+### M1 — Digital-Organization Workspace (first milestone)
 
-**User outcome:** an employee author can install the Agent-native framework,
-create a host-neutral employee that is not forced into the answer-agent shape,
-validate and evaluate it, and complete a documented local run.
-
-**Gate:**
-
-- a clean-machine Agent-native install and quickstart are repeatable;
-- neutral scaffolding and at least two materially different employee examples
-  use the same package and runtime contracts without core switches;
-- eval declarations are validated and executable rather than inert files;
-- package and Host failures are actionable and fail closed;
-- support claims use the evidence vocabulary below, and no fixture-only Adapter
-  is presented as live-qualified;
-- release documentation distinguishes source availability from published
-  artifacts and never claims an unpublished version is installable.
-
-**Non-goals:** a long-running Runner, marketplace operation and write-capable
-business actions.
-
-### M1 — Seller Runner Ready
-
-**User outcome:** a seller can keep an employee online on a machine they control
-and safely accept platform work without exposing an inbound port or uploading
-the package or Host credential.
+**User outcome:** a user turns one business directory into a directly
+addressable AI team and reproduces the first showcase case (oss-maintainer)
+end to end: `workspace init` → `org tree` → `chat @position` (owner and worker
+paths) → `mem` persistence → new-session recall.
 
 **Gate:**
 
-- the open framework ships `runner init/doctor/start/status` or equivalent
-  lifecycle commands;
-- local release/Engine bindings, device keys, durable replay/outbox, heartbeat,
-  reconnect, cancellation and upgrade recovery fail safely across restart;
-- a committed mock-control-plane test covers signed claim, local Host execution,
-  event upload, receipt verification and network interruption recovery;
-- replayed or stale attempts cannot launch work or complete a newer attempt;
-- observable evidence proves the control plane did not receive local paths,
-  package artifact bytes or Host credentials.
+- `workspace init ./oss-maintainer --template oss-maintainer` succeeds on a
+  clean machine and every generated employee package passes `validate`;
+- `org tree` renders the hierarchy and its JSON output passes the
+  `org-tree.v1` schema check;
+- `chat @repo-owner` produces a task chain `user → owner → worker`, and
+  `chat @issue-researcher` proves its Context slice is narrow (no business-wide
+  facts leak into `contextUsed`);
+- out-of-scope requests are refused with a stable error that points the user
+  back to the owner; unbound positions fail closed;
+- after a conversation, `mem` contains a position decision record with
+  source/task provenance, and a new session recalls and can restate it;
+- `org apply` preserves Context and recomputes permission scopes;
+- all claims use the evidence vocabulary below, and no fixture-only path is
+  presented as live-qualified.
 
-**Non-goals:** marketplace pricing, orders, payment, settlement or a production
-private-platform `UsageVerifier`.
+**Non-goals:** channels (CLI-only), marketplace/transaction work, full RBAC,
+and Host-native session resume.
 
-### M2 — Framework v1 / Trust Ready
+### M2 — Context depth and org lifecycle
 
-**User outcome:** third-party or enterprise Hosts and approved capabilities can
-integrate with stable contracts, while portable employee artifacts and
-side-effectful actions have explicit trust and compatibility boundaries.
+**User outcome:** the workspace keeps learning: session text is distilled into
+a rule-based entity graph, and `org apply` becomes the trusted way to change
+the organization.
 
-**Gate:**
+**Gate:** rule-based `context` distillation (#162) is idempotent and drives
+narrow-slice recall; `org apply` audits organizational changes. Channel output
+rendering (#160) is owned outside this pivot and is not a gate here.
 
-- stable employee-package, Agent Host, Runner task/event/receipt and compatibility
-  contracts have golden vectors and upgrade rules;
-- deterministic package, inspect, verify, provenance, upgrade and rollback
-  workflows reject tampering without executing package code;
-- an explicit external Adapter protocol and conformance kit integrate one sample
-  Adapter without changing core dispatch logic;
-- provider-neutral usage evidence remains separate from Quote and Credit math;
-- write-capable tools remain default-deny and, when enabled, follow validated
-  preview, approval, idempotent execution and immutable audit semantics.
+**Non-goals:** channel expansion, marketplace/transaction work, and full RBAC.
 
-**Non-goals:** marketplace UI, account systems, price algorithms, payment and
-robot cloud hosting.
+### Old-track wrap-up
+
+The old Runner/deploy/security track is not a milestone on the new mainline.
+Its open issues carry an explicit disposition in the
+[roadmap](roadmap.md) — KEEP (joins the new mainline), REPURPOSE (re-scoped
+onto the workspace surface), or PARK (frozen after wrap-up). No new old-track
+capability is scheduled.
 
 ## Evidence maturity vocabulary
 
@@ -247,29 +245,32 @@ commercial gate even after live qualification.
 
 Before adding a requirement or issue, answer these questions in order:
 
-1. Does it help define, validate, package, run or observe an employee on the
-   publisher-owned machine? If yes, it may belong in the open framework.
-2. Does it implement the seller-owned Runner client, its local durability or the
-   public task/event/receipt contract? If yes, it belongs in the open framework.
-3. Does it own marketplace identity, listing, discovery, rating, rental, Quote,
-   Credit, billing, payment or settlement state? If yes, it is private-platform
-   work.
-4. Is it a server-side device-registration, task-dispatch or `UsageVerifier`
-   implementation? If yes, it is private-platform work; only the interoperable
-   client/protocol boundary belongs here.
-5. Does it create another model or tool loop around an Agent Host? If yes, reject
-   or redesign it as a package, Host Adapter or outer-runtime concern.
-6. Is it vendor-specific? Put enforcement and projection in a version-gated Host
-   Adapter, never in the portable package contract.
-7. Is it a document, drive, DWS, memory or business capability? Prefer explicit
-   MCP/connector/adapter extension over a core dependency.
+1. Does it help a user turn a directory into a business workspace, address a
+   position, bound a conversation by Context and permissions, or keep long-term
+   Context across sessions? If yes, it may belong in the new mainline.
+2. Does it define, validate, package, run or observe an employee on the local
+   machine as released foundation work? If yes, it belongs in the open
+   framework.
+3. Does it own marketplace identity, listing, discovery, rating, rental,
+   Quote, Credit, billing, payment or settlement state, or any
+   company-internal transaction? If yes, it is private work.
+4. Is it a server-side device-registration, task-dispatch, `UsageVerifier` or
+   settlement implementation? If yes, it is private work; only the
+   interoperable client/protocol boundary belongs here.
+5. Does it create another model or tool loop around an Agent Host? If yes,
+   reject or redesign it as a package, Host Adapter or outer-runtime concern.
+6. Is it vendor-specific? Put enforcement and projection in a version-gated
+   Host Adapter, never in the portable package contract.
+7. Is it a channel (Lark/WeCom), document, drive, DWS, memory or business
+   capability? Prefer explicit MCP/connector/adapter extension over a core
+   dependency, and keep channel expansion out of the first milestone.
 8. Is it a UI? A local operator UI may consume public APIs without entering
    runtime packages; marketplace UI is private.
 9. What evidence term applies today, and what observable gate would promote it?
    If that answer is missing, the requirement is not ready to claim completion.
-10. Would the change send package bytes, local paths, Host credentials or private
-    chain-of-thought to the platform? If yes, reject it.
+10. Would the change send package bytes, local paths, Host credentials or
+    private chain-of-thought to a private service? If yes, reject it.
 
 When a requirement crosses boundaries, split it at the public protocol. Do not
-put both seller execution and marketplace business state into one issue or
-implementation.
+put both open-framework work and company-internal transaction state into one
+issue or implementation.

@@ -8,180 +8,169 @@
 
 ## North Star
 
-> Digital Employee 是一套开源的 Agent-native CLI、本地执行框架和协议：让可移植、
-> 可验证的员工包通过现有 Agent Host，在发布者自有机器上安全运行，并产出可供可选
-> 私有控制面校验的标准事件和可验证执行证据；框架不托管员工，也不实现市场。
+> Digital Employee 是一个本地优先、对话优先的数字组织工作区：把一个业务目录变成一支
+> 可直接点名、具有长期 Context 和权限边界的 AI 团队。
+
+工作区模型才是产品本身，而不是一堆命令：
+
+| 对应关系 | 含义 |
+| --- | --- |
+| 一个目录 = 一项业务 | `workspace init` 把一个本地目录初始化为带组织树、岗位和业务 Context 目录的业务工作区。 |
+| 一个岗位 = 一个可寻址数字员工 | `chat @岗位` 直接点名某个岗位；岗位 id 是跨会话、跨 Host 保持不变的稳定身份。 |
+| 一次对话 = 带岗位 Context 与权限边界的工作 | 每轮对话只加载该岗位的 Context 切片，并在其 Authority Scope 内执行；越权请求被拒绝，而不是静默扩权。 |
+| 组织层级 = 业务负责人 → 数字员工 | 负责人看到业务全局，负责委派与汇总并对结果负责；具体员工只看到自己职责范围内的切片。 |
+| 长期 Context 底座 = mem + context | 决策与任务状态写入记忆平面（`mem`），会话原文进入 context 图谱蒸馏；新会话无需 Host 原生续接即可召回续接。 |
+| 开源打品牌、交易留在公司内 | 开源仓库拥有工作区框架与公开叙事；marketplace、计费、结算和公司内交易属于私有工作，不进入本仓库。 |
 
 Digital Employee 不再实现另一套通用模型或工具循环。选定的 Agent Host 负责模型、
-上下文和原生 Agent loop；本框架负责员工包、Adapter、策略和本地执行边界。
+上下文和原生 Agent loop；本框架负责工作区、岗位通讯录、权限边界和长期 Context 路径。
 本机创建、校验和运行路径不依赖 marketplace。
 
-`answer-agent` 是历史上的首个员工用例，不是产品定义。当前仓库中的实现属于
-`standalone-v1`。M0 现已交付 `minimal-answer.v1` 和 `structured-action.v1`，作为
-Agent-native 员工包 recipe，用于离线员工包/Schema fixture contract conformance
-起步；它们不构成对任何模型、Agent、Agent Host、MCP 集成、线上响应或响应质量的认证。
-`standalone-v1` 仍是兼容路径，不是新通用 Agent 能力的目标演进路径。
+`answer-agent` 和 `standalone-v1` 兼容运行时是历史上的首个员工用例，不是产品定义。
+已发布的 `init` / `doctor` / `validate` / `eval` / one-shot `run` / `setup` /
+package-bound `deploy` 负责校验员工包并执行有边界的本机运行；它们是工作区主线的基础，
+不是工作区本身。
 
-## 北极星指标：Verified Local Employee Run
+## 北极星指标：数字组织工作回路（Digital-Organization Work Loop）
 
-一次 **Verified Local Employee Run（可验证本机员工执行）**必须同时满足：
+一次**数字组织工作回路**必须同时满足：
 
-1. 员工运行在发布者或运营者自己的电脑或服务器上；
-2. 所选员工包身份、版本、摘要与实际执行的字节一致；
-3. 已注册 Agent Host 满足员工要求的策略和能力门槛；
-4. 执行只产生一个有效终态、有上限的标准事件链，以及可以用可信公钥验证的 Runner
-   签名回执；
-5. 平台没有收到员工包本地路径、员工包制品字节或 Agent Host 凭证。
+1. `workspace init` 创建业务工作区，且生成的每个员工包通过 `validate`；
+2. `org tree` 渲染带父子关系的组织层级；
+3. `chat @岗位` 在该岗位的 Context 切片与 Authority Scope 内完成一次有边界的对话，
+   产出带出处的机器可读结果；如有委派，任务责任链可追踪；
+4. 决策与任务状态写入 `mem` 记忆平面（带 source 与 task 出处），会话原文进入
+   context 采集；
+5. 新会话（可换 Host）召回同一岗位记忆并可以续接工作；
+6. 组织调整后 `org apply` 保留 Context、重算权限范围，且不静默扩权。
 
-这个指标衡量框架端到端执行契约。Runner 签名只证明来源和完整性，不能证明 token 或
-成本声明可以计费。Runner 自报 usage 只有经过私有平台独立 `UsageVerifier` 核验，并
-绑定不可变 Quote 后，才可能进入结算。Credit、价格和卖家应收都不属于这个指标。
+这个指标衡量工作区闭环。离线 fixture 上的 `eval` 通过只证明契约一致性，不证明真实
+模型权益或回答质量；所有关于回路的宣传都必须遵守下文证据词汇。
 
 ## 三类直接用户与 JTBD
 
 | 直接用户 | Job to be Done |
 | --- | --- |
-| 员工开发者/发布者 | 用可移植 Skill 指令、任务/结果 Schema、显式资产、eval 和能力要求定义一次岗位；校验后可在兼容 Agent Host 上运行，不把厂商命令写进员工包。 |
-| Runner 运营者 | 员工包、Agent Host、凭证和执行都留在自己控制的机器上；通过仅出站 Runner 接收可信任务，强制绑定员工版本和策略，安全恢复并返回可验证证据。 |
-| 私有平台集成者 | 登记不可变员工版本身份和摘要，分发签名任务，验证事件、回执和用量，同时不托管员工包，也不持有运营者的 Agent Host 凭证。 |
+| 业务负责人 | 把一个业务目录变成工作区，看到整个组织，向具名岗位委派工作，并对结果负责。 |
+| 岗位员工 | 被按角色点名时作答，只在其 Context 切片与 Authority Scope 内操作；越权时把升级交还给负责人，而不是自己扩权。 |
+| 集成者/运营者 | 把岗位绑定到已安装的 Agent Host，让决策与任务状态落在记忆平面，并在组织变化时重算权限。 |
+| 开源贡献者 | 知道哪些能力已发布、哪些在规划中，以及与新主线之外旧 Runner/deploy 路线的边界。 |
 
-买家或最终用户会消费员工结果，但不是本开源框架的直接用户。买家账户、发现、租赁和
-支付属于私有 marketplace。
+买家或最终用户会消费员工结果，但不是本开源框架的直接用户。marketplace 账户、发现、
+租赁、支付与结算仍是公司内部私有工作。
 
 ## 产品范围
 
 ### 本开源仓库 In Scope
 
-- 用于创建、校验、诊断、评测、打包和运行可移植员工的 `digital-employee` CLI；
-- 宿主中立的员工包、Skill、Schema、显式资产、eval 和 MCP 声明契约；
-- Agent Host Adapter、能力协商、版本门槛、标准事件和安全的外部 Adapter 扩展契约；
-- 本机 one-shot 执行，以及运行在发布者或运营者机器上的长期卖家 `runner start`
-  客户端；
-- 该 Runner 客户端的本地部署绑定、员工包解析、设备密钥处理、持久 replay/outbox、
-  断线重连、取消和进程生命周期；
-- 包摘要、单次密封快照、签名任务和租约校验、hash-chain 事件与 Runner 签名回执；
-- 供应商中立的原始 usage 声明与完整性验证原语；
-- 为验证公开协议而提供的 mock/参考控制面 fixture，但不导入私有平台实现；
-- 本地框架边界上的策略、审计元数据、脱敏、人工接力和可观测性。
+- 工作区命令面：`workspace init`、`org tree` / `org apply`、`chat @岗位`
+  （首个里程碑见 [Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)）；
+- 组织模型 `organization.v1alpha1`、工作区元数据与岗位员工包引用；
+- 岗位权限边界：Context Scope（岗位可召回的业务切片）与 Authority Scope（岗位可调用
+  的工具），owner/worker 两档默认值，不允许静默继承；
+- 长期 Context 集成：`mem` R1 级记忆平面写入与召回，加 `context` 规则版事实蒸馏，
+  把连续性从 Host 原生会话续接中解耦出来；
+- 已发布的员工包、Skill、Schema、eval 与 Host Adapter 契约，以及 `init` / `doctor` /
+  `validate` / `eval` / one-shot `run` / `setup` / package-bound `deploy`；工作区在此之上构建；
+- 包摘要、单次密封快照、标准事件、签名回执，以及本地框架边界的审计/脱敏/可观测性；
+- 保证每一项公开声明诚实的验证账本与证据词汇。
 
 ### 本开源仓库 Out of Scope
 
-- 替代 Claude Code、Qoder CLI、Codex、Qwen Code、CodeBuddy Code 或其他 Agent Host
-  的模型和原生工具循环；
+- 替代某个 Agent Host 的模型和原生工具循环；
 - 云端托管员工包、Agent Host、模型账号、凭证或应用/服务机器人；
-- marketplace 账户、上架、搜索、排序、评价、租赁、动态定价或 Quote 创建；
-- Credit 账本、可计费用量策略、支付、退款、分账、税务或结算；
-- 设备注册和身份签发、任务分发、`UsageVerifier`、Quote、Credit 或结算的私有平台
-  服务端实现；
+- marketplace 账户、上架、搜索、排序、评价、租赁、动态定价、Quote、Credit、计费、
+  结算或任何公司内交易——这些属于私有工作（见下方边界）；
+- 首个里程碑不做渠道扩展（飞书 #77 / 企微 #78）；首个里程碑只走 CLI；
+- 全量 RBAC；首个里程碑只做 owner/worker 两档默认值加显式权限白名单推导；
+- 把 Host 原生会话续接作为需求；长期连续性每轮由 `mem` + `context` 重建（#102）；
 - 在核心中硬编码文档、网盘、DWS、记忆或业务系统集成；这些能力通过显式 MCP、
   connector 或 adapter 边界接入；
-- 在 runtime package 中引入 React、design system 或 marketplace UI。未来本地运维页
-  可以消费公开运行时 API，marketplace UI 仍属于私有平台。
+- 在 runtime package 中引入 React、design system 或 marketplace UI。
 
-## 公开框架与私有 marketplace 的边界
+## 与旧主线（Runner / 安全 / 部署治理）的边界
 
-所有应用/服务员工都在发布者或运营者自己的机器上运行。平台是控制面，绝不是员工
-托管面。
+旧公开主线是 **Builder → Seller Runner → Trusted execution**
+（[Epic #25](https://github.com/fullstack-ai-infra/digital-employee/issues/25)）。
+2026-08-14 战略决策把产品主线转向**本地数字组织工作区**
+（[Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)）。
 
-| 开源 `digital-employee` 框架 | 私有 marketplace 控制面 |
-| --- | --- |
-| 员工源码包和本机确定性摘要 | 引用摘要的上架身份和不可变员工版本身份 |
-| Host Adapter、本机凭证和进程/沙箱策略 | 服务端设备注册与可信公钥注册表 |
-| 卖家自有 `runner start`、本地 replay/outbox 和出站客户端 | 任务创建、分发、租约服务和已认证服务端 API |
-| 标准事件、usage 声明、事件链和签名回执 | 事件接收、独立 `UsageVerifier` 和争议策略 |
-| 公开签名、租约和回执验证原语 | Quote、预留、Credit 账本、计费和结算 |
-
-平台不能向 Runner 下发本地路径、任意命令、模块或凭证，不能接收员工包字节，也不能
-把 Host 执行代码复制进控制面。所有网络连接都由 Runner 主动发起；发布者机器不向平台
-开放入站端口。
+- 旧路线**收尾、不扩展**：已发布的底座（`init`/`validate`/`eval`/`run`、员工包契约、
+  Host Adapter、预览 Runner 内核）继续受支持，并作为新主线的基座。旧路线剩余 issue
+  （deploy 治理、Host/Runner 资格验收、安全审计）只按收尾需要完成，不再新增能力。
+- 每个 open 旧路线 issue 在[路线图](roadmap.zh-CN.md)中都有明确的
+  **KEEP / REPURPOSE / PARK** 处置：KEEP 并入新主线，REPURPOSE 重新落到工作区命令面，
+  PARK 在旧路线收尾后冻结。处置是记录性的，不是破坏性的：不批量改写 issue，也不由本
+  策略关闭 issue。
+- 私有 marketplace 故事不变，仍留在公司内：开源仓库绝不实现上架、定价、计费、结算或
+  公司内交易。
 
 ## 实践路径
 
 ### 当前源码已经支持
 
-1. 构建当前源码 checkout。
-2. 用 `init` 创建员工包，编辑 `SKILL.md`、任务/结果 Schema、显式声明的资产和 eval
-   用例。
-3. 先执行静态 `validate`，再通过 `doctor --engine` 做有上限的本机 Host 诊断；这些步骤
-   不能证明模型权益可用。
-4. 显式提供部署凭证，再用 `run --engine` 发起一次真实、本机 one-shot Agent/模型
-   执行；它可能消耗供应商额度。
-5. 嵌入方可以使用预览 Runner 内核计算包摘要、校验签名任务和租约、执行一个本机任务、
-   生成 hash-chain 事件流并签署回执。
+1. 构建当前源码 checkout，或安装公开 `0.4.0` 版本。
+2. 用 `init` 创建员工包，用 `validate` 校验，再通过 `doctor --engine` 做有上限的本机
+   Host 诊断；这些步骤不能证明模型权益可用。
+3. 显式提供部署凭证后，用 `run --engine` 发起一次真实、本机 one-shot Agent/模型执行；
+   它可能消耗供应商额度。
+4. 用 package-bound `deploy` 把经过校验的员工包绑定到可验证的本地部署结果，且只在其
+   文档化的 fail-closed 边界内。
 
-当前源码没有交付可直接部署的长期 `runner start` 进程、本地持久 replay/outbox、可重连
-平台客户端或公开平台网络 SDK。Adapter 专用确定性 fixture 不等于真实模型权益或商业
-部署验收。精确证据以[验证账本](verification.md)为准。
+当前源码**没有** `workspace init`、`org tree` / `org apply`、`chat @岗位` 命令；
+它们处于 **design** 状态，由 [Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)
+跟踪。不要把这些能力描述为可用。精确证据以[验证账本](verification.md)为准。
 
-### 目标端到端路径
+### 目标端到端路径（新主线）
 
-1. 开发者创建、校验并评测宿主中立员工包。
-2. 框架生成确定性员工包制品和摘要。
-3. 运营者把员工版本绑定到本机安装的 Agent Host、合法服务凭证、沙箱和运行策略。
-4. 运营者启动开源、仅出站的卖家 Runner。
-5. 私有平台只登记员工版本身份、摘要、兼容 Engine 元数据和市场数据；买家接受不可变
-   Quote 后，平台分发签名任务和租约。
-6. Runner 校验任务、租约、设备身份、replay claim 和本机员工包精确字节，创建密封
-   快照，再调用本机 Host。
-7. 框架发送有上限的标准事件和 usage 声明，组成事件链并提交 Runner 签名终态回执。
-8. 私有平台校验身份、签名、租约和事件链；独立 `UsageVerifier` 确认可计费事实后，才
-   执行 Quote/Credit 结算。
+1. 用户运行 `workspace init ./<业务> --template oss-maintainer`（或 `minimal` /
+   `org-root`），得到带组织树和逐岗位员工包的工作区。
+2. 用户用 `org tree` 查看组织，知道谁可被点名、每个岗位能看什么、能做什么。
+3. 用户通过 `chat @repo-owner`（负责人委派、员工执行）或 `chat @issue-researcher`
+   （窄 Context、窄权限）获得带出处与责任链的结果。
+4. 决策与任务状态写入 `mem` 记忆平面；会话原文进入 `context` 采集。
+5. 新会话或换 Host 后召回同一岗位记忆，继续工作。
+6. 组织变化走 `org apply`：Context 不丢失，权限范围重算且不静默扩权。
 
 ## 里程碑契约
 
 路线图负责日期和 Issue 归属。以下用户结果和 gate 定义稳定推进顺序。
 
-### M0 — Builder Ready
+### M1 — 数字组织工作区（首个里程碑）
 
-**用户结果：**员工开发者可以安装 Agent-native 框架，创建一个不被答疑模板限定的
-宿主中立员工，完成校验和评测，并按文档完成一次本机执行。
-
-**Gate：**
-
-- 全新机器上的 Agent-native 安装与 quickstart 可重复；
-- 中立脚手架和至少两个实质不同的员工示例共用同一套员工包与运行时契约，不增加核心
-  switch；
-- eval 声明可校验、可执行，不是闲置文件；
-- 员工包和 Host 失败信息可操作，并且 fail closed；
-- 支持声明使用下文证据词汇，只有 fixture 的 Adapter 不得写成 live-qualified；
-- 发布文档区分“源码可用”和“制品已发布”，不把未发布版本写成可安装。
-
-**非目标：**长期 Runner、市场运营和可写业务动作。
-
-### M1 — Seller Runner Ready
-
-**用户结果：**卖家可以让员工长期运行在自己控制的机器上，不开放入站端口，也不上传
-员工包或 Host 凭证，就能安全接收平台任务。
+**用户结果：**用户把一个业务目录变成一支可直接点名的 AI 团队，并端到端复现首个
+展示案例（oss-maintainer）：`workspace init` → `org tree` → `chat @岗位`（负责人与
+员工两条路径）→ `mem` 持久化 → 新会话召回。
 
 **Gate：**
 
-- 开源框架提供 `runner init/doctor/start/status` 或等价生命周期命令；
-- 本地员工版本/Engine 绑定、设备密钥、持久 replay/outbox、heartbeat、重连、取消和
-  升级恢复在重启后仍 fail safely；
-- 提交到仓库的 mock-control-plane 测试覆盖签名认领、本机 Host 执行、事件上传、回执
-  校验和断网恢复；
-- 重放或过期 attempt 不能启动任务，也不能完成更新的 attempt；
-- 可观测证据证明控制面没有收到本地路径、员工包制品字节或 Host 凭证。
+- 干净机器上 `workspace init ./oss-maintainer --template oss-maintainer` 成功，且生成
+  的每个员工包通过 `validate`；
+- `org tree` 渲染层级，JSON 输出通过 `org-tree.v1` schema 校验；
+- `chat @repo-owner` 产生 `user → owner → worker` 任务链，`chat @issue-researcher`
+  证明 Context 切片很窄（`contextUsed` 中不出现业务全局事实）；
+- 越权请求被拒绝并给出稳定错误，提示改问负责人；未绑定 Host 的岗位 fail closed；
+- 对话结束后 `mem` 中存在带 source/task 出处的岗位决策记录，新会话可召回并复述；
+- `org apply` 保留 Context、重算权限范围；
+- 所有声明使用下文证据词汇，只有 fixture 的路径不得写成 live-qualified。
 
-**非目标：**marketplace 定价、订单、支付、结算或生产私有平台 `UsageVerifier`。
+**非目标：**渠道（只走 CLI）、marketplace/交易工作、全量 RBAC、Host 原生会话续接。
 
-### M2 — Framework v1 / Trust Ready
+### M2 — Context 深度与组织生命周期
 
-**用户结果：**第三方或企业 Host 与批准能力可以通过稳定契约接入，同时可移植员工制品和
-有副作用动作拥有明确的信任与兼容边界。
+**用户结果：**工作区持续学习：会话原文被蒸馏为规则版实体图谱，`org apply` 成为组织
+变化的可信方式。
 
-**Gate：**
+**Gate：**规则版 `context` 蒸馏（#162）幂等且可驱动窄切片召回；`org apply` 审计组织
+变化。渠道输出渲染（#160）由本次转向之外负责，不作为这里的门槛。
 
-- 稳定的 employee-package、Agent Host、Runner task/event/receipt 和兼容契约包含 golden
-  vector 与升级规则；
-- 确定性 package、inspect、verify、provenance、升级和回滚流程无需执行员工包代码即可
-  拒绝篡改；
-- 显式外部 Adapter 协议和一致性套件可以在不修改核心分发逻辑的情况下接入一个示例
-  Adapter；
-- 供应商中立用量证据继续与 Quote/Credit 计算分离；
-- 写工具默认拒绝；开放时遵循经过校验的 preview、approval、幂等执行和不可变审计语义。
+**非目标：**渠道扩展、marketplace/交易工作、全量 RBAC。
 
-**非目标：**marketplace UI、账户系统、价格算法、支付和机器人云托管。
+### 旧路线收尾
+
+旧 Runner/deploy/安全路线不是新主线上的里程碑。其 open issue 在
+[路线图](roadmap.zh-CN.md)中带有明确处置——KEEP（并入新主线）、REPURPOSE（重新落到
+工作区命令面）或 PARK（收尾后冻结）。不再安排任何旧路线新能力。
 
 ## 证据成熟度词汇
 
@@ -204,25 +193,24 @@ live-qualified，无人值守运行或转售的法律权限仍是独立商业 ga
 
 新增需求或 Issue 前，按顺序回答：
 
-1. 它是否帮助在发布者自有机器上定义、校验、打包、运行或观测员工？如果是，可能属于
-   开源框架。
-2. 它是否实现卖家自有 Runner 客户端、本地持久化或公开 task/event/receipt 契约？如果
-   是，属于开源框架。
-3. 它是否拥有 marketplace 身份、上架、发现、评价、租赁、Quote、Credit、计费、支付或
-   结算状态？如果是，属于私有平台。
-4. 它是否实现服务端设备注册、任务分发或 `UsageVerifier`？如果是，属于私有平台；本仓
-   只保留互操作客户端/协议边界。
+1. 它是否帮助用户把目录变成业务工作区、点名岗位、按 Context 与权限边界约束对话，
+   或跨会话保持长期 Context？如果是，可能属于新主线。
+2. 它是否属于已发布底座的本机定义、校验、打包、运行或观测？如果是，属于开源框架。
+3. 它是否拥有 marketplace 身份、上架、发现、评价、租赁、Quote、Credit、计费、支付、
+   结算状态，或任何公司内交易？如果是，属于私有工作。
+4. 它是否实现服务端设备注册、任务分发、`UsageVerifier` 或结算？如果是，属于私有
+   工作；本仓只保留互操作客户端/协议边界。
 5. 它是否在 Agent Host 外再创建一套模型或工具循环？如果是，拒绝，或重构为员工包、
    Host Adapter 或外层运行时职责。
 6. 它是否为厂商专用逻辑？把强制策略和投影放入版本锁定 Host Adapter，不能进入可移植
    员工包契约。
-7. 它是否为文档、网盘、DWS、记忆或业务能力？优先使用显式 MCP/connector/adapter
-   扩展，不能成为核心依赖。
+7. 它是否为渠道（飞书/企微）、文档、网盘、DWS、记忆或业务能力？优先使用显式 MCP、
+   connector 或 adapter 扩展，不能成为核心依赖；首个里程碑不扩展渠道。
 8. 它是否是 UI？本机运维 UI 可以消费公开 API，但不能进入 runtime package；
-   marketplace UI 属于私有平台。
+   marketplace UI 属于私有工作。
 9. 它当前属于哪个证据词汇，需要什么可观测 gate 才能晋级？没有答案，就不能宣称完成。
-10. 它是否会把员工包字节、本地路径、Host 凭证或私有 chain-of-thought 发送给平台？
-    如果是，拒绝。
+10. 它是否会把员工包字节、本地路径、Host 凭证或私有 chain-of-thought 发送给私有
+    服务？如果是，拒绝。
 
-跨边界需求应在公开协议处拆开，不能把卖家执行和 marketplace 业务状态放进同一个 Issue
+跨边界需求应在公开协议处拆开，不能把开源框架工作和公司内交易状态放进同一个 Issue
 或实现。

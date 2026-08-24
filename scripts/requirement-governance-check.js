@@ -33,6 +33,7 @@ const ISSUE_FIELD_TYPES = Object.freeze({
   current_record: "textarea",
   user_problem: "textarea",
   route_boundary: "textarea",
+  delivery_owners: "textarea",
   requirements: "textarea",
   dependencies: "textarea",
   acceptance: "textarea",
@@ -376,6 +377,10 @@ export function validatePullRequestTemplate(markdown) {
     "Canonical Issue URL:",
     "Consumed revision:",
     "No automatic close keywords:",
+    "implementationOwner:",
+    "automatedPreReviewOwner:",
+    "humanReviewOwner:",
+    "Separation of duties:",
     TRACE_TABLE_HEADER,
     VALIDATION_TABLE_HEADER,
     ...EXACT_EVIDENCE_FIELDS.map((field) => `${field}:`),
@@ -383,6 +388,8 @@ export function validatePullRequestTemplate(markdown) {
     "Merge ledger owner:",
     "Product reviewer:",
     "Milestone or release packet:",
+    "Automated pre-review result:",
+    "Human final review:",
     "Merge, CI, release, and model judgment do not accept or close the Issue:"
   ];
   for (const text of requiredText) {
@@ -518,7 +525,8 @@ export function validateIssueTemplate(source) {
   const record = parseCurrentRecord(entries.get("current_record")?.attributes?.value, errors);
   const recordKeys = [
     "schemaVersion", "revision", "status", "priority", "productOwner",
-    "technicalOwner", "userOutcome", "requirements", "acceptanceCriteria",
+    "technicalOwner", "implementationOwner", "automatedPreReviewOwner",
+    "humanReviewOwner", "userOutcome", "requirements", "acceptanceCriteria",
     "parent", "dependencies", "supersedes", "lastDecisionAt"
   ];
   if (record && !sameKeys(record, recordKeys)) {
@@ -535,6 +543,23 @@ export function validateIssueTemplate(source) {
   }
   if (!Array.isArray(record?.acceptanceCriteria) || !record.acceptanceCriteria.every((id) => /^AC-\d{3}$/.test(id))) {
     errors.push("Issue current record acceptanceCriteria must use AC-NNN identifiers");
+  }
+
+  const deliveryOwners = entries.get("delivery_owners")?.attributes?.value;
+  for (const field of [
+    "implementationOwner",
+    "automatedPreReviewOwner",
+    "humanReviewOwner"
+  ]) {
+    if (typeof record?.[field] !== "string" || !record[field].trim()) {
+      errors.push(`Issue current record ${field} must be a non-empty string`);
+    }
+    if (typeof deliveryOwners !== "string" || !deliveryOwners.includes(`${field}:`)) {
+      errors.push(`Issue delivery owners section is missing: ${field}`);
+    }
+  }
+  if (!String(deliveryOwners || "").includes("PREFLIGHT PASS")) {
+    errors.push("Issue delivery owners section must distinguish PREFLIGHT PASS from GitHub approval");
   }
 
   const readiness = entries.get("readiness")?.attributes?.options;

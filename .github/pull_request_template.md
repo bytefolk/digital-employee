@@ -4,6 +4,13 @@
 - Consumed revision: <!-- R1, R2, ... -->
 - No automatic close keywords: <!-- After checking the PR body and commit messages, replace this comment with acknowledged. -->
 
+## Delivery ownership
+
+- implementationOwner: <!-- P8 implementation owner from the consumed Issue revision -->
+- automatedPreReviewOwner: <!-- Independent automated reviewer; may report PREFLIGHT PASS, never GitHub APPROVE -->
+- humanReviewOwner: <!-- none, @Bindy-lbb, or another reviewer explicitly named by the Issue/CODEOWNERS -->
+- Separation of duties: <!-- Confirm that the implementation owner is not the final human reviewer. -->
+
 ## Requirement trace
 
 | REQ/AC IDs | Changed files / domain | Tests or review evidence |
@@ -50,6 +57,8 @@
 
 ## Product review handoff
 
+- Automated pre-review result: <!-- PREFLIGHT PASS | HOLD with P0/P1 findings | NOT RUN -->
+- Human final review: <!-- PENDING | APPROVED by <actual GitHub reviewer> | N/A: humanReviewOwner=none -->
 - Merge ledger owner: <!-- @maintainer -->
 - Product reviewer: <!-- @product-owner -->
 - Milestone or release packet: <!-- Full canonical URL, or N/A: <reason>. -->

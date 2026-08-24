@@ -281,6 +281,17 @@ modified; the platform #5/#8 HOLD marks were not touched.
 | Adoption | #163, #91, #141, #142 | Showcase, clean-machine walkthrough and adoption content |
 | Repo governance | #95, #97 | Requirement/acceptance ledgers and review-bottleneck removal |
 
+Delivery and review ownership is recorded per canonical Issue revision as
+`implementationOwner`, `automatedPreReviewOwner`, and `humanReviewOwner`.
+Product/P9 owns the Issue contract and dependency DAG; P8 owns implementation,
+tests, CI, fixes, and the evidence packet; an independent automated reviewer
+may issue only `PREFLIGHT PASS` or findings. Totoro (`@Bindy-lbb`) is routed
+only when an Issue or CODEOWNERS explicitly assigns her a stable high-risk,
+cross-repository, or public-contract candidate. She does not implement and
+finally review the same candidate, and is not repeatedly requested during
+development. `org-workbench` and `context` default to `humanReviewOwner: none`
+unless their canonical Issue explicitly names a human reviewer.
+
 ## Private work (stays inside the company)
 
 Marketplace accounts, listings, discovery, ratings, rental, dynamic pricing,

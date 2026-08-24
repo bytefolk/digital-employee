@@ -36,6 +36,9 @@ body:
         priority: P2
         productOwner: "@product-owner"
         technicalOwner: "unassigned"
+        implementationOwner: "unassigned"
+        automatedPreReviewOwner: "unassigned"
+        humanReviewOwner: "none"
         userOutcome: "A named user can observe one bounded outcome."
         requirements:
           - REQ-001
@@ -71,6 +74,23 @@ body:
         Public route:
         Owning team:
         Boundary:
+    validations:
+      required: true
+
+  - type: textarea
+    id: delivery_owners
+    attributes:
+      label: Delivery and review owners
+      description: Name the implementation, automated pre-review, and human final-review owners. Keep them independent. Use `none` for human review unless this Issue or CODEOWNERS explicitly routes a stable high-risk, cross-repository, or public-contract candidate to a human reviewer.
+      value: |
+        implementationOwner: "unassigned"
+        automatedPreReviewOwner: "unassigned"
+        humanReviewOwner: "none"
+
+        Review boundary:
+        - Automated review may report `PREFLIGHT PASS`; it cannot submit or claim a GitHub approval.
+        - A human final reviewer does not also implement the same candidate.
+        - Request human review once, after the candidate head is stable, automated pre-review has no P0/P1 findings, and required CI is green.
     validations:
       required: true
 
@@ -181,4 +201,6 @@ body:
         - label: Future semantic changes will follow the append-only policy by adding a `requirement-decision:v1` comment before replacing this body; corrections use a new comment and revision.
           required: true
         - label: Merge, release, product acceptance, and owner milestone acceptance remain separate evidence events.
+          required: true
+        - label: "`implementationOwner`, `automatedPreReviewOwner`, and `humanReviewOwner` are explicit and do not assign implementation and final human review to the same person."
           required: true

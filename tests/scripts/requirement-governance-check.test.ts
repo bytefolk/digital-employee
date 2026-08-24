@@ -506,6 +506,33 @@ test("Issue Form rejects inconsistent lifecycle defaults and extra top-level key
   assert.ok(errors.includes("Issue lifecycle default must consistently be needs-design"));
 });
 
+test("Issue and PR templates require explicit separated delivery owners", async () => {
+  const issue = await readRepositoryFile(".github/ISSUE_TEMPLATE/roadmap_item.yml");
+  const missingOwner = mutateIssue(issue, (form) => {
+    const current = form.body.find((entry: any) => entry.id === "current_record");
+    current.attributes.value = current.attributes.value.replace(
+      'humanReviewOwner: "none"\n',
+      ""
+    );
+  });
+  assert.ok(
+    validateIssueTemplate(missingOwner).includes(
+      "Issue current record has unexpected or missing keys"
+    )
+  );
+
+  const pullRequest = await readRepositoryFile(".github/pull_request_template.md");
+  const missingPreflightBoundary = pullRequest.replace(
+    "- Automated pre-review result:",
+    "- Automated review result:"
+  );
+  assert.ok(
+    validatePullRequestTemplate(missingPreflightBoundary).includes(
+      "PR template is missing: Automated pre-review result:"
+    )
+  );
+});
+
 test("fixture corpus is allowlisted and matches seven exact outcomes", async () => {
   const result = await validateFixtureCorpus(fixtureRoot);
   assert.equal(result.fixtureCount, 7);

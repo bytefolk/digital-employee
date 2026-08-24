@@ -35,6 +35,9 @@ status: needs-design
 priority: P2
 productOwner: "@product-owner"
 technicalOwner: "unassigned"
+implementationOwner: "unassigned"
+automatedPreReviewOwner: "unassigned"
+humanReviewOwner: "none"
 userOutcome: "A named user can observe one bounded outcome."
 requirements:
   - REQ-001
@@ -51,6 +54,23 @@ lastDecisionAt: null
 reuse or renumber an identifier to mean something else. A cross-repository
 dependency uses its full canonical URL and names the exact revision in prose;
 `owner/repo#12` alone is not sufficient.
+
+The three delivery fields form an auditable separation of duties:
+
+- `implementationOwner` owns the bounded P8 implementation, tests, CI fixes,
+  and evidence packet;
+- `automatedPreReviewOwner` independently replays the acceptance evidence and
+  may report `PREFLIGHT PASS`, but cannot claim or impersonate GitHub approval;
+- `humanReviewOwner` is `none` unless the Issue or CODEOWNERS explicitly names
+  a human final reviewer for a stable high-risk, cross-repository, or public
+  contract candidate.
+
+No person implements and performs the final human review of the same
+candidate. Totoro (`@Bindy-lbb`) is not a routine implementation, test, or
+evidence owner. When she is explicitly routed by the Issue or CODEOWNERS,
+request one focused review only after the candidate head is stable, automated
+pre-review has no P0/P1 finding, and required CI is green. `org-workbench` and
+`context` do not route work to her unless their own Issue explicitly does so.
 
 Every newly created requirement has one authoritative initial lifecycle value:
 `needs-design`, both in the record and in the form field. The form does not let
@@ -290,7 +310,10 @@ Every PR names the full canonical Issue URL and the exact revision it consumes.
 It maps each changed file domain and test or review artifact to `REQ-NNN` and
 `AC-NNN`; records exact commands, counts, check URLs, security and compatibility
 effects, non-goals, and known limits; and identifies product-review handoff
-owners.
+owners. It repeats `implementationOwner`, `automatedPreReviewOwner`, and
+`humanReviewOwner` from the consumed Issue revision. Automated review records
+`PREFLIGHT PASS` or findings; only the actual human reviewer may submit or be
+reported as a GitHub approval.
 
 Do not use automatic Issue close keywords. A merge is implementation evidence,
 not product acceptance. `npm run governance:check` validates the repository PR

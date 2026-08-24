@@ -27,10 +27,10 @@ of orchestrating tools by hand.
 The pitch we are moving toward: the barrier to entry is low — a business owner
 does not need to write prompts or wire up an Agent Host by hand. Name a
 position, get an answer with its source, and the owner stays accountable for
-the whole organization. **This direction is planned, not yet shipped**: the `org` / `chat` command
-surface does not exist in the current source, and `workspace init` exists
-only as a prototype shipped in current source after `0.4.0` (see the status
-table below).
+the whole organization. **The complete direction is planned, not yet
+released**: `workspace init`, `org tree`, and `org apply` exist only in
+current source after `0.4.0`; `chat @position` and its durable Workbench
+integration remain planned (see the status table below).
 
 ## Capability status
 
@@ -46,7 +46,9 @@ table below).
 | `standalone-v1` compatibility runtime | **Released** compatibility path; not the target for new mainline capabilities |
 | Old-track issues after the 2026-08-23 pivot | Disposed per the approved #164 ledger — KEEP 11 / REPURPOSE 9 / PARK 5; see the [old-track disposition ledger](docs/roadmap.md#old-track-wrap-up-and-issue-disposition) |
 | `workspace init` (oss-maintainer template) | **Shipped** in current source as a prototype after `0.4.0` (#156); not part of the published `0.4.0` artifact |
-| `org tree` / `org apply`, `chat @position` | **Planned** (design state, Epic #155 first milestone) |
+| `org tree` / `org apply` | **Shipped in current source after `0.4.0`**; not part of the published `0.4.0` artifact |
+| Explicit owner → one direct-report delegation | **Source preview / deterministic E3** after `0.4.0`; Workbench persistence/UI and per-Host E4 remain unverified ([boundary](docs/delegation.md)) |
+| `chat @position` | **Planned** Workbench integration (Epic #155 first milestone) |
 | Long-term Context via `mem` + `context`, permission boundaries | **Planned** (design state, Epic #155 first milestone / M2) |
 | Built-in execution engine (default Host, S1 read-only core) | **Planned** (design state, Epic #165; aligned with the first milestone, due 2026-09-30) |
 | oss-maintainer showcase (quickstart form) | **Planned** (Epic #155 M1) |
@@ -289,6 +291,7 @@ company-internal transactions stay private.
 - [Deploy contract and recovery](docs/deploy.md)
 - [Runner integration boundary](docs/runner.md)
 - [MemoryPort and pinned mem adapter](docs/memory-port.md)
+- [Explicit single-hop delegation boundary](docs/delegation.md)
 - [Architecture](docs/architecture.md)
 - [Strategy](docs/strategy.md) and [roadmap](docs/roadmap.md)
 - [Verification](docs/verification.md) and [release process](docs/releasing.md)

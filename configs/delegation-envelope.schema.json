@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fullstack-ai-infra.dev/schemas/delegation-envelope.schema.json",
+  "title": "delegation-envelope.v1 explicit single-hop request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "taskId",
+    "parentTurnId",
+    "childTurnId",
+    "delegatedBy",
+    "routedTo",
+    "trigger",
+    "delegationDepth",
+    "attempt",
+    "retryOfTaskId",
+    "engine",
+    "instruction",
+    "organizationDigest",
+    "permissionsDigest",
+    "deadline",
+    "envelopeDigest"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "delegation-envelope.v1"
+    },
+    "taskId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "parentTurnId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "childTurnId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "delegatedBy": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "routedTo": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "trigger": {
+      "const": "user_explicit"
+    },
+    "delegationDepth": {
+      "const": 1
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "retryOfTaskId": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        }
+      ]
+    },
+    "engine": {
+      "enum": [
+        "qoder",
+        "claude-code"
+      ]
+    },
+    "instruction": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "organizationDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "permissionsDigest": {
+      "$ref": "#/$defs/digest"
+    },
+    "deadline": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "envelopeDigest": {
+      "$ref": "#/$defs/digest"
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  }
+}

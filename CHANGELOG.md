@@ -105,6 +105,18 @@ All notable changes to this project will be documented in this file.
   changed-payload conflict, cross-scope and self-grant denial, root-token
   rejection, explicit grant, revoke/expiry, archive/forget and unrelated-item
   isolation without live Qoder or Claude Code calls.
+- The ready S3-P0 slice from #158 R3 / #165 R4 adds a fail-closed
+  `digital-employee task delegate [workspace] --stdin` boundary. Exact sealed
+  `delegation-envelope.v1` input is revalidated against current applied
+  organization and permission digests; only one explicit owner-to-direct-report
+  route on Qoder or Claude Code is accepted. The engine derives an
+  intersection-only scope (`writes=deny`, downstream delegation denied), emits
+  ordered `delegation-event.v1` NDJSON with exactly one trusted terminal, and
+  exposes a pure requested `task.v1` initializer for the Workbench-owned store.
+  Deterministic E3 fixtures cover both Host identifiers, invalid routes, stale
+  state, duplicate/retry admission, modeled failure, cancellation, and process
+  ambiguity. Neither Host is claimed live-qualified; Workbench persistence,
+  API/SSE and UI remain downstream work.
 - The capability evidence standard is now codified and enforced (#140
   REQ-001 / REQ-002 / REQ-004, AC-001 / AC-002): every claim must carry the
   exact Host version, the deterministic fixture (kit) version, the

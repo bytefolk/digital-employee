@@ -117,3 +117,33 @@ export type {
   TurnEvidenceRecord,
   TurnEvidenceTerminal,
 } from "./turn-evidence.js"
+
+export {
+  DELEGATION_ENVELOPE_VERSION,
+  DELEGATION_EVENT_VERSION,
+  TASK_RECORD_VERSION,
+  DelegationContractError,
+  computeCanonicalDigest,
+  computeDelegationEnvelopeDigest,
+  createRequestedTaskRecord,
+  deriveEffectiveDelegationScope,
+  executeDelegation,
+  parseDelegationEnvelope,
+  validateDelegationAdmission,
+} from "./delegation.js"
+export type {
+  DelegationChildExecutorPort,
+  DelegationChildRunRequest,
+  DelegationChildRunResult,
+  DelegationEngine,
+  DelegationEnvelope,
+  DelegationEvent,
+  DelegationOrganization,
+  DelegationPermissions,
+  DelegationPositionPermissions,
+  DelegationTerminalError,
+  EffectiveDelegationScope,
+  ExecuteDelegationOptions,
+  ExistingDelegationRef,
+  RequestedTaskRecord,
+} from "./delegation.js"

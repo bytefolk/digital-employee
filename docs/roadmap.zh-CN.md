@@ -21,11 +21,10 @@
 | 兼容运行时 | `standalone-v1` 答疑员工运行时与 connectors | 已 **shipped** 的兼容路径；不是新主线能力的目标路径 |
 | 部署命令 | 绑定员工包的 `deploy`，诚实的本地结果与失败关闭恢复 | **preview** 能力面；HTTP 可到 `ready`；钉钉对账处于外部 HOLD |
 
-`workspace init` 原型已在当前源码交付（#156，于 `0.4.0` 之后合入）。
-`org tree` / `org apply` 与 `chat @position` 命令在当前源码中**不存在**；它们与
-内建引擎
+`workspace init`、`org tree` 与 `org apply` 原型已在 `0.4.0` 之后的当前源码交付。
+`chat @position` 与持久化 Workbench 旅程仍由下方新主线推进。内建引擎 Epic
 （[#165](https://github.com/fullstack-ai-infra/digital-employee/issues/165)）
-一样，属于下方新主线的 **design** 状态。
+继续分别管理尚未发布的切片与验收门禁。
 
 ## 交付依赖图（新主线）
 

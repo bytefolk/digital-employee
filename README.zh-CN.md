@@ -21,8 +21,9 @@ Agent 框架（Claude Code、Qoder、Qwen Code、CodeBuddy、Codex……）回�
 
 我们正在靠拢的卖点：**门槛很低、不用敲命令**——业务负责人不需要写 prompt 模板、不需要
 手动配置 Agent Host；说一句话、喊一个岗位名，就能拿到带出处的结果，整个组织仍由负责人
-兜底。**注意：这是规划中的方向，尚未发布**：`org` / `chat` 命令面在当前源码中不存在；
-`workspace init` 仅以 `0.4.0` 之后当前源码中的原型形式存在（见下方状态表）。
+兜底。**注意：完整方向仍在规划中，尚未发布**：`workspace init`、`org tree` 与
+`org apply` 只存在于 `0.4.0` 之后的当前源码；`chat @岗位` 与持久化 Workbench 集成仍在
+规划中（见下方状态表）。
 
 ## 能力状态
 
@@ -37,7 +38,9 @@ Agent 框架（Claude Code、Qoder、Qwen Code、CodeBuddy、Codex……）回�
 | `standalone-v1` 兼容运行时 | **已发布**兼容路径；不是新主线能力的目标路径 |
 | 2026-08-23 pivot 之后的旧轨 issue | 按 #164 批准的台账处置——KEEP 11 / REPURPOSE 9 / PARK 5；见[旧轨处置台账](docs/roadmap.zh-CN.md#旧轨收尾与-issue-处置) |
 | `workspace init`（oss-maintainer 模板） | 当前源码已**交付**原型（`0.4.0` 之后，#156）；不属于已发布 `0.4.0` 制品 |
-| `org tree` / `org apply`、`chat @岗位` | **规划中**（design 状态，Epic #155 第一里程碑） |
+| `org tree` / `org apply` | `0.4.0` 之后当前源码已交付；不属于已发布 `0.4.0` 制品 |
+| 负责人 → 一个直接下属的显式委派 | `0.4.0` 之后源码预览 / deterministic E3；Workbench 持久化/UI 与逐 Host E4 尚未验证（见[边界](docs/delegation.md)） |
+| `chat @岗位` | **规划中**的 Workbench 集成（Epic #155 第一里程碑） |
 | `mem` + `context` 长期 Context 与岗位权限边界 | **规划中**（design 状态，Epic #155 第一里程碑 / M2） |
 | 内建执行引擎（默认 Host，S1 只读核心） | **规划中**（design 状态，Epic #165；与第一里程碑对齐，截止 2026-09-30） |
 | oss-maintainer 展示案例（quickstart 形态） | **规划中**（Epic #155 M1） |
@@ -379,7 +382,8 @@ DWS 的安装、授权和完整能力请查看
 | 卖家自有长期 Runner 进程、本地持久 replay/outbox 和重连 | 旧轨已收尾；保留范围以[处置台账](docs/roadmap.zh-CN.md#旧轨收尾与-issue-处置) KEEP 线为准 |
 | 服务端设备注册、任务分发、用量核验、Quote/Credit 和结算 | 私有平台；不进入本框架仓库 |
 | `workspace init`（oss-maintainer 模板） | 当前源码已交付原型（`0.4.0` 之后，#156）；不属于已发布制品 |
-| `org tree` / `org apply`、`chat @岗位` | 规划中；Epic #155 第一里程碑 |
+| `org tree` / `org apply` | `0.4.0` 之后当前源码已交付；尚未发布 |
+| `chat @岗位` 与持久化 Workbench 集成 | 规划中；Epic #155 第一里程碑 |
 | `mem` + `context` 长期 Context、岗位权限边界 | 规划中；Epic #155 第一里程碑/M2 |
 | 内建执行引擎（默认 Host，S1 只读核心） | 规划中；Epic #165，与第一里程碑对齐（截止 2026-09-30） |
 | oss-maintainer 展示案例 | 规划中；Epic #155 |

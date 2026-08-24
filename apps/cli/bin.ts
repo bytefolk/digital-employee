@@ -29,6 +29,7 @@ import { deploy, renderDeployParseFailure } from "./deploy/index.js";
 import { workspace, renderWorkspaceParseFailure } from "./workspace/index.js";
 import { org, renderOrgParseFailure } from "./org/index.js";
 import { turn } from "./turn/index.js";
+import { task } from "./task/index.js";
 import { setup } from "./setup.js";
 
 type EmployeeResult = Awaited<ReturnType<DigitalEmployee["answer"]>>;
@@ -72,6 +73,7 @@ Agent-native usage:
   digital-employee org apply [workspace] [--json]
   digital-employee org scope <position> [workspace] [--tool <name> | --context <path>] [--json]
   digital-employee turn run [workspace] --position <id> (--stdin | --input-file <path>)
+  digital-employee task delegate [workspace] --stdin
   digital-employee deploy [package-path] [--package path] --channel <id> --engine <id> --runtime agent-native|standalone-v1 [options]
   digital-employee doctor [--engine claude-code|qoder|codex|qwen-code|codebuddy] [--json]
   digital-employee init <directory> [--recipe minimal-answer.v1|structured-action.v1] [--name employee-name] [--author author]
@@ -571,7 +573,7 @@ async function main() {
     throw error;
   }
   const { command, values, positionals, providedOptions } = parsed;
-  if (command === "help" || (values.help && command !== "deploy" && command !== "workspace" && command !== "org" && command !== "turn")) {
+  if (command === "help" || (values.help && command !== "deploy" && command !== "workspace" && command !== "org" && command !== "turn" && command !== "task")) {
     process.stdout.write(usage());
     return;
   }
@@ -629,6 +631,13 @@ async function main() {
     position: values.position,
     stdin: values.stdin,
     inputFile: values.inputFile,
+    json: values.json,
+    help: values.help,
+  });
+  if (command === "task") return task({
+    subcommand: positionals[0],
+    args: positionals.slice(1),
+    stdin: values.stdin,
     json: values.json,
     help: values.help,
   });

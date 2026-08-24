@@ -23,11 +23,11 @@ specifications.
 | Compatibility runtime | `standalone-v1` answer-agent runtime and connectors | **shipped** compatibility path; not the target for new mainline capabilities |
 | Deploy command | Package-bound `deploy` with truthful local outcome and fail-closed recovery | **preview** surface; HTTP can reach `ready`; DingTalk reconciliation is externally HOLD |
 
-The `workspace init` prototype is shipped in current source (#156, merged after
-`0.4.0`). The `org tree` / `org apply` and `chat @position` commands do
-**not** exist in the current source; they — together with the built-in engine
-([#165](https://github.com/fullstack-ai-infra/digital-employee/issues/165)) —
-are **design** state owned by the new mainline below.
+The `workspace init`, `org tree`, and `org apply` prototypes are shipped in
+current source after `0.4.0`. `chat @position` and the durable Workbench
+journey remain owned by the new mainline below. The built-in engine Epic
+([#165](https://github.com/fullstack-ai-infra/digital-employee/issues/165))
+keeps its unreleased slices and acceptance gates separate.
 
 ## Delivery graph (new mainline)
 

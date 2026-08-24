@@ -288,6 +288,7 @@ company-internal transactions stay private.
 - [Agent Host support policy](docs/agent-hosts.md)
 - [Deploy contract and recovery](docs/deploy.md)
 - [Runner integration boundary](docs/runner.md)
+- [MemoryPort and pinned mem adapter](docs/memory-port.md)
 - [Architecture](docs/architecture.md)
 - [Strategy](docs/strategy.md) and [roadmap](docs/roadmap.md)
 - [Verification](docs/verification.md) and [release process](docs/releasing.md)

@@ -421,7 +421,8 @@ marketplace 上架、租赁、动态价格、可信计量、评价和分账属�
 
 [`mem`](https://github.com/fullstack-ai-infra/mem) 是新主线上长期 Context 的底座：岗位
 对话产生的决策与任务状态写入记忆平面，新会话/换 Host 后可召回续接；本仓库不重复建设
-memory plane。
+memory plane。当前严格类型边界、固定版本 HTTP 适配器、凭证与授权职责见
+[MemoryPort 接入说明](docs/memory-port.md)；该切片尚未接入执行引擎。
 
 在 Agent-native 路径中，`mem` 应位于经过批准的扩展边界之后；`standalone-v1` 只为兼容
 保留历史答疑编排、引用、反馈和人工接力能力，不能据此把答疑流程重新定义为整个 Digital

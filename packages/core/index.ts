@@ -534,3 +534,40 @@ export type {
   RunnerStartOptions,
   RunnerProcess,
 } from "./src/runner-lifecycle.js"
+export {
+  MEMORY_RECALL_MAX_ITEMS,
+  MEMORY_RECALL_MAX_ITEM_BYTES,
+  MEMORY_RECALL_MAX_TOTAL_BYTES,
+  MEMORY_RECALL_SCHEMA_VERSION,
+  MEMORY_WRITE_REQUEST_SCHEMA_VERSION,
+  MEMORY_WRITE_RESULT_SCHEMA_VERSION,
+  TASK_STATE_MAX_SUMMARY_BYTES,
+  TASK_STATE_SCHEMA_VERSION,
+  MemoryPortError,
+  computeMemoryIdempotencyKey,
+  derivePositionPrincipal,
+  normalizeMemoryScope,
+  validateMemoryRecall,
+  validateMemoryWriteRequest,
+  validateTaskState,
+} from "./src/memory-port.js"
+export type {
+  MemoryPort,
+  MemoryPortErrorCode,
+  MemoryRecall,
+  MemoryRecallItem as DurableMemoryRecallItem,
+  MemoryRecallMode,
+  MemoryRecallProvenance,
+  MemoryRecallRequest,
+  MemoryRecallWarning,
+  MemoryWriteRequest,
+  MemoryWriteResult,
+  TaskState,
+  TaskStateStatus,
+} from "./src/memory-port.js"
+export {
+  MEM_DURABLE_CONTEXT_CONTRACT,
+  MEM_HTTP_PINNED_REVISION,
+  createMemHttpMemoryAdapter,
+} from "./src/mem-http-memory-adapter.js"
+export type { MemHttpMemoryAdapterOptions } from "./src/mem-http-memory-adapter.js"

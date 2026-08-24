@@ -78,6 +78,18 @@ All notable changes to this project will be documented in this file.
   manual local check that CI does not cover. See
   [`docs/agent-hosts.md`](docs/agent-hosts.md).
 
+- A strict, engine-detached `MemoryPort` and public-HTTP mem adapter now bind
+  one workspace instance, position-derived principal and canonical memory
+  scope to an env-only minimum read/write token (#180). The adapter pins mem
+  revision `4c714aa352f79f0080a24904668210d6c445ba10`, verifies version and
+  capabilities before every operation, writes only bounded reviewed
+  `task-state.v1` records with deterministic idempotency and exact readback,
+  and projects bounded recalled content as untrusted data with no authority.
+  It contains no grant or admin path and is not wired into the engine. Mocked
+  contract tests and a disposable actual mem/PostgreSQL E3 cover replay,
+  changed-payload conflict, cross-scope and self-grant denial, root-token
+  rejection, explicit grant, revoke/expiry, archive/forget and unrelated-item
+  isolation without live Qoder or Claude Code calls.
 - The capability evidence standard is now codified and enforced (#140
   REQ-001 / REQ-002 / REQ-004, AC-001 / AC-002): every claim must carry the
   exact Host version, the deterministic fixture (kit) version, the

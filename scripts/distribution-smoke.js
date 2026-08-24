@@ -197,6 +197,14 @@ async function main() {
         throw new TypeError("distribution_smoke_help_contract_invalid");
       }
     }
+    run(process.execPath, [
+      "--input-type=module",
+      "-e",
+      `const engine = await import("@fullstack-ai-infra/digital-employee/engine");
+       for (const name of ["executeDelegation", "parseDelegationEnvelope", "parseExistingDelegationHistory", "validateDelegationAdmission", "createRequestedTaskRecord"]) {
+         if (typeof engine[name] !== "function") throw new Error("distribution_smoke_engine_export_invalid:" + name);
+       }`
+    ], { cwd: consumer });
 
     const recipes = [];
     let negativeEvalCode;

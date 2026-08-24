@@ -155,6 +155,8 @@ export interface DelegationChildRunRequest {
   deadline: string
   effectiveScope: EffectiveDelegationScope
   signal?: AbortSignal
+  /** Trusted child boundary: called only after a validated Host run.started. */
+  onStarted: () => void
   onUsage?: (usage: {
     inputTokens?: number
     outputTokens?: number
@@ -478,6 +480,7 @@ export function validateDelegationAdmission(
   envelope: DelegationEnvelope,
   existing: readonly ExistingDelegationRef[],
 ): void {
+  validateExistingDelegationHistory(existing)
   if (
     existing.some(
       (entry) =>
@@ -492,7 +495,7 @@ export function validateDelegationAdmission(
   }
   const siblings = existing.filter(
     (entry) => entry.parentTurnId === envelope.parentTurnId,
-  )
+  ).sort((left, right) => left.attempt - right.attempt)
   if (siblings.length === 0) {
     if (envelope.attempt !== 1 || envelope.retryOfTaskId !== null) {
       throw new DelegationContractError(
@@ -508,15 +511,118 @@ export function validateDelegationAdmission(
       "v1 permits only one non-retry child per parent turn",
     )
   }
-  const prior = siblings.find(
-    (entry) => entry.taskId === envelope.retryOfTaskId,
-  )
-  if (!prior || envelope.attempt !== prior.attempt + 1) {
+  const prior = siblings.at(-1)!
+  if (
+    envelope.retryOfTaskId !== prior.taskId ||
+    envelope.attempt !== prior.attempt + 1
+  ) {
     throw new DelegationContractError(
       "delegation.retry_invalid",
       "retry must reference the prior attempt and increment by one",
     )
   }
+}
+
+const HISTORY_KEYS = [
+  "taskId",
+  "parentTurnId",
+  "childTurnId",
+  "attempt",
+  "retryOfTaskId",
+] as const
+const MAX_HISTORY_RECORDS = 1_024
+
+function validateExistingDelegationHistory(
+  existing: readonly ExistingDelegationRef[],
+): void {
+  if (existing.length > MAX_HISTORY_RECORDS) {
+    throw new DelegationContractError(
+      "delegation.history_invalid",
+      "delegation history exceeds the bounded record count",
+    )
+  }
+  const taskIds = new Set<string>()
+  const childTurnIds = new Set<string>()
+  const byParent = new Map<string, ExistingDelegationRef[]>()
+  for (const entry of existing) {
+    if (
+      !isRecord(entry) ||
+      Object.keys(entry).length !== HISTORY_KEYS.length ||
+      HISTORY_KEYS.some((key) => !(key in entry))
+    ) {
+      throw new DelegationContractError(
+        "delegation.history_invalid",
+        "delegation history entries must use the exact v1 reference shape",
+      )
+    }
+    let taskId: string
+    let parentTurnId: string
+    let childTurnId: string
+    try {
+      taskId = requireId(entry.taskId, "taskId")
+      parentTurnId = requireId(entry.parentTurnId, "parentTurnId")
+      childTurnId = requireId(entry.childTurnId, "childTurnId")
+      if (entry.retryOfTaskId !== null) {
+        requireId(entry.retryOfTaskId, "retryOfTaskId")
+      }
+    } catch {
+      throw new DelegationContractError(
+        "delegation.history_invalid",
+        "delegation history contains an invalid identity",
+      )
+    }
+    if (
+      taskId === parentTurnId ||
+      taskId === childTurnId ||
+      parentTurnId === childTurnId ||
+      taskIds.has(taskId) ||
+      childTurnIds.has(childTurnId) ||
+      !Number.isInteger(entry.attempt) ||
+      entry.attempt < 1
+    ) {
+      throw new DelegationContractError(
+        "delegation.history_invalid",
+        "delegation history identities and attempts must be unique and bounded",
+      )
+    }
+    taskIds.add(taskId)
+    childTurnIds.add(childTurnId)
+    const group = byParent.get(parentTurnId) ?? []
+    group.push(entry)
+    byParent.set(parentTurnId, group)
+  }
+  for (const entries of byParent.values()) {
+    entries.sort((left, right) => left.attempt - right.attempt)
+    for (let index = 0; index < entries.length; index += 1) {
+      const entry = entries[index]!
+      const prior = entries[index - 1]
+      if (
+        entry.attempt !== index + 1 ||
+        (index === 0
+          ? entry.retryOfTaskId !== null
+          : entry.retryOfTaskId !== prior!.taskId)
+      ) {
+        throw new DelegationContractError(
+          "delegation.history_invalid",
+          "delegation history must be one contiguous linear retry chain",
+        )
+      }
+    }
+  }
+}
+
+export function parseExistingDelegationHistory(
+  raw: unknown,
+): ExistingDelegationRef[] {
+  if (!Array.isArray(raw)) {
+    throw new DelegationContractError(
+      "delegation.history_invalid",
+      "delegation history must be a JSON array",
+    )
+  }
+  const history = raw as ExistingDelegationRef[]
+  validateExistingDelegationHistory(history)
+  return history.map((entry) => ({ ...entry }))
 }
 
 /**
@@ -677,7 +783,7 @@ export async function* executeDelegation(
   const newId = options.newId ?? (() => randomUUID())
   const childRunId = options.runId?.() ?? randomUUID()
   let sequence = 0
-  const common = () => ({
+  const common = (timestamp = now().toISOString()) => ({
     schemaVersion: DELEGATION_EVENT_VERSION,
     eventId: newId(),
     sequence: ++sequence,
@@ -689,39 +795,61 @@ export async function* executeDelegation(
     routedTo: envelope.routedTo,
     delegationDepth: 1 as const,
     attempt: envelope.attempt,
-    timestamp: now().toISOString(),
+    timestamp,
   })
   const scopeDigest = computeCanonicalDigest(effectiveScope)
-  yield {
-    ...common(),
-    type: "delegation.started",
-    payload: { scopeDigest },
-  }
-
+  let startedAt: string | undefined
   const usage: Array<{
     inputTokens?: number
     outputTokens?: number
     totalTokens?: number
   }> = []
-  const result = await options.childExecutor.run({
-    runId: childRunId,
-    engine: envelope.engine,
-    positionId: envelope.routedTo,
-    instruction: envelope.instruction,
-    deadline: envelope.deadline,
-    effectiveScope,
-    ...(options.signal ? { signal: options.signal } : {}),
-    onUsage: (entry) => {
-      const bounded: typeof entry = {}
-      for (const key of ["inputTokens", "outputTokens", "totalTokens"] as const) {
-        const value = entry[key]
-        if (value !== undefined && Number.isSafeInteger(value) && value >= 0) {
-          bounded[key] = value
+  let result: DelegationChildRunResult
+  try {
+    result = await options.childExecutor.run({
+      runId: childRunId,
+      engine: envelope.engine,
+      positionId: envelope.routedTo,
+      instruction: envelope.instruction,
+      deadline: envelope.deadline,
+      effectiveScope,
+      ...(options.signal ? { signal: options.signal } : {}),
+      onStarted: () => {
+        startedAt ??= now().toISOString()
+      },
+      onUsage: (entry) => {
+        if (!startedAt) return
+        const bounded: typeof entry = {}
+        for (const key of ["inputTokens", "outputTokens", "totalTokens"] as const) {
+          const value = entry[key]
+          if (value !== undefined && Number.isSafeInteger(value) && value >= 0) {
+            bounded[key] = value
+          }
         }
+        if (Object.keys(bounded).length > 0) usage.push(bounded)
+      },
+    })
+  } catch (error) {
+    if (startedAt) {
+      yield {
+        ...common(startedAt),
+        type: "delegation.started",
+        payload: { scopeDigest },
       }
-      if (Object.keys(bounded).length > 0) usage.push(bounded)
-    },
-  })
+    }
+    throw error
+  }
+  if (!startedAt) {
+    throw new DelegationContractError(
+      "delegation.child_indeterminate",
+      "child Host settled without a validated run.started event",
+    )
+  }
+  yield {
+    ...common(startedAt),
+    type: "delegation.started",
+    payload: { scopeDigest },
+  }
   for (const payload of usage) {
     yield { ...common(), type: "delegation.usage", payload }
   }

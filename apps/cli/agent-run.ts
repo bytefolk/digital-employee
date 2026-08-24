@@ -13,6 +13,7 @@ import {
 import type {
   AgentHostEvent,
   AgentHostMcpServer,
+  AgentHostPolicy,
   AgentHostProbeResult,
   AgentHostRunRequest,
 } from "../../packages/core/src/agent-host.js"
@@ -56,6 +57,13 @@ export interface RunEmployeePackageOptions {
   expectedPackageDigest?: string
   deadline?: string
   signal?: AbortSignal
+  /** Trusted outer-runtime narrowing for workspace-scoped delegated runs. */
+  hostRequestProjection?: {
+    workingDirectory: string
+    workspaceAssetPrefix: string
+    policy: AgentHostPolicy
+    mcp: "deny"
+  }
   /**
    * Keep the caller's lifecycle open until an aborted Host preflight settles.
    * Managed HTTP uses this barrier so an uncancellable version probe cannot
@@ -280,20 +288,32 @@ function buildAgentHostRunRequest(
     prompt: string
     deadline?: string
     signal?: AbortSignal
+    projection?: RunEmployeePackageOptions["hostRequestProjection"]
   },
 ): AgentHostRunRequest {
-  const mcpServers = toAgentHostMcpServers(inspection)
+  const mcpServers = options.projection
+    ? undefined
+    : toAgentHostMcpServers(inspection)
+  const workspaceFiles = options.projection
+    ? inspection.manifest.assets.map(
+        (asset) =>
+          `${options.projection!.workspaceAssetPrefix}/${asset.slice(2)}`,
+      )
+    : [...inspection.manifest.assets]
   return {
     runId: options.runId,
     employeeId: inspection.manifest.name,
-    workingDirectory: inspection.directory,
-    workspaceFiles: [...inspection.manifest.assets],
+    workingDirectory:
+      options.projection?.workingDirectory ?? inspection.directory,
+    workspaceFiles,
     prompt: options.prompt,
     instructions: inspection.artifacts.skill,
     session: { mode: "new" },
     ...(mcpServers ? { mcpServers } : {}),
     outputSchema: asSafeValue(inspection.artifacts.outputSchema),
-    policy: deriveEffectiveAgentHostPolicy(inspection.manifest),
+    policy:
+      options.projection?.policy ??
+      deriveEffectiveAgentHostPolicy(inspection.manifest),
     ...(options.deadline ? { deadline: options.deadline } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
   }
@@ -428,6 +448,9 @@ export async function runEmployeePackage(
     prompt: `Complete this employee task. Task input JSON:\n${JSON.stringify(input)}`,
     ...(options.deadline ? { deadline: options.deadline } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
+    ...(options.hostRequestProjection
+      ? { projection: options.hostRequestProjection }
+      : {}),
   })
   const publishEvent = async (
     event: AgentHostEvent,

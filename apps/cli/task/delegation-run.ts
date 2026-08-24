@@ -11,14 +11,19 @@ import { lstat, readFile, realpath } from "node:fs/promises"
 import path from "node:path"
 
 import type { AgentHostRegistryPort } from "../../../packages/core/src/agent-host-registry.js"
-import type { AgentHostEvent } from "../../../packages/core/src/agent-host.js"
+import type {
+  AgentHostEvent,
+  AgentHostPolicy,
+} from "../../../packages/core/src/agent-host.js"
 import {
   DelegationContractError,
   executeDelegation,
   parseDelegationEnvelope,
+  parseExistingDelegationHistory,
   type DelegationChildExecutorPort,
   type DelegationOrganization,
   type DelegationPermissions,
+  type ExistingDelegationRef,
 } from "../../../packages/engine/src/delegation.js"
 import { runEmployeePackage } from "../agent-run.js"
 import {
@@ -31,10 +36,13 @@ import { deriveOrganizationPermissions } from "../org/permissions.js"
 
 const MAX_STDERR_DIAGNOSTIC_BYTES = 8 * 1024
 const MAX_APPLIED_STATE_BYTES = 4 * 1024 * 1024
+const MAX_HISTORY_BYTES = 4 * 1024 * 1024
 
 export interface DelegationRunOptions {
   workspace: string
   envelopeText: string
+  /** Trusted Workbench-owned snapshot; CLI supplies it from --history-file. */
+  historyText?: string
   writeEvent?: (line: string) => void
   writeDiagnostic?: (line: string) => void
   /** Deterministic E3 seam. Production calls omit this. */
@@ -158,7 +166,7 @@ function isInfrastructureUncertainty(code: string): boolean {
 async function assertPackageInsideWorkspace(
   workspace: string,
   packageDirectory: string,
-): Promise<void> {
+): Promise<{ workspaceReal: string; workspaceAssetPrefix: string }> {
   let packageStat
   try {
     packageStat = await lstat(packageDirectory)
@@ -199,6 +207,42 @@ async function assertPackageInsideWorkspace(
       "worker package must remain inside the workspace",
     )
   }
+  return {
+    workspaceReal,
+    workspaceAssetPrefix: `./${relative.split(path.sep).join("/")}`,
+  }
+}
+
+function projectEffectiveHostPolicy(
+  contextRead: readonly string[],
+  toolAllow: readonly string[],
+): AgentHostPolicy {
+  const known = new Set(["Read", "Grep", "Glob"])
+  if (toolAllow.some((tool) => !known.has(tool))) {
+    throw new DelegationContractError(
+      "delegation.authority_unexpressible",
+      "effective authority contains a tool outside the Host projection",
+    )
+  }
+  const allow: AgentHostPolicy["tools"]["allow"] = []
+  if (toolAllow.includes("Read")) {
+    allow.push({ name: "filesystem.read", mode: "read" })
+  }
+  if (toolAllow.includes("Grep") || toolAllow.includes("Glob")) {
+    allow.push({ name: "filesystem.search", mode: "read" })
+  }
+  const filesystemRead =
+    allow.length === 0
+      ? []
+      : contextRead.map((scope) =>
+          scope === "./" ? "./**" : `${scope.replace(/\/$/, "")}/**`,
+        )
+  return {
+    tools: { default: "deny", allow },
+    filesystem: { read: filesystemRead, write: [] },
+    network: { mode: "deny" },
+    approval: { mode: "never" },
+  }
 }
 
 function createHostChildExecutor(options: {
@@ -225,10 +269,15 @@ function createHostChildExecutor(options: {
           "worker package binding is missing",
         )
       }
-      await assertPackageInsideWorkspace(
+      const projection = await assertPackageInsideWorkspace(
         options.workspace,
         role.package.localReference,
       )
+      const policy = projectEffectiveHostPolicy(
+        request.effectiveScope.contextRead,
+        request.effectiveScope.toolAllow,
+      )
+      let started = false
       const result = await runEmployeePackage({
         directory: role.package.localReference,
         engine: request.engine,
@@ -237,9 +286,32 @@ function createHostChildExecutor(options: {
         runId: request.runId,
         expectedPackageDigest: role.package.digest,
         deadline: request.deadline,
+        hostRequestProjection: {
+          workingDirectory: projection.workspaceReal,
+          workspaceAssetPrefix: projection.workspaceAssetPrefix,
+          policy,
+          mcp: "deny",
+        },
         ...(request.signal ? { signal: request.signal } : {}),
         onEvent(event: AgentHostEvent) {
+          if (event.type === "run.started") {
+            if (started) {
+              throw new DelegationContractError(
+                "delegation.child_protocol_invalid",
+                "child Host emitted duplicate run.started events",
+              )
+            }
+            started = true
+            request.onStarted()
+            return
+          }
           if (event.type === "usage") {
+            if (!started) {
+              throw new DelegationContractError(
+                "delegation.child_protocol_invalid",
+                "child Host emitted usage before run.started",
+              )
+            }
             request.onUsage?.({
               ...(event.inputTokens !== undefined
                 ? { inputTokens: event.inputTokens }
@@ -254,6 +326,12 @@ function createHostChildExecutor(options: {
           }
         },
       })
+      if (!started) {
+        throw new DelegationContractError(
+          "delegation.child_indeterminate",
+          "child Host settled without run.started",
+        )
+      }
       if (result.status === "completed") {
         return { status: "completed", output: result.output }
       }
@@ -291,6 +369,27 @@ export async function runDelegation(
       )
     }
     const envelope = parseDelegationEnvelope(raw)
+    let existingDelegations: ExistingDelegationRef[]
+    if (options.historyText === undefined) {
+      existingDelegations = []
+    } else {
+      if (Buffer.byteLength(options.historyText, "utf8") > MAX_HISTORY_BYTES) {
+        throw new DelegationContractError(
+          "delegation.history_invalid",
+          "delegation history exceeds the bounded byte limit",
+        )
+      }
+      let rawHistory: unknown
+      try {
+        rawHistory = JSON.parse(options.historyText) as unknown
+      } catch {
+        throw new DelegationContractError(
+          "delegation.history_invalid",
+          "delegation history is not valid JSON",
+        )
+      }
+      existingDelegations = parseExistingDelegationHistory(rawHistory)
+    }
     const { organization, permissions } = await loadAppliedState(
       options.workspace,
     )
@@ -305,6 +404,7 @@ export async function runDelegation(
       organization,
       permissions,
       childExecutor,
+      existingDelegations,
       ...(options.now ? { now: options.now } : {}),
       ...(options.newId ? { newId: options.newId } : {}),
       ...(options.runId ? { runId: options.runId } : {}),

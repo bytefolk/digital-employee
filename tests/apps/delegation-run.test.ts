@@ -4,10 +4,22 @@
  */
 
 import assert from "node:assert/strict"
-import { mkdtemp, readFile, rename, rm, symlink } from "node:fs/promises"
+import { spawnSync } from "node:child_process"
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import test from "node:test"
+import { fileURLToPath } from "node:url"
 
 import { runDelegation } from "../../apps/cli/task/delegation-run.js"
 import { applyOrganization } from "../../apps/cli/org/model.js"
@@ -25,7 +37,12 @@ import {
   computeDelegationEnvelopeDigest,
 } from "../../packages/engine/src/delegation.js"
 
-async function createAppliedWorkspace(t: test.TestContext): Promise<{
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
+
+async function createAppliedWorkspace(
+  t: test.TestContext,
+  options: { toolAllow?: string[] } = {},
+): Promise<{
   workspace: string
   organization: Record<string, unknown>
   permissions: Record<string, unknown>
@@ -45,6 +62,14 @@ async function createAppliedWorkspace(t: test.TestContext): Promise<{
     })
   } finally {
     process.stdout.write = originalWrite
+  }
+  if (options.toolAllow) {
+    const organizationFile = path.join(target, "organization.v1alpha1.json")
+    const source = JSON.parse(await readFile(organizationFile, "utf8")) as {
+      roles: Array<{ toolAllow: string[] }>
+    }
+    for (const role of source.roles) role.toolAllow = [...options.toolAllow]
+    await writeFile(organizationFile, `${JSON.stringify(source, null, 2)}\n`)
   }
   await applyOrganization(target)
   return {
@@ -93,7 +118,10 @@ function sealed(
   })
 }
 
-function fixtureRegistry(calls: string[]): AgentHostRegistry {
+function fixtureRegistry(
+  calls: string[],
+  requests: Array<Parameters<AgentHostAdapter["run"]>[0]> = [],
+): AgentHostRegistry {
   let registry = new AgentHostRegistry()
   for (const hostId of ["qoder", "claude-code"] as const) {
     const readyProbe = (): AgentHostProbeResult => {
@@ -121,6 +149,12 @@ function fixtureRegistry(calls: string[]): AgentHostRegistry {
       preflight: async () => readyProbe(),
       async *run(request) {
         calls.push(hostId)
+        requests.push(request)
+        yield {
+          type: "run.started",
+          runId: request.runId,
+          timestamp: "2026-08-24T09:59:59.000Z",
+        }
         yield {
           type: "run.completed",
           runId: request.runId,
@@ -143,9 +177,10 @@ function fixtureRegistry(calls: string[]): AgentHostRegistry {
 }
 
 test("AC-009: Qoder and Claude Code pass the identical deterministic E3 path", async (t) => {
-  const state = await createAppliedWorkspace(t)
+  const state = await createAppliedWorkspace(t, { toolAllow: ["Read"] })
   const calls: string[] = []
-  const hostRegistry = fixtureRegistry(calls)
+  const requests: Array<Parameters<AgentHostAdapter["run"]>[0]> = []
+  const hostRegistry = fixtureRegistry(calls, requests)
   for (const engine of ["qoder", "claude-code"] as const) {
     const events: Array<Record<string, unknown>> = []
     const result = await runDelegation({
@@ -163,6 +198,166 @@ test("AC-009: Qoder and Claude Code pass the identical deterministic E3 path", a
     ])
   }
   assert.deepEqual(calls, ["qoder", "claude-code"])
+  const workspaceReal = await realpath(state.workspace)
+  for (const request of requests) {
+    assert.equal(request.workingDirectory, workspaceReal)
+    assert.deepEqual(request.policy, {
+      tools: {
+        default: "deny",
+        allow: [{ name: "filesystem.read", mode: "read" }],
+      },
+      filesystem: {
+        read: [
+          "./context/**",
+          "./positions/repo-owner/issue-researcher/**",
+        ],
+        write: [],
+      },
+      network: { mode: "deny" },
+      approval: { mode: "never" },
+    })
+    assert.equal(request.mcpServers, undefined)
+    assert.deepEqual(request.workspaceFiles, [
+      "./positions/repo-owner/issue-researcher/knowledge/README.md",
+      "./positions/repo-owner/issue-researcher/evals/cases.json",
+    ])
+  }
+})
+
+test("AC-008: production boundary admits exactly one linear explicit retry", async (t) => {
+  const state = await createAppliedWorkspace(t)
+  const calls: string[] = []
+  const envelopeText = sealed(state, "qoder", {
+    taskId: "task-qoder-retry",
+    childTurnId: "turn-child-qoder-retry",
+    attempt: 2,
+    retryOfTaskId: "task-qoder",
+  })
+  const result = await runDelegation({
+    workspace: state.workspace,
+    envelopeText,
+    historyText: JSON.stringify([
+      {
+        taskId: "task-qoder",
+        parentTurnId: "turn-parent",
+        childTurnId: "turn-child-qoder",
+        attempt: 1,
+        retryOfTaskId: null,
+      },
+    ]),
+    hostRegistry: fixtureRegistry(calls),
+    writeEvent: () => undefined,
+    writeDiagnostic: () => undefined,
+  })
+  assert.equal(result.exitCode, 0)
+  assert.deepEqual(calls, ["qoder"])
+})
+
+test("AC-008: built CLI consumes workspace-local history and executes valid attempt 2", async (t) => {
+  const state = await createAppliedWorkspace(t)
+  const historyFile = path.join(
+    state.workspace,
+    ".digital-employee",
+    "delegations.json",
+  )
+  await writeFile(
+    historyFile,
+    `${JSON.stringify([
+      {
+        taskId: "task-qoder",
+        parentTurnId: "turn-parent",
+        childTurnId: "turn-child-qoder",
+        attempt: 1,
+        retryOfTaskId: null,
+      },
+    ])}\n`,
+  )
+  const binDirectory = path.join(path.dirname(state.workspace), "fixture-bin")
+  await mkdir(binDirectory)
+  const qoder = path.join(binDirectory, "qodercli")
+  const fixture = path.join(root, "tests", "apps", "fixtures", "fake-qoder.mjs")
+  await writeFile(
+    qoder,
+    `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(fixture)} "$@"\n`,
+  )
+  await chmod(qoder, 0o700)
+  const result = spawnSync(
+    process.execPath,
+    [
+      path.join(root, "dist", "apps", "cli", "bin.js"),
+      "task",
+      "delegate",
+      state.workspace,
+      "--stdin",
+      "--history-file",
+      historyFile,
+    ],
+    {
+      encoding: "utf8",
+      input: sealed(state, "qoder", {
+        taskId: "task-qoder-retry",
+        childTurnId: "turn-child-qoder-retry",
+        attempt: 2,
+        retryOfTaskId: "task-qoder",
+      }),
+      env: {
+        ...process.env,
+        PATH: `${binDirectory}${path.delimiter}${process.env.PATH ?? ""}`,
+        QODER_PERSONAL_ACCESS_TOKEN: "fixture-service-token",
+      },
+      timeout: 30_000,
+    },
+  )
+  assert.equal(result.status, 0, result.stderr)
+  assert.deepEqual(
+    result.stdout
+      .trim()
+      .split("\n")
+      .map((line) => (JSON.parse(line) as { type: string }).type),
+    ["delegation.started", "delegation.completed"],
+  )
+})
+
+test("AC-007: malformed, branched, gapped, and duplicate history reject before Host", async (t) => {
+  const state = await createAppliedWorkspace(t)
+  const retry = sealed(state, "qoder", {
+    taskId: "task-qoder-retry-3",
+    childTurnId: "turn-child-qoder-retry-3",
+    attempt: 3,
+    retryOfTaskId: "task-qoder-retry-2",
+  })
+  const first = {
+    taskId: "task-qoder",
+    parentTurnId: "turn-parent",
+    childTurnId: "turn-child-qoder",
+    attempt: 1,
+    retryOfTaskId: null,
+  }
+  const second = {
+    taskId: "task-qoder-retry-2",
+    parentTurnId: "turn-parent",
+    childTurnId: "turn-child-qoder-retry-2",
+    attempt: 2,
+    retryOfTaskId: "task-qoder",
+  }
+  for (const history of [
+    "not-json",
+    JSON.stringify([first, second, { ...second, taskId: "task-qoder-branch", childTurnId: "turn-child-qoder-branch" }]),
+    JSON.stringify([first, { ...second, attempt: 3 }]),
+    JSON.stringify([first, { ...second, taskId: first.taskId }]),
+  ]) {
+    const calls: string[] = []
+    const result = await runDelegation({
+      workspace: state.workspace,
+      envelopeText: retry,
+      historyText: history,
+      hostRegistry: fixtureRegistry(calls),
+      writeEvent: () => undefined,
+      writeDiagnostic: () => undefined,
+    })
+    assert.equal(result.exitCode, 1)
+    assert.deepEqual(calls, [])
+  }
 })
 
 test("AC-008: cancellation reaches the child port and yields one trusted cancelled terminal", async (t) => {
@@ -176,6 +371,7 @@ test("AC-008: cancellation reaches the child port and yields one trusted cancell
     childExecutor: {
       async run(request) {
         assert.equal(request.signal, controller.signal)
+        request.onStarted()
         controller.abort()
         assert.equal(request.signal?.aborted, true)
         return {
@@ -241,7 +437,7 @@ test("AC-007: a symlinked applied-state directory is rejected before child execu
   assert.equal(calls, 0)
 })
 
-test("AC-008: process uncertainty exits 1 after started and never fabricates terminal", async (t) => {
+test("AC-008: process uncertainty before run.started emits no lifecycle event", async (t) => {
   const state = await createAppliedWorkspace(t)
   const events: Array<Record<string, unknown>> = []
   const result = await runDelegation({
@@ -257,5 +453,33 @@ test("AC-008: process uncertainty exits 1 after started and never fabricates ter
   })
   assert.equal(result.exitCode, 1)
   assert.equal(result.terminalEmitted, false)
-  assert.deepEqual(events.map((event) => event.type), ["delegation.started"])
+  assert.deepEqual(events, [])
+})
+
+test("R3 transition: Host preflight failure emits neither false started nor terminal", async (t) => {
+  const state = await createAppliedWorkspace(t)
+  let spawnCalls = 0
+  const registry = new AgentHostRegistry().register({
+    id: "qoder",
+    probe: async () => { throw new Error("unused") },
+    createAdapter: async () => ({
+      hostId: "qoder",
+      probe: async () => { throw new Error("unused") },
+      preflight: async () => { throw new Error("preflight failed") },
+      async *run() {
+        spawnCalls += 1
+      },
+    }),
+  })
+  const events: Array<Record<string, unknown>> = []
+  const result = await runDelegation({
+    workspace: state.workspace,
+    envelopeText: sealed(state, "qoder"),
+    hostRegistry: registry,
+    writeEvent: (line) => events.push(JSON.parse(line)),
+    writeDiagnostic: () => undefined,
+  })
+  assert.equal(result.exitCode, 1)
+  assert.deepEqual(events, [])
+  assert.equal(spawnCalls, 0)
 })

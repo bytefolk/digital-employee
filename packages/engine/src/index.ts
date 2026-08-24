@@ -128,6 +128,7 @@ export {
   createRequestedTaskRecord,
   deriveEffectiveDelegationScope,
   executeDelegation,
+  parseExistingDelegationHistory,
   parseDelegationEnvelope,
   validateDelegationAdmission,
 } from "./delegation.js"

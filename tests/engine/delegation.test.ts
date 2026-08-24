@@ -26,6 +26,7 @@ import {
   validateDelegationAdmission,
   type DelegationChildExecutorPort,
   type DelegationEnvelope,
+  type DelegationEvent,
   type DelegationOrganization,
   type DelegationPermissions,
 } from "../../packages/engine/src/delegation.js"
@@ -152,6 +153,7 @@ function executor(
 ): DelegationChildExecutorPort {
   return {
     async run(request) {
+      request.onStarted()
       request.onUsage?.({ inputTokens: 2, outputTokens: 3, totalTokens: 5 })
       return result
     },
@@ -160,7 +162,7 @@ function executor(
 
 test("AC-005: sealed owner to direct-report envelope emits one ordered terminal", async () => {
   const envelope = parseDelegationEnvelope(sealed())
-  const events = []
+  const events: DelegationEvent[] = []
   for await (const event of executeDelegation(envelope, {
     organization,
     permissions,
@@ -324,6 +326,79 @@ test("AC-008: explicit retry uses new identities and increments attempt", () => 
       },
     ]),
   )
+})
+
+test("AC-007/AC-008: retry history must be one contiguous linear chain", () => {
+  const retry = parseDelegationEnvelope(
+    sealed({
+      taskId: "task-3",
+      childTurnId: "turn-child-3",
+      attempt: 3,
+      retryOfTaskId: "task-2",
+    }),
+  )
+  const first = {
+    taskId: "task-1",
+    parentTurnId: "turn-parent",
+    childTurnId: "turn-child",
+    attempt: 1,
+    retryOfTaskId: null,
+  }
+  const second = {
+    taskId: "task-2",
+    parentTurnId: "turn-parent",
+    childTurnId: "turn-child-2",
+    attempt: 2,
+    retryOfTaskId: "task-1",
+  }
+  assert.doesNotThrow(() => validateDelegationAdmission(retry, [first, second]))
+  for (const invalid of [
+    [
+      first,
+      second,
+      {
+        taskId: "task-2-branch",
+        parentTurnId: "turn-parent",
+        childTurnId: "turn-child-2-branch",
+        attempt: 2,
+        retryOfTaskId: "task-1",
+      },
+    ],
+    [
+      first,
+      {
+        taskId: "task-3-old",
+        parentTurnId: "turn-parent",
+        childTurnId: "turn-child-3-old",
+        attempt: 3,
+        retryOfTaskId: "task-1",
+      },
+    ],
+    [first, { ...second, taskId: "task-1" }],
+  ]) {
+    assert.throws(
+      () => validateDelegationAdmission(retry, invalid),
+      DelegationContractError,
+    )
+  }
+})
+
+test("R3 transition: no started event exists until the child confirms run.started", async () => {
+  const events: DelegationEvent[] = []
+  await assert.rejects(async () => {
+    for await (const event of executeDelegation(parseDelegationEnvelope(sealed()), {
+      organization,
+      permissions,
+      childExecutor: {
+        async run() {
+          throw new Error("preflight failed before run.started")
+        },
+      },
+    })) {
+      events.push(event)
+    }
+  })
+  assert.deepEqual(events, [])
 })
 
 test("AC-008: modeled failure and cancellation emit distinct trusted terminals", async () => {

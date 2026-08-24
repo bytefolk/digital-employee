@@ -106,16 +106,22 @@ All notable changes to this project will be documented in this file.
   rejection, explicit grant, revoke/expiry, archive/forget and unrelated-item
   isolation without live Qoder or Claude Code calls.
 - The ready S3-P0 slice from #158 R3 / #165 R4 adds a fail-closed
-  `digital-employee task delegate [workspace] --stdin` boundary. Exact sealed
+  `digital-employee task delegate [workspace] --stdin --history-file <path>`
+  boundary. Exact sealed
   `delegation-envelope.v1` input is revalidated against current applied
   organization and permission digests; only one explicit owner-to-direct-report
   route on Qoder or Claude Code is accepted. The engine derives an
-  intersection-only scope (`writes=deny`, downstream delegation denied), emits
-  ordered `delegation-event.v1` NDJSON with exactly one trusted terminal, and
+  intersection-only scope into the real Host policy (search requires
+  `Grep`/`Glob`; writes, network, MCP, approval and downstream delegation are
+  denied), emits `delegation.started` only after trusted child `run.started`
+  and ordered `delegation-event.v1` NDJSON with exactly one trusted terminal,
+  validates a bounded Workbench-owned linear retry-history snapshot, and
   exposes a pure requested `task.v1` initializer for the Workbench-owned store.
   Deterministic E3 fixtures cover both Host identifiers, invalid routes, stale
-  state, duplicate/retry admission, modeled failure, cancellation, and process
-  ambiguity. Neither Host is claimed live-qualified; Workbench persistence,
+  state, duplicate/branched/gapped retry admission, modeled failure,
+  cancellation, and process ambiguity. The installed root artifact's
+  `./engine` subpath is distribution-smoked. Neither Host is claimed
+  live-qualified; Workbench persistence,
   API/SSE and UI remain downstream work.
 - The capability evidence standard is now codified and enforced (#140
   REQ-001 / REQ-002 / REQ-004, AC-001 / AC-002): every claim must carry the

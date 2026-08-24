@@ -42,6 +42,7 @@ interface CommandValues {
   engine?: string;
   input?: string;
   inputFile?: string;
+  historyFile?: string;
   stdin: boolean;
   deadline?: string;
   name?: string;
@@ -73,7 +74,7 @@ Agent-native usage:
   digital-employee org apply [workspace] [--json]
   digital-employee org scope <position> [workspace] [--tool <name> | --context <path>] [--json]
   digital-employee turn run [workspace] --position <id> (--stdin | --input-file <path>)
-  digital-employee task delegate [workspace] --stdin
+  digital-employee task delegate [workspace] --stdin --history-file <workspace-local-path>
   digital-employee deploy [package-path] [--package path] --channel <id> --engine <id> --runtime agent-native|standalone-v1 [options]
   digital-employee doctor [--engine claude-code|qoder|codex|qwen-code|codebuddy] [--json]
   digital-employee init <directory> [--recipe minimal-answer.v1|structured-action.v1] [--name employee-name] [--author author]
@@ -109,6 +110,7 @@ function parseCommand(argv: string[]) {
       engine: { type: "string" },
       input: { type: "string" },
       "input-file": { type: "string" },
+      "history-file": { type: "string" },
       stdin: { type: "boolean", default: false },
       deadline: { type: "string" },
       name: { type: "string" },
@@ -127,12 +129,16 @@ function parseCommand(argv: string[]) {
       help: { type: "boolean", short: "h", default: false }
     }
   });
-  const values = parsed.values as typeof parsed.values & { "input-file"?: string };
+  const values = parsed.values as typeof parsed.values & {
+    "input-file"?: string;
+    "history-file"?: string;
+  };
   return {
     command,
     values: {
       ...values,
       inputFile: values["input-file"],
+      historyFile: values["history-file"],
     } as CommandValues,
     positionals: parsed.positionals,
     providedOptions: new Set(
@@ -638,6 +644,7 @@ async function main() {
     subcommand: positionals[0],
     args: positionals.slice(1),
     stdin: values.stdin,
+    historyFile: values.historyFile,
     json: values.json,
     help: values.help,
   });

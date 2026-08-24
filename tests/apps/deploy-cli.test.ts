@@ -183,7 +183,11 @@ function httpAuthorization(token = TEST_HTTP_TOKEN): Record<string, string> {
 
 function cliEnvironment({ home, bin, extra = {} }: CliEnvironment): NodeJS.ProcessEnv {
   return {
+    // Pin the child's locale so prompt-language assertions are deterministic
+    // on non-English developer machines; tests use --locale for localization.
+    LC_ALL: "en_US.UTF-8",
     ...process.env,
+    LANG: "en_US.UTF-8",
     HOME: home,
     PATH: [bin, path.dirname(process.execPath), "/usr/bin", "/bin"]
       .filter(Boolean)

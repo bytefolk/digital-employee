@@ -10,6 +10,14 @@ import {
   type BudgetUsage,
 } from "./budget.js"
 import {
+  APPROVAL_DENIED_CODE,
+  APPROVAL_EXPIRED_CODE,
+  APPROVAL_PREVIEW_INVALID_CODE,
+  APPROVAL_REQUIRED_CODE,
+  pendingApprovalExpired,
+  previewGateAllows,
+} from "./approval.js"
+import {
   terminalError,
   validateTurnRequest,
   ENGINE_VERSION,
@@ -37,6 +45,7 @@ import {
   digestOutputValue,
   TURN_EVIDENCE_VERSION,
   type EvidenceSinkPort,
+  type TurnEvidenceApprovalRef,
   type TurnEvidenceRecord,
 } from "./turn-evidence.js"
 
@@ -94,6 +103,7 @@ export async function* executeTurn(
   const runId = typeof rawRequest.runId === "string" ? rawRequest.runId : ""
   const startedAt = timestamp(now)
   let terminated = false
+  let approvalRef: TurnEvidenceApprovalRef | undefined
 
   const fail = (
     code: string,
@@ -225,6 +235,7 @@ export async function* executeTurn(
       },
       terminal,
       ...(escalationRef !== undefined ? { escalationRef } : {}),
+      ...(approvalRef !== undefined ? { approvalRef } : {}),
       assemblyManifestDigest: assembled.manifest.digest,
       timeBounds: { startedAt, completedAt: timestamp(now) },
     }
@@ -266,6 +277,142 @@ export async function* executeTurn(
       return
     }
     yield fail(REASON_TO_CODE[terminalReason], message, terminalReason)
+  }
+
+  // --- Approval gate (#187, Option 1 terminal-and-resume) ---
+  // Runs before any model consumption. The resume turn consumes the
+  // operator verdict carried by its sealed envelope; the request turn
+  // settles as a retryable failure carrying approval.requested. Approval
+  // settlement reuses the existing TerminalReason enumeration ("cancelled":
+  // a governed, operator-visible stop) and is distinguished by error code —
+  // no new terminal reasons are introduced.
+  const pendingApproval = request.pendingApproval
+  const approvalAction = request.approvalAction
+  if (pendingApproval !== undefined) {
+    if (pendingApprovalExpired(pendingApproval, now().getTime())) {
+      approvalRef = {
+        approvalId: pendingApproval.approvalId,
+        outcome: "expired",
+      }
+      await writeEvidence(
+        {
+          status: "failed",
+          reason: "cancelled",
+          errorCode: APPROVAL_EXPIRED_CODE,
+        },
+        null,
+      )
+      yield fail(
+        APPROVAL_EXPIRED_CODE,
+        "pending approval verdict is expired or unusable; fail closed, re-issue the verdict",
+        "cancelled",
+        false,
+      )
+      return
+    }
+    if (pendingApproval.decision === "denied") {
+      // Denied terminal (#187 AC-003): no automatic retry, no downgrade to
+      // an unapproved write. Evidence precedes the terminal and carries the
+      // denied approval reference together with the terminal reason.
+      approvalRef = {
+        approvalId: pendingApproval.approvalId,
+        outcome: "denied",
+      }
+      yield {
+        type: "approval.denied",
+        runId,
+        timestamp: timestamp(now),
+        approvalId: pendingApproval.approvalId,
+        deniedBy: "operator",
+        ...(pendingApproval.reason !== undefined
+          ? { reason: pendingApproval.reason }
+          : {}),
+      }
+      await writeEvidence(
+        {
+          status: "failed",
+          reason: "cancelled",
+          errorCode: APPROVAL_DENIED_CODE,
+        },
+        null,
+      )
+      yield fail(
+        APPROVAL_DENIED_CODE,
+        "operator denied the approval; the turn settles without retry",
+        "cancelled",
+        false,
+      )
+      return
+    }
+    // Granted: the event is the authoritative record of the verdict being
+    // consumed at the trust boundary, emitted before executing the action.
+    approvalRef = {
+      approvalId: pendingApproval.approvalId,
+      outcome: "granted",
+    }
+    yield {
+      type: "approval.granted",
+      runId,
+      timestamp: timestamp(now),
+      approvalId: pendingApproval.approvalId,
+      grantedBy: "operator",
+      scope: pendingApproval.scope ?? "once",
+    }
+  } else if (approvalAction !== undefined) {
+    const gate = previewGateAllows(approvalAction)
+    if (!gate.allowed) {
+      // Preview-first fail-closed (#187 AC-001): a write action without a
+      // validated write-approval.v1 preview cannot express an approval
+      // request, aligned with undeclared_tool / approval_not_configured
+      // guard semantics.
+      await writeEvidence(
+        {
+          status: "failed",
+          reason: "engine_internal_error",
+          errorCode: gate.code,
+        },
+        null,
+      )
+      yield fail(gate.code!, gate.message!, "engine_internal_error", false)
+      return
+    }
+    const approvalId = newId()
+    approvalRef = {
+      approvalId,
+      previewId: approvalAction.preview.previewId,
+      outcome: "requested",
+    }
+    yield {
+      type: "approval.requested",
+      runId,
+      timestamp: timestamp(now),
+      approvalId,
+      action: {
+        kind: approvalAction.kind,
+        description: approvalAction.description,
+        ...(approvalAction.target !== undefined
+          ? { target: approvalAction.target }
+          : {}),
+      },
+      ...(request.deadline !== undefined
+        ? { expiresAt: request.deadline }
+        : {}),
+    }
+    await writeEvidence(
+      {
+        status: "failed",
+        reason: "cancelled",
+        errorCode: APPROVAL_REQUIRED_CODE,
+      },
+      null,
+    )
+    yield fail(
+      APPROVAL_REQUIRED_CODE,
+      "turn stopped at the capability gate awaiting an operator approval verdict; resume with a turn carrying pendingApproval",
+      "cancelled",
+      true,
+    )
+    return
   }
 
   try {

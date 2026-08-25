@@ -14,8 +14,22 @@ export type {
   EngineTurnRequest,
   PositionContextInput,
   TerminalReason,
+  TurnApprovalActionInput,
+  TurnApprovalActionKind,
+  TurnApprovalPreviewRef,
   TurnBudget,
+  TurnPendingApprovalInput,
 } from "./contracts.js"
+
+export {
+  APPROVAL_DENIED_CODE,
+  APPROVAL_EXPIRED_CODE,
+  APPROVAL_PREVIEW_INVALID_CODE,
+  APPROVAL_REQUIRED_CODE,
+  pendingApprovalExpired,
+  previewGateAllows,
+} from "./approval.js"
+export type { ApprovalPreviewGateResult } from "./approval.js"
 
 export {
   CONTEXT_ASSEMBLY_VERSION,
@@ -98,6 +112,7 @@ export {
 export type {
   EvidenceSinkPort,
   InMemoryEvidenceSink,
+  TurnEvidenceApprovalRef,
   TurnEvidenceBudget,
   TurnEvidenceRecord,
   TurnEvidenceTerminal,

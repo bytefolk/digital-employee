@@ -32,6 +32,18 @@ export interface TurnEvidenceTerminal {
   errorCode?: string
 }
 
+/**
+ * Approval chain link for turns settled through the #187 approval gate.
+ * Bounded identifiers only — verdict text and action descriptions stay out
+ * of evidence. A denied settlement must carry this reference together with
+ * the terminal reason (#187 AC-003).
+ */
+export interface TurnEvidenceApprovalRef {
+  approvalId: string
+  previewId?: string
+  outcome: "requested" | "granted" | "denied" | "expired"
+}
+
 export interface TurnEvidenceRecord {
   schemaVersion: typeof TURN_EVIDENCE_VERSION
   evidenceId: string
@@ -47,6 +59,7 @@ export interface TurnEvidenceRecord {
   budget: TurnEvidenceBudget
   terminal: TurnEvidenceTerminal
   escalationRef?: string
+  approvalRef?: TurnEvidenceApprovalRef
   /** Assembly manifest digest from context-assembly.v1. */
   assemblyManifestDigest: string
   timeBounds: {

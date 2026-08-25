@@ -6,6 +6,27 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- engine.v1 gains the approval three-event contract (#187 REQ-001..REQ-005,
+  Option 1 terminal-and-resume): additive events `approval.requested`,
+  `approval.granted`, `approval.denied` alongside the existing five event
+  shapes (single source `packages/engine/src/contracts.ts`). A turn
+  declaring a write action at the capability gate must carry a validated
+  `write-approval.v1` preview (`state=preview_validated`); without it the
+  turn fails closed (`engine.approval_preview_invalid`), aligned with the
+  `undeclared_tool` / `approval_not_configured` guard semantics. The
+  requesting turn settles as `run.failed` with `engine.approval_required`
+  (`retryable=true`); the operator verdict returns through the sealed
+  envelope of the next turn (`pendingApproval` on the engine request) and is
+  consumed before any model consumption — granted proceeds, denied settles
+  `engine.approval_denied` (`retryable=false`, no downgrade to an unapproved
+  write), and an expired or malformed verdict fails closed with
+  `engine.approval_expired`. Approval settlements reuse the existing
+  terminal-reason enumeration and are distinguished by error code; turn
+  evidence carries the approval chain reference (`approvalRef`) so a denied
+  terminal keeps its approval reference and terminal reason. The
+  `pendingApproval` plumbing on the `turn-envelope.v1` spawn surface is a
+  separate follow-up; no in-run inbound channel is introduced and the
+  fail-closed posture of #178 is unchanged.
 - `turn run` gains a `qoder` model port (#185 REQ-001..REQ-005), so an
   operator holding a lawfully obtained `QODER_PERSONAL_ACCESS_TOKEN` can
   complete a turn through the conformance-verified isolated Qoder adapter

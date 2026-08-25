@@ -65,6 +65,42 @@ export type EngineEvent =
       type: "run.failed"
       error: EngineTerminalError
     })
+  // Approval gate vocabulary (#187, Option 1 terminal-and-resume). Additive:
+  // the five existing event shapes are unchanged. `requested` settles the
+  // requesting run as a retryable failure; `granted`/`denied` are the resume
+  // run's authoritative records of the operator verdict being consumed at the
+  // trust boundary — records, not the authorization itself, which still
+  // comes from the policy projection. Hard ordering rule: within a run,
+  // granted/denied presuppose a matching requested (emitted in this run or
+  // inherited from the referenced request turn).
+  | (EngineEventBase & {
+      type: "approval.requested"
+      /** Stable across the request turn and the resume turn. */
+      approvalId: string
+      action: {
+        kind: TurnApprovalActionKind
+        /** Bounded human-readable description, <= 1 KiB. */
+        description: string
+        /** Command/path/host/tool name, <= 512 B. */
+        target?: string
+      }
+      reason?: string
+      /** ISO 8601; defaults to being bounded by the run deadline. */
+      expiresAt?: string
+    })
+  | (EngineEventBase & {
+      type: "approval.granted"
+      approvalId: string
+      grantedBy: "operator"
+      /** once = this action only; run = same-kind actions within this run. */
+      scope: "once" | "run"
+    })
+  | (EngineEventBase & {
+      type: "approval.denied"
+      approvalId: string
+      deniedBy: "operator"
+      reason?: string
+    })
 
 export function isTerminalEngineEvent(
   event: EngineEvent,
@@ -90,6 +126,49 @@ export interface PositionContextInput {
   spec?: string
 }
 
+/** Capability-gate action kinds for approval requests (#187). */
+export type TurnApprovalActionKind = "exec" | "write" | "network" | "tool"
+
+/**
+ * Bounded reference to the write-approval.v1 preview that must precede any
+ * approval request (#187 AC-001): a write action without a validated
+ * preview fails closed.
+ */
+export interface TurnApprovalPreviewRef {
+  /** Must equal write-approval.v1. */
+  version: string
+  previewId: string
+  previewDigest: string
+  /** Must equal preview_validated. */
+  state: string
+}
+
+export interface TurnApprovalActionInput {
+  kind: TurnApprovalActionKind
+  /** Bounded human-readable description, <= 1 KiB. */
+  description: string
+  /** Command/path/host/tool name, <= 512 B. */
+  target?: string
+  preview: TurnApprovalPreviewRef
+}
+
+/**
+ * Operator verdict carried by the resume turn (#187 Option 1). The verdict
+ * arrives through the sealed envelope of the next turn run; there is no
+ * in-run inbound channel.
+ */
+export interface TurnPendingApprovalInput {
+  /** Must match the approvalId of the referenced approval.requested. */
+  approvalId: string
+  decision: "granted" | "denied"
+  decidedBy: "operator"
+  /** Defaults to "once" when granted. */
+  scope?: "once" | "run"
+  reason?: string
+  /** ISO 8601; a verdict past this bound fails closed as expired. */
+  expiresAt?: string
+}
+
 export interface EngineTurnRequest {
   workspaceRef: string
   positionId: string
@@ -112,6 +191,19 @@ export interface EngineTurnRequest {
   positionBudget?: PositionBudgetDeclaration
   taskId?: string
   dayKey?: string
+  /**
+   * Write action declared at the capability gate (#187). Requires a
+   * validated write-approval.v1 preview; the requesting turn settles as a
+   * retryable failure carrying approval.requested. Mutually exclusive with
+   * pendingApproval.
+   */
+  approvalAction?: TurnApprovalActionInput
+  /**
+   * Operator verdict for a previously requested approval (#187 Option 1),
+   * consumed by the resume turn before any model consumption. Mutually
+   * exclusive with approvalAction.
+   */
+  pendingApproval?: TurnPendingApprovalInput
 }
 
 const MAX_ID_LENGTH = 256
@@ -205,7 +297,136 @@ export function validateTurnRequest(
     assertBoundedId(request.taskId, "taskId")
     assertBoundedId(request.dayKey, "dayKey")
   }
+  validateApprovalRequestFields(request)
   return request
+}
+
+const APPROVAL_ACTION_KINDS: ReadonlySet<string> = new Set([
+  "exec",
+  "write",
+  "network",
+  "tool",
+])
+const APPROVAL_DESCRIPTION_MAX_BYTES = 1024
+const APPROVAL_TARGET_MAX_BYTES = 512
+
+function assertBoundedText(
+  value: unknown,
+  label: string,
+  maxBytes: number,
+): string {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw new EngineRequestError(
+      "engine.input_invalid",
+      `${label} must be a non-empty string`,
+    )
+  }
+  if (Buffer.byteLength(value, "utf8") > maxBytes) {
+    throw new EngineRequestError(
+      "engine.input_invalid",
+      `${label} exceeds the bounded size`,
+    )
+  }
+  return value
+}
+
+function assertOptionalTimestamp(value: unknown, label: string): void {
+  if (value === undefined) return
+  if (typeof value !== "string" || Number.isNaN(Date.parse(value))) {
+    throw new EngineRequestError(
+      "engine.input_invalid",
+      `${label} must be a valid ISO 8601 timestamp`,
+    )
+  }
+}
+
+/**
+ * Fail-closed shape checks for the #187 approval gate fields. The request
+ * turn (approvalAction) and the resume turn (pendingApproval) are mutually
+ * exclusive: carrying both violates the request-then-verdict ordering and
+ * rejects before any model consumption.
+ */
+function validateApprovalRequestFields(request: EngineTurnRequest): void {
+  const { approvalAction, pendingApproval } = request
+  if (approvalAction !== undefined && pendingApproval !== undefined) {
+    throw new EngineRequestError(
+      "engine.input_invalid",
+      "approvalAction and pendingApproval are mutually exclusive within one turn",
+    )
+  }
+  if (approvalAction !== undefined) {
+    if (!APPROVAL_ACTION_KINDS.has(approvalAction.kind)) {
+      throw new EngineRequestError(
+        "engine.input_invalid",
+        "approvalAction.kind must be one of exec, write, network, tool",
+      )
+    }
+    assertBoundedText(
+      approvalAction.description,
+      "approvalAction.description",
+      APPROVAL_DESCRIPTION_MAX_BYTES,
+    )
+    if (approvalAction.target !== undefined) {
+      assertBoundedText(
+        approvalAction.target,
+        "approvalAction.target",
+        APPROVAL_TARGET_MAX_BYTES,
+      )
+    }
+    const preview = approvalAction.preview
+    if (preview === null || typeof preview !== "object") {
+      throw new EngineRequestError(
+        "engine.input_invalid",
+        "approvalAction.preview must be an object",
+      )
+    }
+    assertBoundedId(preview.previewId, "approvalAction.preview.previewId")
+    assertBoundedId(
+      preview.previewDigest,
+      "approvalAction.preview.previewDigest",
+    )
+    assertBoundedId(preview.version, "approvalAction.preview.version")
+    assertBoundedId(preview.state, "approvalAction.preview.state")
+  }
+  if (pendingApproval !== undefined) {
+    assertBoundedId(pendingApproval.approvalId, "pendingApproval.approvalId")
+    if (
+      pendingApproval.decision !== "granted" &&
+      pendingApproval.decision !== "denied"
+    ) {
+      throw new EngineRequestError(
+        "engine.input_invalid",
+        "pendingApproval.decision must be granted or denied",
+      )
+    }
+    if (pendingApproval.decidedBy !== "operator") {
+      throw new EngineRequestError(
+        "engine.input_invalid",
+        "pendingApproval.decidedBy must be operator",
+      )
+    }
+    if (
+      pendingApproval.scope !== undefined &&
+      pendingApproval.scope !== "once" &&
+      pendingApproval.scope !== "run"
+    ) {
+      throw new EngineRequestError(
+        "engine.input_invalid",
+        "pendingApproval.scope must be once or run when present",
+      )
+    }
+    if (pendingApproval.reason !== undefined) {
+      assertBoundedText(
+        pendingApproval.reason,
+        "pendingApproval.reason",
+        APPROVAL_DESCRIPTION_MAX_BYTES,
+      )
+    }
+    assertOptionalTimestamp(
+      pendingApproval.expiresAt,
+      "pendingApproval.expiresAt",
+    )
+  }
 }
 
 export function terminalError(

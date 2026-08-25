@@ -141,6 +141,19 @@ organization, and the engine grows a harness layer above the read-only core.
 **Non-goals:** channel expansion (Lark/WeCom), marketplace/transaction work,
 and full RBAC.
 
+
+## D5 backlog — Codex-aligned session and approval semantics (not scheduled)
+
+Backlog registered per CEO directive (2026-08-25); codex is the reference
+baseline. Both items hang on the org-workbench session lifecycle delivered by
+[org-workbench#14](https://github.com/fullstack-ai-infra/org-workbench/pull/14)
+(canonical [#12](https://github.com/fullstack-ai-infra/org-workbench/issues/12)).
+Non-gating for W1 and M2–M3; no gate date until scheduled.
+
+| Item | Deliverable | Dependency | Team |
+| --- | --- | --- | --- |
+| [D5-B1 #186](https://github.com/fullstack-ai-infra/digital-employee/issues/186) | Rollout-style session resume/fork semantics (codex-rollout aligned) | org-workbench#14 | Workbench/Session |
+| [D5-B2 #187](https://github.com/fullstack-ai-infra/digital-employee/issues/187) | In-turn approval interaction product semantics (when to prompt, default policy, denial terminal state), coupled with engine `approval.*` vocabulary | #165 engine, write-approval.v1 | Product/Engine |
 ## M4+ — Engine graph layer
 
 The engine S3 graph layer provides cross-position routing, parallelism and

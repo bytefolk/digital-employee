@@ -67,3 +67,28 @@ can end with `Unexpected end of JSON input` while aggregating child-process
 coverage, including three consecutive reproductions after every test passed on
 the pre-fix `main` snapshot. The authoritative coverage job and release gate
 therefore run on the repository-supported Node.js 22 line.
+
+## Qoder model port for `turn run` (#185, 2026-08-25)
+
+The `qoder` model port (PR #189, head 5e18005 on branch
+`feat/issue-185-qoder-turn-model-port`) was verified at E3 grade on
+macOS arm64 (darwin 24.5.0), Node v24.13.0, `qodercli` 1.1.29:
+
+- Fixture-driven deterministic turns pass (`tests/apps/qoder-model-port.test.ts`
+  3/3; `tests/apps/turn-run.test.ts` 18/18).
+- Missing `QODER_PERSONAL_ACCESS_TOKEN` fails closed at port resolution:
+  exit 1 with `qoder_service_token_not_configured`; the token never appears
+  in argv, envelope fields, events, or diagnostics.
+- `probeQoderModelPort('qodercli')` returns usable; `isConformantQoderCliVersion`
+  accepts 1.1.29 and rejects 0.9.0.
+- Usage honesty: this port returns no token counts (`usage_events: unknown`);
+  token budget accounting records zero for it while iteration budgets still apply.
+- Authoritative gate: GitHub CI run
+  https://github.com/fullstack-ai-infra/digital-employee/actions/runs/32836288371
+  all required checks green.
+
+AC-001 (one full live turn with an authorized token) remains NOT VERIFIED:
+no `QODER_PERSONAL_ACCESS_TOKEN` authorization exists on the verifying
+machine; it awaits issue #177 and is not claimed anywhere in this ledger.
+The port is a spawn-surface model port, not a qualified host; qualification
+stays with #177/#113.

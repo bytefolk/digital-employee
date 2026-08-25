@@ -294,14 +294,24 @@ export async function* executeTurn(
         approvalId: pendingApproval.approvalId,
         outcome: "expired",
       }
-      await writeEvidence(
-        {
-          status: "failed",
-          reason: "cancelled",
-          errorCode: APPROVAL_EXPIRED_CODE,
-        },
-        null,
-      )
+      try {
+        await writeEvidence(
+          {
+            status: "failed",
+            reason: "cancelled",
+            errorCode: APPROVAL_EXPIRED_CODE,
+          },
+          null,
+        )
+      } catch {
+        yield fail(
+          "engine.internal_error",
+          "approval settlement side effects failed",
+          "engine_internal_error",
+          false,
+        )
+        return
+      }
       yield fail(
         APPROVAL_EXPIRED_CODE,
         "pending approval verdict is expired or unusable; fail closed, re-issue the verdict",
@@ -312,11 +322,29 @@ export async function* executeTurn(
     }
     if (pendingApproval.decision === "denied") {
       // Denied terminal (#187 AC-003): no automatic retry, no downgrade to
-      // an unapproved write. Evidence precedes the terminal and carries the
-      // denied approval reference together with the terminal reason.
+      // an unapproved write. Evidence precedes the event and the terminal so
+      // an unrecorded denial can never masquerade as a clean settlement.
       approvalRef = {
         approvalId: pendingApproval.approvalId,
         outcome: "denied",
+      }
+      try {
+        await writeEvidence(
+          {
+            status: "failed",
+            reason: "cancelled",
+            errorCode: APPROVAL_DENIED_CODE,
+          },
+          null,
+        )
+      } catch {
+        yield fail(
+          "engine.internal_error",
+          "approval settlement side effects failed",
+          "engine_internal_error",
+          false,
+        )
+        return
       }
       yield {
         type: "approval.denied",
@@ -328,14 +356,6 @@ export async function* executeTurn(
           ? { reason: pendingApproval.reason }
           : {}),
       }
-      await writeEvidence(
-        {
-          status: "failed",
-          reason: "cancelled",
-          errorCode: APPROVAL_DENIED_CODE,
-        },
-        null,
-      )
       yield fail(
         APPROVAL_DENIED_CODE,
         "operator denied the approval; the turn settles without retry",
@@ -365,14 +385,24 @@ export async function* executeTurn(
       // validated write-approval.v1 preview cannot express an approval
       // request, aligned with undeclared_tool / approval_not_configured
       // guard semantics.
-      await writeEvidence(
-        {
-          status: "failed",
-          reason: "engine_internal_error",
-          errorCode: gate.code,
-        },
-        null,
-      )
+      try {
+        await writeEvidence(
+          {
+            status: "failed",
+            reason: "engine_internal_error",
+            errorCode: gate.code,
+          },
+          null,
+        )
+      } catch {
+        yield fail(
+          "engine.internal_error",
+          "approval settlement side effects failed",
+          "engine_internal_error",
+          false,
+        )
+        return
+      }
       yield fail(gate.code!, gate.message!, "engine_internal_error", false)
       return
     }
@@ -381,6 +411,24 @@ export async function* executeTurn(
       approvalId,
       previewId: approvalAction.preview.previewId,
       outcome: "requested",
+    }
+    try {
+      await writeEvidence(
+        {
+          status: "failed",
+          reason: "cancelled",
+          errorCode: APPROVAL_REQUIRED_CODE,
+        },
+        null,
+      )
+    } catch {
+      yield fail(
+        "engine.internal_error",
+        "approval settlement side effects failed",
+        "engine_internal_error",
+        false,
+      )
+      return
     }
     yield {
       type: "approval.requested",
@@ -398,14 +446,6 @@ export async function* executeTurn(
         ? { expiresAt: request.deadline }
         : {}),
     }
-    await writeEvidence(
-      {
-        status: "failed",
-        reason: "cancelled",
-        errorCode: APPROVAL_REQUIRED_CODE,
-      },
-      null,
-    )
     yield fail(
       APPROVAL_REQUIRED_CODE,
       "turn stopped at the capability gate awaiting an operator approval verdict; resume with a turn carrying pendingApproval",

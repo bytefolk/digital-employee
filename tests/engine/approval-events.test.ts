@@ -291,3 +291,81 @@ test("#187 AC-004: approval settlements reuse the existing terminal-reason vocab
     assert.equal(knownReasons.has(terminal[0]!.error.terminalReason), true)
   }
 })
+
+test("#187 hardening: oversized pendingApproval.reason rejects at the boundary", async () => {
+  const { events } = await collect(
+    baseRequest({
+      pendingApproval: pendingApproval({ reason: "x".repeat(2048) }),
+    }),
+    ["should never run"],
+  )
+  const terminal = events.filter(isTerminalEngineEvent)
+  assert.equal(terminal.length, 1)
+  if (terminal[0]!.type === "run.failed") {
+    assert.equal(terminal[0]!.error.code, "engine.input_invalid")
+  } else {
+    assert.fail("expected run.failed")
+  }
+  assert.equal(
+    events.some((event) => event.type.startsWith("approval.")),
+    false,
+  )
+})
+
+test("#187 hardening: evidence persists before the approval.denied event", async () => {
+  const order: string[] = []
+  const evidenceSink = {
+    async write() {
+      order.push("evidence")
+    },
+  }
+  const events: EngineEvent[] = []
+  for await (const event of executeTurn(
+    baseRequest({
+      pendingApproval: pendingApproval({ decision: "denied" }),
+    }),
+    {
+      model: createDeterministicModelPort(["never"]),
+      now: FIXED_NOW,
+      evidenceSink,
+    },
+  )) {
+    if (event.type === "approval.denied") order.push("event")
+    events.push(event)
+  }
+  assert.deepEqual(order, ["evidence", "event"])
+})
+
+test("#187 hardening: failing evidence sink settles engine.internal_error fail closed", async () => {
+  const evidenceSink = {
+    async write(): Promise<void> {
+      throw new Error("evidence sink unavailable")
+    },
+  }
+  const events: EngineEvent[] = []
+  for await (const event of executeTurn(
+    baseRequest({
+      pendingApproval: pendingApproval({ decision: "denied" }),
+    }),
+    {
+      model: createDeterministicModelPort(["never"]),
+      now: FIXED_NOW,
+      evidenceSink,
+    },
+  )) {
+    events.push(event)
+  }
+  const terminal = events.filter(isTerminalEngineEvent)
+  assert.equal(terminal.length, 1)
+  if (terminal[0]!.type === "run.failed") {
+    assert.equal(terminal[0]!.error.code, "engine.internal_error")
+    assert.equal(terminal[0]!.error.retryable, false)
+    assert.equal(terminal[0]!.error.terminalReason, "engine_internal_error")
+  } else {
+    assert.fail("expected run.failed")
+  }
+  assert.equal(
+    events.some((event) => event.type.startsWith("approval.")),
+    false,
+  )
+})

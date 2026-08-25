@@ -518,3 +518,185 @@ test("#185 AC-003: a missing qodercli binary is an environment fault, not a verd
     diagnostics.some((line) => line.includes("qoder_binary_unavailable")),
   )
 })
+
+// #193: pendingApproval verdict fixtures — the five envelope forms
+// (granted / denied / expired / malformed / absent) settling through the
+// already-merged #187 engine gate with zero new engine changes.
+
+test("#193 AC-001: granted verdict emits approval.granted before any model consumption", async () => {
+  const workspace = await createWorkspace()
+  const envelope = sealedEnvelope(workspace, {
+    pendingApproval: {
+      approvalId: "appr-granted-1",
+      decision: "granted",
+      decidedBy: "operator",
+      scope: "once",
+    },
+  })
+  let modelCalls = 0
+  let modelCallsAtGranted = -1
+  const events: Array<Record<string, unknown>> = []
+  const result = await runTurn({
+    workspace,
+    positionId: "repo-owner",
+    envelopeText: JSON.stringify(envelope),
+    model: {
+      async complete() {
+        modelCalls += 1
+        return { text: "write executed under approval" }
+      },
+    },
+    writeEvent: (line) => {
+      const event = JSON.parse(line) as Record<string, unknown>
+      events.push(event)
+      if (event.type === "approval.granted") modelCallsAtGranted = modelCalls
+    },
+    writeDiagnostic: () => undefined,
+  })
+  assert.equal(result.exitCode, 0)
+  assert.equal(
+    modelCallsAtGranted,
+    0,
+    "approval.granted must precede any model consumption",
+  )
+  assert.equal(modelCalls, 1)
+  const granted = events.find((event) => event.type === "approval.granted")
+  assert.ok(granted)
+  assert.equal(granted!.approvalId, "appr-granted-1")
+  const grantedIndex = events.indexOf(granted!)
+  const terminal = events.find((event) => event.type === "run.completed")
+  assert.ok(terminal)
+  assert.ok(events.indexOf(terminal!) > grantedIndex)
+})
+
+test("#193 AC-002: denied verdict settles non-retryable with zero model consumption", async () => {
+  const workspace = await createWorkspace()
+  const envelope = sealedEnvelope(workspace, {
+    pendingApproval: {
+      approvalId: "appr-denied-1",
+      decision: "denied",
+      decidedBy: "operator",
+      reason: "out of window",
+    },
+  })
+  let modelCalls = 0
+  const events: Array<Record<string, unknown>> = []
+  const result = await runTurn({
+    workspace,
+    positionId: "repo-owner",
+    envelopeText: JSON.stringify(envelope),
+    model: {
+      async complete() {
+        modelCalls += 1
+        return { text: "never" }
+      },
+    },
+    writeEvent: (line) => events.push(JSON.parse(line)),
+    writeDiagnostic: () => undefined,
+  })
+  assert.equal(result.exitCode, 0)
+  assert.equal(result.terminalEmitted, true)
+  assert.equal(modelCalls, 0)
+  const deniedIndex = events.findIndex(
+    (event) => event.type === "approval.denied",
+  )
+  assert.ok(deniedIndex >= 0)
+  assert.equal(events[deniedIndex]!.reason, "out of window")
+  const terminal = events.find((event) => event.type === "run.failed")
+  assert.ok(terminal)
+  assert.ok(events.indexOf(terminal!) > deniedIndex)
+  const error = terminal!.error as {
+    code: string
+    retryable: boolean
+    terminalReason: string
+  }
+  assert.equal(error.code, "engine.approval_denied")
+  assert.equal(error.retryable, false)
+  assert.equal(error.terminalReason, "cancelled")
+})
+
+test("#193 AC-003: an expired verdict fails closed with exactly one trusted terminal", async () => {
+  const workspace = await createWorkspace()
+  const envelope = sealedEnvelope(workspace, {
+    pendingApproval: {
+      approvalId: "appr-expired-1",
+      decision: "granted",
+      decidedBy: "operator",
+      expiresAt: "2020-01-01T00:00:00.000Z",
+    },
+  })
+  let modelCalls = 0
+  const events: Array<Record<string, unknown>> = []
+  const result = await runTurn({
+    workspace,
+    positionId: "repo-owner",
+    envelopeText: JSON.stringify(envelope),
+    model: {
+      async complete() {
+        modelCalls += 1
+        return { text: "never" }
+      },
+    },
+    writeEvent: (line) => events.push(JSON.parse(line)),
+    writeDiagnostic: () => undefined,
+  })
+  assert.equal(result.exitCode, 0)
+  assert.equal(modelCalls, 0)
+  const terminals = events.filter((event) => event.type === "run.failed")
+  assert.equal(terminals.length, 1)
+  const error = terminals[0]!.error as { code: string; retryable: boolean }
+  assert.equal(error.code, "engine.approval_expired")
+  assert.equal(error.retryable, false)
+})
+
+test("#193 AC-005: a malformed verdict rejects at the envelope boundary, exit 1", async () => {
+  const workspace = await createWorkspace()
+  const envelope = sealedEnvelope(workspace, {
+    pendingApproval: {
+      approvalId: "appr-bad-1",
+      decision: "maybe",
+      decidedBy: "operator",
+    },
+  })
+  let modelCalls = 0
+  const events: Array<Record<string, unknown>> = []
+  const diagnostics: string[] = []
+  const result = await runTurn({
+    workspace,
+    positionId: "repo-owner",
+    envelopeText: JSON.stringify(envelope),
+    model: {
+      async complete() {
+        modelCalls += 1
+        return { text: "never" }
+      },
+    },
+    writeEvent: (line) => events.push(JSON.parse(line)),
+    writeDiagnostic: (line) => diagnostics.push(line),
+  })
+  assert.equal(result.exitCode, 1)
+  assert.equal(result.terminalEmitted, false)
+  assert.equal(events.length, 0)
+  assert.equal(modelCalls, 0)
+  assert.ok(
+    diagnostics.some((line) => line.includes("engine.input_invalid")),
+  )
+})
+
+test("#193 AC-004: an envelope without pendingApproval keeps current behavior", async () => {
+  const workspace = await createWorkspace()
+  const envelope = sealedEnvelope(workspace)
+  const { result, events } = await execute(
+    workspace,
+    JSON.stringify(envelope),
+    createDeterministicModelPort(["done without a verdict"]),
+  )
+  assert.equal(result.exitCode, 0)
+  assert.ok(events.some((event) => event.type === "run.completed"))
+  assert.ok(
+    !events.some((event) =>
+      String(event.type).startsWith("approval."),
+    ),
+    "no approval lifecycle events without a verdict field",
+  )
+})

@@ -6,6 +6,21 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- `turn-envelope.v1` gains an optional `pendingApproval` field (#193
+  REQ-001..REQ-003) so an operator verdict for a previously requested
+  approval can reach the #187 engine gate through the spawn surface. The
+  field shape is the engine `TurnPendingApprovalInput` verbatim
+  (`approvalId` / `decision: granted|denied` / `decidedBy: operator` /
+  `scope: once|run` / `reason?` / `expiresAt?`) — no parallel vocabulary —
+  and `turn run` maps it into `EngineTurnRequest.pendingApproval` with zero
+  engine changes: the verdict settles exactly as #187 already merged it
+  (granted proceeds with `approval.granted` before any model consumption,
+  denied settles `engine.approval_denied` `retryable=false` with zero
+  consumption, expired fails closed with `engine.approval_expired`). The
+  envelope boundary is the first gate and fails closed per the #173 spawn
+  contract (exit 1 + stderr diagnostics before spawn); the engine
+  validation stays the byte-exact backstop. The schema is purely additive:
+  envelopes without the field behave identically.
 - engine.v1 gains the approval three-event contract (#187 REQ-001..REQ-005,
   Option 1 terminal-and-resume): additive events `approval.requested`,
   `approval.granted`, `approval.denied` alongside the existing five event

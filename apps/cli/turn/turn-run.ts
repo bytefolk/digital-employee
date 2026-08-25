@@ -276,6 +276,9 @@ export async function runTurn(options: TurnRunOptions): Promise<TurnRunResult> {
     ...(envelope.deadline !== undefined
       ? { deadline: envelope.deadline }
       : {}),
+    ...(envelope.pendingApproval !== undefined
+      ? { pendingApproval: envelope.pendingApproval }
+      : {}),
   }
 
   const escalationSink = createInMemoryEscalationSink()

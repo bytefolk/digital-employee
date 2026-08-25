@@ -98,3 +98,52 @@ test("computeEnvelopeDigest is canonical: key order does not matter", () => {
   const b = computeEnvelopeDigest({ a: { c: [1, 2], d: 2 }, b: 1 })
   assert.equal(a, b)
 })
+
+test("#193: a sealed pendingApproval verdict is accepted at the envelope boundary", () => {
+  const envelope = parseTurnEnvelope(
+    sealedEnvelope({
+      pendingApproval: {
+        approvalId: "appr-1",
+        decision: "granted",
+        decidedBy: "operator",
+        scope: "once",
+        expiresAt: "2026-08-26T00:00:00.000Z",
+      },
+    }),
+  )
+  assert.equal(envelope.pendingApproval?.approvalId, "appr-1")
+  assert.equal(envelope.pendingApproval?.decision, "granted")
+})
+
+test("#193 AC-005: malformed pendingApproval shapes reject before consumption", () => {
+  const malformed: Array<Record<string, unknown>> = [
+    { approvalId: "appr-1", decision: "maybe", decidedBy: "operator" },
+    { approvalId: "appr-1", decision: "granted", decidedBy: "someone-else" },
+    { decision: "granted", decidedBy: "operator" },
+    {
+      approvalId: "appr-1",
+      decision: "granted",
+      decidedBy: "operator",
+      scope: "session",
+    },
+    {
+      approvalId: "appr-1",
+      decision: "denied",
+      decidedBy: "operator",
+      reason: "x".repeat(1025),
+    },
+    {
+      approvalId: "appr-1",
+      decision: "granted",
+      decidedBy: "operator",
+      expiresAt: "not-a-timestamp",
+    },
+  ]
+  for (const pendingApproval of malformed) {
+    assert.throws(
+      () => parseTurnEnvelope(sealedEnvelope({ pendingApproval })),
+      (error: unknown) =>
+        (error as { code?: string }).code === "engine.input_invalid",
+    )
+  }
+})

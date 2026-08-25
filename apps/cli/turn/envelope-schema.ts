@@ -78,10 +78,24 @@ export function buildTurnEnvelopeSchema(): Record<string, unknown> {
       taskId: boundedIdSchema(),
       dayKey: boundedIdSchema(),
       deadline: { type: "string" },
+      pendingApproval: { $ref: "#/$defs/pendingApproval" },
       envelopeDigest: { type: "string", minLength: 1 },
     },
     $defs: {
       budgetScope: budgetScopeSchema(),
+      pendingApproval: {
+        type: "object",
+        additionalProperties: false,
+        required: ["approvalId", "decision", "decidedBy"],
+        properties: {
+          approvalId: boundedIdSchema(),
+          decision: { enum: ["granted", "denied"] },
+          decidedBy: { const: "operator" },
+          scope: { enum: ["once", "run"] },
+          reason: { type: "string", minLength: 1, maxLength: 1024 },
+          expiresAt: { type: "string" },
+        },
+      },
     },
   }
 }

@@ -16,7 +16,10 @@ import {
   validatePositionBudgetDeclaration,
   type PositionBudgetDeclaration,
 } from "../../../packages/engine/src/budget.js"
-import type { TurnBudget } from "../../../packages/engine/src/contracts.js"
+import type {
+  TurnBudget,
+  TurnPendingApprovalInput,
+} from "../../../packages/engine/src/contracts.js"
 
 export const TURN_ENVELOPE_VERSION = "turn-envelope.v1" as const
 export const TURN_ENVELOPE_SCHEMA_ID =
@@ -55,6 +58,12 @@ export interface TurnEnvelope {
   taskId?: string
   dayKey?: string
   deadline?: string
+  /**
+   * Operator verdict for a previously requested approval (#193, consuming
+   * the #187 Option 1 engine gate). Shape is the engine
+   * `TurnPendingApprovalInput` verbatim — no parallel vocabulary.
+   */
+  pendingApproval?: TurnPendingApprovalInput
   envelopeDigest: string
 }
 
@@ -69,6 +78,10 @@ export class TurnEnvelopeError extends Error {
 }
 
 const MAX_ID_LENGTH = 256
+// Mirrors the engine's bounded-text cap for approval verdict reasons
+// (contracts.ts APPROVAL_DESCRIPTION_MAX_BYTES); the envelope gate rejects
+// oversized verdicts before spawn, the engine stays the byte-exact backstop.
+const MAX_APPROVAL_REASON_BYTES = 1024
 
 function canonicalJson(value: unknown): unknown {
   if (value === null || typeof value !== "object") return value
@@ -210,6 +223,73 @@ export function parseTurnEnvelope(raw: unknown): TurnEnvelope {
     }
   }
 
+  // Operator verdict for the #187 approval gate (#193): first-gate,
+  // fail-closed shape checks mirroring the engine's
+  // validateApprovalRequestFields; engine validation remains the backstop.
+  let pendingApproval: TurnPendingApprovalInput | undefined
+  if (raw.pendingApproval !== undefined) {
+    if (!isRecord(raw.pendingApproval)) {
+      throw new TurnEnvelopeError(
+        "engine.input_invalid",
+        "pendingApproval must be a JSON object",
+      )
+    }
+    const approvalId = assertBoundedId(
+      raw.pendingApproval.approvalId,
+      "pendingApproval.approvalId",
+    )
+    const decision = raw.pendingApproval.decision
+    if (decision !== "granted" && decision !== "denied") {
+      throw new TurnEnvelopeError(
+        "engine.input_invalid",
+        "pendingApproval.decision must be granted or denied",
+      )
+    }
+    if (raw.pendingApproval.decidedBy !== "operator") {
+      throw new TurnEnvelopeError(
+        "engine.input_invalid",
+        "pendingApproval.decidedBy must be operator",
+      )
+    }
+    const scope = raw.pendingApproval.scope
+    if (scope !== undefined && scope !== "once" && scope !== "run") {
+      throw new TurnEnvelopeError(
+        "engine.input_invalid",
+        "pendingApproval.scope must be once or run when present",
+      )
+    }
+    const reason = raw.pendingApproval.reason
+    if (
+      reason !== undefined &&
+      (typeof reason !== "string" ||
+        reason.trim().length === 0 ||
+        Buffer.byteLength(reason, "utf8") > MAX_APPROVAL_REASON_BYTES)
+    ) {
+      throw new TurnEnvelopeError(
+        "engine.input_invalid",
+        "pendingApproval.reason must be a non-empty string within the bounded size",
+      )
+    }
+    const expiresAt = raw.pendingApproval.expiresAt
+    if (
+      expiresAt !== undefined &&
+      (typeof expiresAt !== "string" || Number.isNaN(Date.parse(expiresAt)))
+    ) {
+      throw new TurnEnvelopeError(
+        "engine.input_invalid",
+        "pendingApproval.expiresAt must be a valid ISO 8601 timestamp",
+      )
+    }
+    pendingApproval = {
+      approvalId,
+      decision,
+      decidedBy: "operator",
+      ...(scope !== undefined ? { scope } : {}),
+      ...(reason !== undefined ? { reason: reason as string } : {}),
+      ...(expiresAt !== undefined ? { expiresAt } : {}),
+    }
+  }
+
   if (typeof raw.envelopeDigest !== "string" || raw.envelopeDigest.length === 0) {
     throw new TurnEnvelopeError(
       "engine.envelope_invalid",
@@ -235,6 +315,7 @@ export function parseTurnEnvelope(raw: unknown): TurnEnvelope {
       ? { positionBudget, taskId, dayKey }
       : {}),
     ...(raw.deadline !== undefined ? { deadline: raw.deadline as string } : {}),
+    ...(pendingApproval !== undefined ? { pendingApproval } : {}),
     envelopeDigest: raw.envelopeDigest,
   }
 }

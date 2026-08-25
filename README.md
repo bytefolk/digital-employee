@@ -287,6 +287,7 @@ company-internal transactions stay private.
 
 - [Install and Agent Host setup](INSTALL.md)
 - [Employee package contract](docs/employee-package.md)
+- [Hire request contract](docs/hire-contract.md)
 - [Agent Host support policy](docs/agent-hosts.md)
 - [Deploy contract and recovery](docs/deploy.md)
 - [Runner integration boundary](docs/runner.md)

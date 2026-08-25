@@ -21,6 +21,37 @@ All notable changes to this project will be documented in this file.
   envelopes, adjudicated on Issue #178), and `docs/flaky-tests.md` archives
   the timing-sensitive deploy-cli cases adjudicated under the
   clean-main-baseline method during #193/#195.
+- `hire-request.v1alpha1` contract surface (#194 R4 freeze): a thin
+  reference envelope that references a sealed employee package
+  (`packageRef` with `name`/`version`/`digest`, no `localReference`
+  channel), a sealed turn envelope (`envelopeDigest`), and an opaque
+  org-tree placement reference (`targetParentId`, validated as bounded text
+  only — tree resolution belongs to the consumer org-workbench). New
+  published schema `configs/hire-request.schema.json` (byte-identical to
+  the code-side builder `buildHireRequestSchema()`), core validator
+  `validateHireRequest`, and CLI `digital-employee hire validate <file>
+  [--json]`. Validation is static and fail-closed: no spawn, no engine, no
+  paid calls, no provider; any violation exits 1 before any effect with a
+  stable diagnostic code (`hire_request_unknown_field:<path>`,
+  `hire_request_invalid_field:<path>`, `hire_request_missing_budget`).
+  Budget is attached at hire time: `budget` with `perTask`/`perDay` scopes
+  is required, and a hire without a budget is rejected. The budget scope
+  vocabulary is byte-aligned with the engine `BudgetScope` and the
+  turn-envelope.v1 `$defs/budgetScope` (`tokens`/`iterations`, positive
+  integers capped at 1,000,000,000, at least one declared). No approval
+  semantics, no `pendingApproval`, no engine changes.
+- `employee-package.v1alpha1` gains an optional `identity` segment (#194):
+  human-facing expressiveness only — `name` stays the machine identifier.
+  `displayName` (required, 1–64 chars), `avatar` (exactly
+  `{ "asset": <portablePath> }`, content-addressed against the package
+  `assets` list, no URL channel), `persona` (≤2048 chars) and `roleId`
+  (`^[a-z][a-z0-9-]{0,63}$`, resolved in the consumer org-workbench, never
+  here). `reportTo` does not belong in `identity` and fails closed. Inside
+  `identity`, unknown fields are additive: accepted with a collected warning
+  surfaced by `digital-employee validate` (`warnings` array under `--json`,
+  one stderr line otherwise) while the exit code stays 0; outside
+  `identity` unknown fields are still rejected. Packages without the
+  segment validate exactly as in 0.4.0.
 - `turn-envelope.v1` gains an optional `pendingApproval` field (#193
   REQ-001..REQ-003) so an operator verdict for a previously requested
   approval can reach the #187 engine gate through the spawn surface. The

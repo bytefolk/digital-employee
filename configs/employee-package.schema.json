@@ -50,6 +50,41 @@
         "maxLength": 256
       }
     },
+    "identity": {
+      "type": "object",
+      "required": [
+        "displayName"
+      ],
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "avatar": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "asset"
+          ],
+          "properties": {
+            "asset": {
+              "$ref": "#/$defs/portablePath"
+            }
+          }
+        },
+        "persona": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "roleId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        },
+        "reportTo": false
+      }
+    },
     "host": {
       "type": "object",
       "additionalProperties": false,

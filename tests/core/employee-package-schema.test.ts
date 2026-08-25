@@ -84,3 +84,88 @@ test("public package Schema and semantic validator reject unsafe cross-field cas
     assert.throws(() => validateEmployeePackageManifest(input))
   }
 })
+
+function identityManifest(): Record<string, any> {
+  const input = manifest()
+  input.identity = {
+    displayName: "Answer Bot",
+    avatar: { asset: "./knowledge/README.md" },
+    persona: "Helpful teammate for answer triage.",
+    roleId: "team-answer",
+  }
+  return input
+}
+
+test("public package Schema and validator accept the identity segment (#194)", async () => {
+  const validateSchema = await schemaValidator()
+
+  const full = identityManifest()
+  assert.equal(validateSchema(full), true, JSON.stringify(validateSchema.errors))
+  assert.doesNotThrow(() => validateEmployeePackageManifest(full))
+
+  // Additive extension point: unknown identity keys are accepted by both
+  // surfaces; only the semantic validator collects the warning.
+  const additive = identityManifest()
+  additive.identity.pronouns = "they/them"
+  assert.equal(
+    validateSchema(additive),
+    true,
+    JSON.stringify(validateSchema.errors),
+  )
+  const warnings: string[] = []
+  assert.doesNotThrow(() =>
+    validateEmployeePackageManifest(additive, warnings),
+  )
+  assert.deepEqual(warnings, [
+    "employee_package_identity_unknown_field:pronouns",
+  ])
+})
+
+test("public package Schema and validator reject identity violations (#194)", async () => {
+  const validateSchema = await schemaValidator()
+  const fixtures = [
+    (() => {
+      const input = identityManifest()
+      delete input.identity.displayName
+      return input
+    })(),
+    (() => {
+      const input = identityManifest()
+      input.identity.displayName = ""
+      return input
+    })(),
+    (() => {
+      const input = identityManifest()
+      input.identity.displayName = "x".repeat(65)
+      return input
+    })(),
+    (() => {
+      const input = identityManifest()
+      input.identity.persona = "x".repeat(2_049)
+      return input
+    })(),
+    (() => {
+      const input = identityManifest()
+      input.identity.roleId = "Team-Answer"
+      return input
+    })(),
+    (() => {
+      const input = identityManifest()
+      input.identity.avatar = {
+        asset: "./knowledge/README.md",
+        url: "https://cdn.example/avatar.png",
+      }
+      return input
+    })(),
+    (() => {
+      const input = identityManifest()
+      input.identity.reportTo = "manager-1"
+      return input
+    })(),
+  ]
+
+  for (const input of fixtures) {
+    assert.equal(validateSchema(input), false, JSON.stringify(input.identity))
+    assert.throws(() => validateEmployeePackageManifest(input))
+  }
+})

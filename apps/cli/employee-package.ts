@@ -78,6 +78,11 @@ export interface EmployeePackageInspection extends EmployeePackageSummary {
     outputSchema: Record<string, unknown>
     mcp?: EmployeeMcpManifest
   }
+  /**
+   * Non-fatal diagnostics collected during validation (#194): additive
+   * unknown fields inside `identity` warn instead of failing closed.
+   */
+  warnings?: string[]
 }
 
 /** @internal Coordinates deterministic path-replacement security tests. */
@@ -641,7 +646,11 @@ export async function inspectEmployeePackage(
   } catch {
     throw new TypeError("employee_package_manifest_invalid_json")
   }
-  const manifest = validateEmployeePackageManifest(manifestValue)
+  const manifestWarnings: string[] = []
+  const manifest = validateEmployeePackageManifest(
+    manifestValue,
+    manifestWarnings,
+  )
 
   const entrypointFiles = [
     manifest.entrypoints.skill,
@@ -735,6 +744,7 @@ export async function inspectEmployeePackage(
       outputSchema,
       ...(mcpManifest ? { mcp: mcpManifest } : {}),
     },
+    ...(manifestWarnings.length > 0 ? { warnings: manifestWarnings } : {}),
   }
   inspectionDigestEntries.set(inspection, [
     { path: manifestPortablePath, bytes: manifestBytes },

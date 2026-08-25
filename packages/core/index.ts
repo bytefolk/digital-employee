@@ -218,7 +218,23 @@ export {
   deriveEmployeeHostRequirements,
   validateEmployeePackageManifest,
 } from "./src/employee-package.js"
-export type { EmployeePackageManifest } from "./src/employee-package.js"
+export type {
+  EmployeePackageIdentity,
+  EmployeePackageManifest,
+} from "./src/employee-package.js"
+export {
+  HIRE_REQUEST_SCHEMA_ID,
+  HIRE_REQUEST_SCHEMA_VERSION,
+  HireRequestError,
+  buildHireRequestSchema,
+  validateHireRequest,
+} from "./src/hire-request.js"
+export type {
+  HireRequest,
+  HireRequestBudget,
+  HireRequestBudgetScope,
+  HireRequestPackageRef,
+} from "./src/hire-request.js"
 export {
   EMPLOYEE_PACKAGE_DIGEST_DOMAIN,
   computeEmployeePackageDigest,

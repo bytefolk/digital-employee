@@ -14,6 +14,7 @@ import {
 import os from "node:os"
 import path from "node:path"
 import test from "node:test"
+import { fileURLToPath } from "node:url"
 
 import {
   createEmployeePackage,
@@ -315,4 +316,55 @@ test("inspection fails closed across final-file and ancestor replacement races",
       await rm(parent, { recursive: true, force: true })
     })
   }
+})
+
+test("validate surfaces identity unknown-field warnings without failing (#194)", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "employee-identity-"))
+  const target = path.join(parent, "team-answer")
+  await createEmployeePackage(target, { author: "example-team" })
+
+  const manifestPath = path.join(target, "employee.json")
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+  manifest.identity = {
+    displayName: "Answer Bot",
+    pronouns: "they/them",
+  }
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+
+  const inspected = await inspectEmployeePackage(target)
+  assert.equal(inspected.manifest.identity?.displayName, "Answer Bot")
+  assert.deepEqual(inspected.warnings, [
+    "employee_package_identity_unknown_field:pronouns",
+  ])
+
+  const root = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../..",
+  )
+  const builtCli = path.join(root, "dist", "apps", "cli", "bin.js")
+
+  const json = spawnSync(
+    process.execPath,
+    [builtCli, "validate", target, "--json"],
+    { encoding: "utf8", input: "", timeout: 60_000 },
+  )
+  assert.equal(json.status, 0, json.stderr)
+  const parsed = JSON.parse(json.stdout) as Record<string, unknown>
+  assert.equal(parsed.status, "valid")
+  assert.deepEqual(parsed.warnings, [
+    "employee_package_identity_unknown_field:pronouns",
+  ])
+
+  const plain = spawnSync(
+    process.execPath,
+    [builtCli, "validate", target],
+    { encoding: "utf8", input: "", timeout: 60_000 },
+  )
+  assert.equal(plain.status, 0, plain.stderr)
+  assert.match(
+    plain.stderr,
+    /warning: employee_package_identity_unknown_field:pronouns/,
+  )
+
+  await rm(parent, { recursive: true, force: true })
 })

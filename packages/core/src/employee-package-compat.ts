@@ -108,6 +108,7 @@ export const EMPLOYEE_PACKAGE_KNOWN_FIELDS = Object.freeze({
     "description",
     "license",
     "authors",
+    "identity",
     "host",
     "entrypoints",
     "policy",
@@ -118,6 +119,8 @@ export const EMPLOYEE_PACKAGE_KNOWN_FIELDS = Object.freeze({
   policy: ["mode", "network", "filesystem", "mcpTools"],
   "policy.filesystem": ["read", "write"],
   "policy.mcpTools[]": ["name", "requestedMode"],
+  identity: ["displayName", "avatar", "persona", "roleId"],
+  "identity.avatar": ["asset"],
 } as const)
 
 /**

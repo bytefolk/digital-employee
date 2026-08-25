@@ -14,6 +14,27 @@ const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 const LICENSE_PATTERN = /^[A-Za-z0-9.+-]{1,128}$/
 const PORTABLE_PATH_PATTERN = /^\.\/(?!.*\\)[^\u0000-\u001f\u007f]+$/
+const IDENTITY_ROLE_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/
+const IDENTITY_KNOWN_FIELDS = ["displayName", "avatar", "persona", "roleId"]
+
+/**
+ * Optional identity segment (#194). Human-facing expressiveness only: the
+ * package-level `name` remains the machine identifier. Vocabulary resolution
+ * (roleId) and org placement (reportTo) belong to the consumer org-workbench,
+ * never to this validator.
+ */
+export interface EmployeePackageIdentity {
+  displayName: string
+  /** Content-addressed avatar: `asset` must be an entry in `assets`. */
+  avatar?: { asset: string }
+  persona?: string
+  roleId?: string
+  /**
+   * Additive extension point: unknown fields inside identity are accepted
+   * with a collected warning instead of failing closed (#194 R4 freeze).
+   */
+  readonly [field: string]: unknown
+}
 
 export interface EmployeePackageManifest {
   $schema?: string
@@ -23,6 +44,7 @@ export interface EmployeePackageManifest {
   description: string
   license: string
   authors: string[]
+  identity?: EmployeePackageIdentity
   host: {
     protocol: typeof AGENT_HOST_PROTOCOL_VERSION
     requiredCapabilities: AgentHostCapability[]
@@ -262,6 +284,58 @@ function validateMcpTools(
   })
 }
 
+/**
+ * Validate the optional identity segment (#194). Unknown fields INSIDE
+ * identity are additive: they are preserved and produce a collected warning
+ * instead of failing closed. `reportTo` is rejected outright because org
+ * placement belongs to the consumer (org-workbench), never to the package.
+ */
+function validateIdentity(
+  value: unknown,
+  assets: readonly string[],
+  warnings: string[],
+): EmployeePackageIdentity {
+  assertPlainObject(value, "identity")
+  if (Object.prototype.hasOwnProperty.call(value, "reportTo")) {
+    throw packageError("employee_package_unknown_field:identity.reportTo", {
+      field: "identity.reportTo",
+    })
+  }
+  const identity: Record<string, unknown> = {}
+  for (const [key, entry] of Object.entries(value)) {
+    if (!IDENTITY_KNOWN_FIELDS.includes(key)) {
+      warnings.push(`employee_package_identity_unknown_field:${key}`)
+      identity[key] = entry
+    }
+  }
+  identity.displayName = requireString(value.displayName, "identity.displayName", {
+    maxLength: 64,
+  })
+  if (value.avatar !== undefined) {
+    const avatar = assertKnownKeys(value.avatar, ["asset"], "identity.avatar")
+    const asset = portableFilePath(avatar.asset, "identity.avatar.asset")
+    if (!assets.includes(asset)) {
+      throw packageError("employee_package_identity_avatar_asset_unknown", {
+        field: "identity.avatar.asset",
+        asset,
+      })
+    }
+    identity.avatar = { asset }
+  }
+  if (value.persona !== undefined) {
+    identity.persona = requireString(value.persona, "identity.persona", {
+      maxLength: 2_048,
+    })
+  }
+  if (value.roleId !== undefined) {
+    identity.roleId = requireString(value.roleId, "identity.roleId", {
+      pattern: IDENTITY_ROLE_ID_PATTERN,
+      maxLength: 64,
+    })
+  }
+  return identity as unknown as EmployeePackageIdentity
+}
+
 function deepFreeze<T>(value: T): T {
   if (!value || typeof value !== "object" || Object.isFrozen(value)) return value
   for (const item of Object.values(value as UnknownRecord)) deepFreeze(item)
@@ -270,6 +344,7 @@ function deepFreeze<T>(value: T): T {
 
 export function validateEmployeePackageManifest(
   input: unknown,
+  warnings: string[] = [],
 ): EmployeePackageManifest {
   const manifest = assertKnownKeys(
     input,
@@ -281,6 +356,7 @@ export function validateEmployeePackageManifest(
       "description",
       "license",
       "authors",
+      "identity",
       "host",
       "entrypoints",
       "policy",
@@ -356,6 +432,8 @@ export function validateEmployeePackageManifest(
     throw packageError("mcp_tools_require_mcp_entrypoint")
   }
 
+  const assets = portablePathList(manifest.assets, "assets", portableFilePath)
+
   const result: EmployeePackageManifest = {
     ...(manifest.$schema
       ? { $schema: requireString(manifest.$schema, "$schema", { maxLength: 2_000 }) }
@@ -405,7 +483,11 @@ export function validateEmployeePackageManifest(
       },
       mcpTools,
     },
-    assets: portablePathList(manifest.assets, "assets", portableFilePath),
+    assets,
+  }
+
+  if (manifest.identity !== undefined) {
+    result.identity = validateIdentity(manifest.identity, assets, warnings)
   }
 
   if (result.authors.length === 0) {

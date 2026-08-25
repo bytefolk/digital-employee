@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/hire-request.schema.json",
+  "title": "hire-request.v1alpha1 hire request reference envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "workspaceRef",
+    "packageRef",
+    "targetParentId",
+    "budget",
+    "requestedBy",
+    "envelopeDigest"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "hire-request.v1alpha1"
+    },
+    "workspaceRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "packageRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version",
+        "digest"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^v1alpha1(\\.[0-9]+)?$"
+        },
+        "digest": {
+          "type": "string",
+          "minLength": 16
+        }
+      }
+    },
+    "targetParentId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "perTask",
+        "perDay"
+      ],
+      "properties": {
+        "perTask": {
+          "$ref": "#/$defs/budgetScope"
+        },
+        "perDay": {
+          "$ref": "#/$defs/budgetScope"
+        }
+      }
+    },
+    "requestedBy": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "deadline": {
+      "type": "string"
+    },
+    "envelopeDigest": {
+      "type": "string",
+      "minLength": 16
+    }
+  },
+  "$defs": {
+    "budgetScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "tokens": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 1000000000
+        },
+        "iterations": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 1000000000
+        }
+      }
+    }
+  }
+}

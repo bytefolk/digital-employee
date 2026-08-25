@@ -206,6 +206,7 @@ live-response benchmarks.
 | `entrypoints.mcp` | Optional stdio/HTTPS MCP declaration with environment-variable secret references only |
 | `policy` | Abstract filesystem, network, MCP and approval requirements; every MCP tool requests a maximum read/write mode |
 | `assets` | Explicit regular files shipped with the package |
+| `identity` | Optional human-facing identity segment (#194); `name` remains the machine identifier |
 
 All file references use forward-slash `./` paths. Artifact paths and policy
 globs are validated separately. Absolute paths, parent traversal, undeclared
@@ -214,6 +215,31 @@ containment check. File count and total size are bounded. Secret values and
 local account identifiers do not
 belong in a package; a deployment binds secret names through its host or
 service environment.
+
+## Identity segment (#194)
+
+The optional `identity` object carries human-facing expressiveness only. It
+never replaces `name`, which stays the stable machine identifier, and it
+carries no authority: nothing inside `identity` changes policy, capabilities
+or approval behavior.
+
+| Field | Meaning |
+| --- | --- |
+| `identity.displayName` | Required display name; string of 1–64 characters |
+| `identity.avatar` | Optional content-addressed avatar: exactly `{ "asset": "<portablePath>" }`; the asset must be an entry in `assets`. There is no URL channel |
+| `identity.persona` | Optional persona text; string of at most 2048 characters |
+| `identity.roleId` | Optional role identifier matching `^[a-z][a-z0-9-]{0,63}$`; resolution against a role vocabulary happens in the consumer (org-workbench), never in this validator |
+
+`reportTo` does not belong in `identity`: org placement is a consumer concern
+(org-workbench), and packages declaring it fail closed.
+
+Unknown-field policy inside `identity` is additive: extra fields are accepted
+and preserved, but each produces a collected warning instead of failing
+closed. `digital-employee validate` surfaces the warnings — as a `warnings`
+array under `--json`, one stderr line per warning otherwise — while keeping
+exit code 0 for a valid package. Outside `identity`, unknown fields are still
+rejected. Packages without an `identity` segment validate exactly as in
+0.4.0.
 
 An MCP tool's `requestedMode` is a request, never a self-granted safety label.
 Before a runnable adapter exposes the tool, preflight must compare the request

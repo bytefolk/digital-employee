@@ -30,6 +30,7 @@ import { workspace, renderWorkspaceParseFailure } from "./workspace/index.js";
 import { org, renderOrgParseFailure } from "./org/index.js";
 import { turn } from "./turn/index.js";
 import { task } from "./task/index.js";
+import { hire } from "./hire.js";
 import { setup } from "./setup.js";
 
 type EmployeeResult = Awaited<ReturnType<DigitalEmployee["answer"]>>;
@@ -75,6 +76,7 @@ Agent-native usage:
   digital-employee org scope <position> [workspace] [--tool <name> | --context <path>] [--json]
   digital-employee turn run [workspace] --position <id> (--stdin | --input-file <path>)
   digital-employee task delegate [workspace] --stdin --history-file <workspace-local-path>
+  digital-employee hire validate <file> [--json]
   digital-employee deploy [package-path] [--package path] --channel <id> --engine <id> --runtime agent-native|standalone-v1 [options]
   digital-employee doctor [--engine claude-code|qoder|codex|qwen-code|codebuddy] [--json]
   digital-employee init <directory> [--recipe minimal-answer.v1|structured-action.v1] [--name employee-name] [--author author]
@@ -403,6 +405,9 @@ async function validate(values: CommandValues, positionals: string[]) {
       schemaVersion: inspected.manifest.schemaVersion
     },
     files: inspected.files,
+    ...(inspected.warnings && inspected.warnings.length > 0
+      ? { warnings: inspected.warnings }
+      : {}),
     ...(host ? { host, compatibility } : {})
   };
   if (values.json) {
@@ -412,6 +417,9 @@ async function validate(values: CommandValues, positionals: string[]) {
       `Static package valid: ${result.employee.name}@${result.employee.version}\n`
     );
     process.stdout.write(`Checked ${result.files.length} declared file(s).\n`);
+    for (const warning of inspected.warnings ?? []) {
+      process.stderr.write(`warning: ${warning}\n`);
+    }
     if (host && compatibility) {
       process.stdout.write(
         `${host.displayName}: ${compatibility.compatible ? "compatible" : "incompatible"}\n`
@@ -579,7 +587,7 @@ async function main() {
     throw error;
   }
   const { command, values, positionals, providedOptions } = parsed;
-  if (command === "help" || (values.help && command !== "deploy" && command !== "workspace" && command !== "org" && command !== "turn" && command !== "task")) {
+  if (command === "help" || (values.help && command !== "deploy" && command !== "workspace" && command !== "org" && command !== "turn" && command !== "task" && command !== "hire")) {
     process.stdout.write(usage());
     return;
   }
@@ -645,6 +653,12 @@ async function main() {
     args: positionals.slice(1),
     stdin: values.stdin,
     historyFile: values.historyFile,
+    json: values.json,
+    help: values.help,
+  });
+  if (command === "hire") return hire({
+    subcommand: positionals[0],
+    args: positionals.slice(1),
     json: values.json,
     help: values.help,
   });

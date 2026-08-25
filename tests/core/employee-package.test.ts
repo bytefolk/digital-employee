@@ -187,3 +187,132 @@ test("entrypoint artifacts cannot use glob syntax", () => {
     /employee_package_invalid_field:entrypoints.inputSchema/,
   )
 })
+
+function identityManifest() {
+  return {
+    ...manifest(),
+    identity: {
+      displayName: "Answer Bot",
+      avatar: { asset: "./knowledge/README.md" },
+      persona: "Helpful teammate for answer triage.",
+      roleId: "team-answer",
+    },
+  }
+}
+
+test("identity: packages without the segment validate exactly as before (#194)", () => {
+  const result = validateEmployeePackageManifest(manifest())
+  assert.equal(result.identity, undefined)
+})
+
+test("identity: full segment is accepted and frozen (AC-002, #194)", () => {
+  const result = validateEmployeePackageManifest(identityManifest())
+  assert.deepEqual(result.identity, {
+    displayName: "Answer Bot",
+    avatar: { asset: "./knowledge/README.md" },
+    persona: "Helpful teammate for answer triage.",
+    roleId: "team-answer",
+  })
+  assert.equal(Object.isFrozen(result.identity), true)
+})
+
+test("identity: displayName coexists with the machine name (#194)", () => {
+  const result = validateEmployeePackageManifest(identityManifest())
+  assert.equal(result.name, "team-answer")
+  assert.equal(result.identity?.displayName, "Answer Bot")
+})
+
+test("identity: unknown extra fields are accepted with warnings (AC-002, #194)", () => {
+  const input = identityManifest()
+  ;(input.identity as Record<string, unknown>).pronouns = "they/them"
+  const warnings: string[] = []
+  const result = validateEmployeePackageManifest(input, warnings)
+  assert.deepEqual(warnings, [
+    "employee_package_identity_unknown_field:pronouns",
+  ])
+  assert.equal(
+    (result.identity as Record<string, unknown>).pronouns,
+    "they/them",
+  )
+})
+
+test("identity: invalid displayName fails closed (#194)", () => {
+  for (const displayName of ["", "   ", "x".repeat(65), 42]) {
+    const input = identityManifest()
+    input.identity.displayName = displayName as string
+    assert.throws(
+      () => validateEmployeePackageManifest(input),
+      /employee_package_invalid_field:identity\.displayName/,
+    )
+  }
+  const missing = identityManifest()
+  delete (missing.identity as Record<string, unknown>).displayName
+  assert.throws(
+    () => validateEmployeePackageManifest(missing),
+    /employee_package_invalid_field:identity\.displayName/,
+  )
+})
+
+test("identity: invalid persona fails closed (#194)", () => {
+  for (const persona of ["", "x".repeat(2_049)]) {
+    const input = identityManifest()
+    input.identity.persona = persona
+    assert.throws(
+      () => validateEmployeePackageManifest(input),
+      /employee_package_invalid_field:identity\.persona/,
+    )
+  }
+})
+
+test("identity: invalid roleId fails closed (#194)", () => {
+  for (const roleId of ["Team-Answer", "9lead", "role_id", "a".repeat(65)]) {
+    const input = identityManifest()
+    input.identity.roleId = roleId
+    assert.throws(
+      () => validateEmployeePackageManifest(input),
+      /employee_package_invalid_field:identity\.roleId/,
+    )
+  }
+})
+
+test("identity: avatar is exactly { asset } with no URL channel (#194)", () => {
+  const urlAvatar = identityManifest()
+  ;(urlAvatar.identity.avatar as Record<string, unknown>).url =
+    "https://cdn.example/avatar.png"
+  assert.throws(
+    () => validateEmployeePackageManifest(urlAvatar),
+    /employee_package_unknown_field:identity\.avatar\.url/,
+  )
+
+  const emptyAvatar = identityManifest()
+  ;(emptyAvatar.identity as Record<string, unknown>).avatar = {}
+  assert.throws(
+    () => validateEmployeePackageManifest(emptyAvatar),
+    /employee_package_invalid_field:identity\.avatar\.asset/,
+  )
+
+  const absoluteAvatar = identityManifest()
+  absoluteAvatar.identity.avatar = { asset: "/tmp/avatar.png" }
+  assert.throws(
+    () => validateEmployeePackageManifest(absoluteAvatar),
+    /employee_package_invalid_field:identity\.avatar\.asset/,
+  )
+})
+
+test("identity: avatar asset must be an entry in assets (#194)", () => {
+  const input = identityManifest()
+  input.identity.avatar = { asset: "./assets/missing.png" }
+  assert.throws(
+    () => validateEmployeePackageManifest(input),
+    /employee_package_identity_avatar_asset_unknown/,
+  )
+})
+
+test("identity: reportTo is rejected outright (#194)", () => {
+  const input = identityManifest()
+  ;(input.identity as Record<string, unknown>).reportTo = "manager-1"
+  assert.throws(
+    () => validateEmployeePackageManifest(input),
+    /employee_package_unknown_field:identity\.reportTo/,
+  )
+})

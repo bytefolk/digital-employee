@@ -109,7 +109,9 @@ function sealed(
     instruction: "Return approved issue evidence.",
     organizationDigest: computeCanonicalDigest(state.organization),
     permissionsDigest: computeCanonicalDigest(state.permissions),
-    deadline: "2026-08-25T00:00:00.000Z",
+    // Wall-clock margin: the built-CLI path exercises the real adapter, which
+    // rejects elapsed deadlines and takes no injected clock.
+    deadline: new Date(Date.now() + 24 * 3_600_000).toISOString(),
     ...overrides,
   }
   return JSON.stringify({

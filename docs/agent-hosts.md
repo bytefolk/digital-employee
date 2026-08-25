@@ -195,7 +195,7 @@ Workbench Bridge 不得：
 
 ## `claude-local` model port（#182，本地操作方专用）
 
-上表列的 Adapter 都走 `agent run` 路径。`turn run` 另有一条独立的 model port 路径，其契约是纯推理缝（`packages/engine/src/model-port.ts`：只返回文本与用量，不暴露可执行面），agent 循环、预算与输出校验都在引擎侧。除零凭据的 `deterministic` 参考实现外，该路径现有一个 `claude-local` port：
+上表列的 Adapter 都走 `agent run` 路径。`turn run` 另有一条独立的 model port 路径，其契约是纯推理缝（`packages/engine/src/model-port.ts`：只返回文本与用量，不暴露可执行面），agent 循环、预算与输出校验都在引擎侧。除零凭据的 `deterministic` 参考实现外，该路径现有两个 port：`claude-local`（#182，本地订阅）与 `qoder`（#185，隔离服务令牌）。
 
 | 项 | 说明 |
 | --- | --- |
@@ -211,3 +211,19 @@ Workbench Bridge 不得：
 **该 port 从不读取凭据存储**：不读、不解析、不转发 `~/.claude/.credentials.json`、系统钥匙串或任何凭据文件；唯一机制是 spawn 官方二进制。
 
 **未达成的部分**：该 port 未走 adapter qualification 流程，不得据上表的 `runnable` 结论推断其等价性。保留真实 `HOME` 意味着放弃隔离 Adapter 那种"运行可复现"保证。订阅限流面向单人交互式使用，跨岗位并发派活的并发策略由调用方（如 org-workbench）负责，本 port 不做限流。真实登录态下的端到端验收需本机手工执行，CI 不覆盖。
+
+## `qoder` model port（#185，隔离服务令牌）
+
+同一个 model port 缝上的第二个在线 port：把上表中已 conformance-verified 的隔离 Qoder Adapter 以零工具模式包成 `ModelPort`，接到 `turn run` 的 spawn 面。不新写 qodercli 流解析；init/协议断言、凭据脱敏与清理纪律全部沿用既有 Adapter。
+
+| 项 | 说明 |
+| --- | --- |
+| 启用方式 | `DIGITAL_EMPLOYEE_ENGINE_MODEL=qoder`；二进制默认取 PATH 上的 `qodercli`，可用 `DIGITAL_EMPLOYEE_QODER_COMMAND` 指定 |
+| 凭据 | 唯一入口是环境 allowlist 中的 `QODER_PERSONAL_ACCESS_TOKEN`。令牌不进 argv、envelope、事件流或诊断；沿用 Adapter 的 auth-payload 文件纪律（0600、run 局部、运行结束即删除） |
+| 版本族 | 与隔离 Adapter 相同：`1.1.x` conformance 族。族外版本、二进制缺失或未验证平台（Windows）在 port 解析阶段 fail closed（退出码 1，环境故障），不会被建模成"员工失败"的治理结论（退出码 0） |
+| 工具面 | 零工具：`tools.default=deny` 且 allow 为空、无文件系统授权、网络 deny、approval never、无 MCP、`maxTurns=1`。Adapter 的 init 断言会在运行期复核公告的工具集 |
+| 用量 | **如实缺失**：Adapter 的 usage 事件不是稳定契约（`usage_events: unknown`），该 port 只返回文本、不返回 token 数。per-task/per-day 的 token 记账对该 port 记 0，iteration 预算仍生效；不得据此 port 做 token 级预算拦截 |
+
+**适用边界**：这是隔离服务凭据路径，与 `claude-local` 的本地订阅路径互不替代。令牌由操作方合法取得并自行配置；不得将任何令牌随员工包、镜像或分发物发布。
+
+**未达成的部分**：该 port 是 spawn 面上的模型口，不等于 host qualification——Qoder live E4 qualification 归 #177/#113，需真实令牌授权后现场验证，CI 以 conformance fixture（E3）覆盖。

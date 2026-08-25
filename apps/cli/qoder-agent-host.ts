@@ -189,6 +189,17 @@ function parseConformanceVersion(value: string | undefined): boolean {
   )
 }
 
+/**
+ * The adapter's conformance family gate (1.1.x), exported for reuse by the
+ * turn-run qoder model port (#185) so both surfaces reject the same versions
+ * with the same verdict.
+ */
+export function isConformantQoderCliVersion(
+  value: string | undefined,
+): boolean {
+  return parseConformanceVersion(value)
+}
+
 function parseProtocolVersion(value: unknown): boolean {
   if (typeof value !== "string") return false
   const match = value.match(

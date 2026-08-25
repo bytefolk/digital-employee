@@ -31,6 +31,7 @@ import {
 } from "../../../packages/engine/src/model-port.js"
 import type { EngineTurnRequest } from "../../../packages/engine/src/contracts.js"
 import { createClaudeLocalModelPort, probeLocalClaude } from "./claude-local-model-port.js"
+import { createQoderModelPort, probeQoderModelPort } from "./qoder-model-port.js"
 import { executeTurn } from "../../../packages/engine/src/turn-executor.js"
 import { loadOrgModel } from "../org/model.js"
 import {
@@ -39,6 +40,7 @@ import {
   TURN_ENGINE_CLAUDE_COMMAND_ENV,
   TURN_ENGINE_MODEL_ENV,
   TURN_ENGINE_MODEL_SCRIPT_ENV,
+  TURN_ENGINE_QODER_COMMAND_ENV,
   type TurnEnvelope,
 } from "./envelope.js"
 
@@ -128,6 +130,29 @@ function resolveModelPort(env: NodeJS.ProcessEnv): ModelPort {
       )
     }
     return createClaudeLocalModelPort({ command, environment: env })
+  }
+  if (engine === "qoder") {
+    // Isolated service-token port (#185): wraps the conformance-verified
+    // Qoder adapter in zero-tool mode. The token flows only through the
+    // environment allowlist, never argv. Missing binary, out-of-family
+    // version or missing token are environment faults: surface them here so
+    // they map to exit 1, instead of letting the engine model them as a
+    // failed turn and report exit 0.
+    const command = env[TURN_ENGINE_QODER_COMMAND_ENV]?.trim() || "qodercli"
+    const unusable = probeQoderModelPort(command)
+    if (unusable !== undefined) {
+      throw new TurnSpawnError(
+        "engine.model_unavailable",
+        `${unusable}: the Qoder CLI binary (${command}) is missing, outside the 1.1.x conformance family, or the platform is not verified`,
+      )
+    }
+    if (!env.QODER_PERSONAL_ACCESS_TOKEN?.trim()) {
+      throw new TurnSpawnError(
+        "engine.model_unavailable",
+        "qoder_service_token_not_configured: QODER_PERSONAL_ACCESS_TOKEN is required via the environment allowlist for the qoder model port",
+      )
+    }
+    return createQoderModelPort({ command, environment: env })
   }
   throw new TurnSpawnError(
     "engine.model_unavailable",

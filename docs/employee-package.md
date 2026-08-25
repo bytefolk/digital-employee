@@ -330,3 +330,74 @@ list because its empty `--tools` option is not sufficient. Each uses only its
 explicit service API key/model configuration; personal host login state is
 neither read nor copied. These restrictions are capability boundaries, not a
 claim that a live provider account or marketplace deployment has been verified.
+
+## Zero-Claude runbook (#185): operating a package without Anthropic credentials
+
+An operator with no `ANTHROPIC_API_KEY` and no Claude login can still operate
+an employee package end to end. `claude-local` is deliberately not part of
+this path: it needs a Claude Code install with its own login. The paths below
+never touch an Anthropic credential.
+
+**Step 0 — static checks, fully offline, no credential of any kind.**
+
+```bash
+digital-employee validate ./team-answer
+digital-employee eval ./team-answer
+```
+
+`validate` is static; `eval` is offline fixture conformance. Neither invokes a
+model, Agent Host, MCP or provider, and neither spends anything.
+
+**Step 1 — zero-credential spawn-surface smoke test.**
+
+```bash
+printf '%s' "$SEALED_ENVELOPE_JSON" | \
+  DIGITAL_EMPLOYEE_ENGINE_MODEL=deterministic \
+  digital-employee turn run ./team-answer --position demo --stdin
+```
+
+The `deterministic` port is the zero-credential reference seam: it proves the
+`turn run` spawn surface, sealed-envelope consumption, NDJSON event stream and
+exit-code discipline (exit 0 = exactly one trusted terminal, exit 1 =
+spawn-level failure). Its output is a deterministic reference result, not a
+model answer; it does not verify answer quality.
+
+**Step 2 — online turn through the Qoder service-token port.**
+
+```bash
+export QODER_PERSONAL_ACCESS_TOKEN='...'   # lawfully obtained by the operator
+printf '%s' "$SEALED_ENVELOPE_JSON" | \
+  DIGITAL_EMPLOYEE_ENGINE_MODEL=qoder \
+  digital-employee turn run ./team-answer --position demo --stdin
+```
+
+The token is the only credential input and enters only through the environment
+allowlist; it never appears in argv, envelope fields, events or diagnostics.
+The optional `DIGITAL_EMPLOYEE_QODER_COMMAND` variable names the `qodercli`
+entrypoint without carrying anything credential-bearing. The port wraps the
+conformance-verified isolated Qoder adapter in zero-tool mode and reuses its
+`1.1.x` version family gate unchanged. The sealed `turn-envelope.v1` request
+(including its `envelopeDigest`) is produced by the authorized upstream caller
+such as the workbench; do not hand-craft envelopes.
+
+The same Qoder adapter is also reachable through the existing one-shot
+`run --engine qoder` path shown earlier in this document; the `turn run` port
+above is the built-in-engine spawn surface with turn budgets and sealed
+envelopes.
+
+**Fail-closed diagnostics.** Environment faults fail at port resolution with
+exit 1, each with a distinct code; they are never modeled as a failed turn:
+
+| Diagnostic code | Meaning |
+| --- | --- |
+| `qoder_service_token_not_configured` | `QODER_PERSONAL_ACCESS_TOKEN` missing or empty |
+| `qoder_binary_unavailable` | `qodercli` missing or `--version` probe failed |
+| `qoder_version_not_conformance_verified` | version outside the `1.1.x` conformance family |
+| `host_platform_not_conformance_verified` | platform not verified (Windows) |
+
+**Honest limits.** The Qoder port returns text without token counts: the
+adapter's usage events are not a stable contract (`usage_events: unknown`), so
+per-task/per-day token accounting records zero for this port while iteration
+budgets still apply. Live end-to-end verification with a real token (E4)
+remains gated on #177 authorization and is not covered by CI; the port is a
+model seam on the spawn surface, not a host qualification.

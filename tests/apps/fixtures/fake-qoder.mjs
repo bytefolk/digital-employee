@@ -176,45 +176,49 @@ async function executeRun() {
     await new Promise(() => {})
   }
 
+  // `zero-tool` serves the turn-run model port (#185): the port runs the
+  // adapter with an empty tool allowlist, so no tool exchange may happen.
   const credential = mode.includes("credential")
     ? await readCredential()
     : undefined
-  const toolUseId = mode === "tool-id-credential" ? credential : "tool-1"
-  const toolInput =
-    mode === "tool-input-credential"
-      ? { note: credential }
-      : mode === "tool-key-credential"
-        ? { [`${"x".repeat(250)}${credential}`]: "unsafe" }
-        : { file_path: "knowledge/README.md" }
+  if (mode !== "zero-tool") {
+    const toolUseId = mode === "tool-id-credential" ? credential : "tool-1"
+    const toolInput =
+      mode === "tool-input-credential"
+        ? { note: credential }
+        : mode === "tool-key-credential"
+          ? { [`${"x".repeat(250)}${credential}`]: "unsafe" }
+          : { file_path: "knowledge/README.md" }
 
-  emit({
-    type: "assistant",
-    session_id: sessionId,
-    message: {
-      content: [
-        {
-          type: "tool_use",
-          id: toolUseId,
-          name: "Read",
-          input: toolInput,
-        },
-      ],
-    },
-  })
-  emit({
-    type: "user",
-    session_id: sessionId,
-    message: {
-      content: [
-        {
-          type: "tool_result",
-          tool_use_id: toolUseId,
-          is_error: false,
-          content: "approved knowledge",
-        },
-      ],
-    },
-  })
+    emit({
+      type: "assistant",
+      session_id: sessionId,
+      message: {
+        content: [
+          {
+            type: "tool_use",
+            id: toolUseId,
+            name: "Read",
+            input: toolInput,
+          },
+        ],
+      },
+    })
+    emit({
+      type: "user",
+      session_id: sessionId,
+      message: {
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: toolUseId,
+            is_error: false,
+            content: "approved knowledge",
+          },
+        ],
+      },
+    })
+  }
   if (mode === "assistant-snapshot-redaction") {
     emit({
       type: "assistant",
@@ -299,7 +303,9 @@ async function executeRun() {
               ? "{not-json}"
               : mode === "unstructured-prose"
                 ? "plain fixture answer"
-                : mode === "unescaped-quotes"
+                : mode === "zero-tool"
+                  ? "fixture qoder answer"
+                  : mode === "unescaped-quotes"
                   ? output.replace("fixture answer", 'fixture "quoted" answer')
                   : output,
   }

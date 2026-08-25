@@ -36,6 +36,13 @@ export const TURN_ENGINE_MODEL_SCRIPT_ENV =
  */
 export const TURN_ENGINE_CLAUDE_COMMAND_ENV =
   "DIGITAL_EMPLOYEE_CLAUDE_COMMAND" as const
+/**
+ * Optional binary override for the qoder port (#185), same allowlist
+ * discipline as the claude-local override: names the `qodercli` entrypoint
+ * without putting anything credential-bearing in argv.
+ */
+export const TURN_ENGINE_QODER_COMMAND_ENV =
+  "DIGITAL_EMPLOYEE_QODER_COMMAND" as const
 
 export interface TurnEnvelope {
   schemaVersion: typeof TURN_ENVELOPE_VERSION

@@ -10,6 +10,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import test from "node:test"
+import { fileURLToPath, pathToFileURL } from "node:url"
 
 import { runTurn } from "../../apps/cli/turn/turn-run.js"
 import {
@@ -24,6 +25,39 @@ import {
   OSS_MAINTAINER_TEMPLATE,
   renderOrganizationFile,
 } from "../../apps/cli/workspace/templates.js"
+
+const repoRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+)
+const QODER_FIXTURE = path.join(
+  repoRoot,
+  "tests",
+  "apps",
+  "fixtures",
+  "fake-qoder.mjs",
+)
+
+/**
+ * The spawn surface spawns without a shell, so the qoder command must be one
+ * executable path. This stub injects the zero-tool fixture mode and then runs
+ * the conformance fixture (#185 AC-002).
+ */
+async function createZeroToolQoderStub(): Promise<string> {
+  const stubDir = await mkdtemp(path.join(os.tmpdir(), "qoder-port-stub-"))
+  const stub = path.join(stubDir, "qodercli-stub")
+  await writeFile(
+    stub,
+    [
+      `#!${process.execPath}`,
+      `process.argv.splice(2, 0, "--fixture-mode", "zero-tool")`,
+      `import(${JSON.stringify(pathToFileURL(QODER_FIXTURE).href)})`,
+      "",
+    ].join("\n"),
+    { mode: 0o755 },
+  )
+  return stub
+}
 
 async function createWorkspace(): Promise<string> {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "turn-run-ws-"))
@@ -369,4 +403,118 @@ test("workspaceRef mismatch fails closed", async () => {
   )
   assert.equal(result.exitCode, 1)
   assert.equal(events.length, 0)
+})
+
+test("#185 AC-002: qoder port completes a turn through the spawn surface", async () => {
+  const workspace = await createWorkspace()
+  const envelope = sealedEnvelope(workspace)
+  const stub = await createZeroToolQoderStub()
+  const events: Array<Record<string, unknown>> = []
+  const diagnostics: string[] = []
+  const result = await runTurn({
+    workspace,
+    positionId: "repo-owner",
+    envelopeText: JSON.stringify(envelope),
+    env: {
+      DIGITAL_EMPLOYEE_ENGINE_MODEL: "qoder",
+      DIGITAL_EMPLOYEE_QODER_COMMAND: stub,
+      QODER_PERSONAL_ACCESS_TOKEN: "fixture-service-token",
+      PATH: process.env.PATH,
+    },
+    writeEvent: (line) => events.push(JSON.parse(line)),
+    writeDiagnostic: (line) => diagnostics.push(line),
+  })
+  assert.equal(result.exitCode, 0, diagnostics.join("\n"))
+  assert.equal(result.terminalEmitted, true)
+  const terminal = events.find((event) => event.type === "run.completed")
+  assert.ok(terminal, `expected run.completed, got: ${diagnostics.join("\n")}`)
+  assert.equal(terminal!.output, "fixture qoder answer")
+  // Usage honesty (AC-005): the port reports no token counts, so no usage
+  // event may be emitted for this turn.
+  assert.ok(!events.some((event) => event.type === "usage"))
+})
+
+test("#185 AC-003: missing service token fails closed at resolution, exit 1", async () => {
+  const workspace = await createWorkspace()
+  const envelope = sealedEnvelope(workspace)
+  const stub = await createZeroToolQoderStub()
+  const events: Array<Record<string, unknown>> = []
+  const diagnostics: string[] = []
+  const result = await runTurn({
+    workspace,
+    positionId: "repo-owner",
+    envelopeText: JSON.stringify(envelope),
+    env: {
+      DIGITAL_EMPLOYEE_ENGINE_MODEL: "qoder",
+      DIGITAL_EMPLOYEE_QODER_COMMAND: stub,
+      PATH: process.env.PATH,
+    },
+    writeEvent: (line) => events.push(JSON.parse(line)),
+    writeDiagnostic: (line) => diagnostics.push(line),
+  })
+  assert.equal(result.exitCode, 1)
+  assert.equal(events.length, 0)
+  assert.ok(
+    diagnostics.some((line) =>
+      line.includes("qoder_service_token_not_configured"),
+    ),
+    "the diagnostic must name the missing-token fault",
+  )
+})
+
+test("#185 AC-003: an out-of-family qodercli version fails closed", async () => {
+  const workspace = await createWorkspace()
+  const envelope = sealedEnvelope(workspace)
+  const stubDir = await mkdtemp(path.join(os.tmpdir(), "qoder-port-oldver-"))
+  const stub = path.join(stubDir, "qodercli-stub")
+  await writeFile(
+    stub,
+    `#!${process.execPath}\nprocess.stdout.write("1.2.3\\n")\n`,
+    { mode: 0o755 },
+  )
+  const diagnostics: string[] = []
+  const result = await runTurn({
+    workspace,
+    positionId: "repo-owner",
+    envelopeText: JSON.stringify(envelope),
+    env: {
+      DIGITAL_EMPLOYEE_ENGINE_MODEL: "qoder",
+      DIGITAL_EMPLOYEE_QODER_COMMAND: stub,
+      QODER_PERSONAL_ACCESS_TOKEN: "fixture-service-token",
+      PATH: process.env.PATH,
+    },
+    writeEvent: () => undefined,
+    writeDiagnostic: (line) => diagnostics.push(line),
+  })
+  assert.equal(result.exitCode, 1)
+  assert.ok(
+    diagnostics.some((line) =>
+      line.includes("qoder_version_not_conformance_verified"),
+    ),
+    "an out-of-family version must be rejected as such, not as a missing binary",
+  )
+})
+
+test("#185 AC-003: a missing qodercli binary is an environment fault, not a verdict", async () => {
+  const workspace = await createWorkspace()
+  const envelope = sealedEnvelope(workspace)
+  const events: Array<Record<string, unknown>> = []
+  const diagnostics: string[] = []
+  const result = await runTurn({
+    workspace,
+    positionId: "repo-owner",
+    envelopeText: JSON.stringify(envelope),
+    env: {
+      DIGITAL_EMPLOYEE_ENGINE_MODEL: "qoder",
+      DIGITAL_EMPLOYEE_QODER_COMMAND: "/nonexistent/qodercli-for-this-test",
+      QODER_PERSONAL_ACCESS_TOKEN: "fixture-service-token",
+    },
+    writeEvent: (line) => events.push(JSON.parse(line)),
+    writeDiagnostic: (line) => diagnostics.push(line),
+  })
+  assert.equal(result.exitCode, 1)
+  assert.equal(events.length, 0)
+  assert.ok(
+    diagnostics.some((line) => line.includes("qoder_binary_unavailable")),
+  )
 })

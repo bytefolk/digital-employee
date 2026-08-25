@@ -6,6 +6,35 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- `turn run` gains a `qoder` model port (#185 REQ-001..REQ-005), so an
+  operator holding a lawfully obtained `QODER_PERSONAL_ACCESS_TOKEN` can
+  complete a turn through the conformance-verified isolated Qoder adapter
+  running in zero-tool mode (`tools.default=deny` with an empty allowlist, no
+  filesystem or network grants, `approval: never`, no MCP, `maxTurns=1`).
+  The token enters only through the inherited environment allowlist and never
+  appears in argv, envelope fields, events or diagnostics; the adapter's
+  auth-payload file discipline (0600, run-local, removed on cleanup) is
+  unchanged. The port returns text without token counts: the adapter's usage
+  events are not a stable contract (`usage_events: unknown`), so per-task and
+  per-day token accounting records zero for this port while iteration budgets
+  still apply. A missing binary, a version outside the `1.1.x` conformance
+  family, a missing or empty token, or an unverified platform (Windows) fails
+  closed during port resolution (exit 1, an environment fault) instead of
+  being modeled as a failed turn (exit 0), each with a distinct diagnostic
+  code. The `agent run` surface, the agent-host registry and the adapter's
+  existing qualification conclusions are unchanged, and no frozen contract
+  (`turn-envelope.v1`, `engine.v1`) is modified. The port is a model seam on
+  the spawn surface, not a host qualification: Qoder live E4 qualification
+  stays with #177 and requires real token authorization; CI covers the
+  conformance fixture (E3) only. See
+  [`docs/agent-hosts.md`](docs/agent-hosts.md).
+- Zero-Claude runbook (#185): `docs/employee-package.md` documents how an
+  operator with no `ANTHROPIC_API_KEY` and no Claude login operates an
+  employee package end to end — offline `validate`/`eval`, the zero-credential
+  `deterministic` spawn-surface smoke test, and the online `qoder`
+  service-token port — with the fail-closed diagnostic codes and the honest
+  limit that the Qoder port reports no token usage. No Claude path is
+  required anywhere in the runbook.
 - `turn run` gains a `claude-local` model port (#182 REQ-001..REQ-005), so a
   local operator can complete a turn with the Claude Code install already
   authenticated on their machine and no `ANTHROPIC_API_KEY`. The port spawns

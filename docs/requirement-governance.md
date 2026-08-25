@@ -341,6 +341,32 @@ range. Repository merge settings, protected required checks, and the named
 post-merge ledger/product review remain the policy controls for those cases; a
 manual action or generated squash message is not product acceptance.
 
+### Mandatory local precheck before push
+
+Before opening or updating any pull request, run the local precheck against the
+exact draft body that will be pushed:
+
+```bash
+npm run governance:precheck -- --body-file /tmp/my-pr-body.md
+```
+
+`scripts/governance-precheck.js` builds a synthetic `opened` event around the
+draft body and delegates to the same `validateGithubEventFile()` entry point
+that the CI trace gate runs, so the local verdict and the CI verdict use one
+rule source and cannot drift. Defaults are `--base-sha origin/main`,
+`--head-sha HEAD`, `--pr-number 1`, and the repository identity from the
+`origin` remote; every default is overridable. On failure the precheck prints
+every gate error followed by fixed repair guidance and exits nonzero; the body
+must not be pushed until the precheck passes. Timing-sensitive cases known to
+flake under heavy local load are archived in
+[`docs/flaky-tests.md`](./flaky-tests.md) and do not affect this gate.
+
+Known fragile test patterns (correction list, append-only):
+
+| Pattern | Failure mode | Correction | Adjudication |
+| --- | --- | --- | --- |
+| Hardcoded wall-clock deadline inside a test envelope | Built-CLI paths exercise real adapters whose fail-closed deadline validation rejects the sealed envelope once the fixed date passes — the test becomes a time bomb | Derive deadlines from the current wall clock with a generous margin; never seal a fixed calendar date into a fixture envelope | Issue #178 / `codex/issue-158-single-hop-delegation` (2026-08-25): green run 32724304491 preceded the sealed deadline, red run 32879556596 followed it; root cause was the expired fixture deadline, not the Node version or a contract change |
+
 ## Lifecycle and authority
 
 | Status | Meaning | Who advances it |

@@ -6,6 +6,21 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Local PR governance precheck (#197 REQ-001): `npm run governance:precheck
+  -- --body-file <path>` validates a draft pull request body against the
+  exact CI implementation-trace gate before pushing. The precheck builds a
+  synthetic `opened` event around the draft body and delegates to the same
+  `validateGithubEventFile()` entry point the CI gate runs, so the local and
+  CI verdicts share one rule source and cannot drift. On failure it prints
+  every gate error followed by fixed repair guidance (nine required
+  headings, `Consumed revision: R<positive integer>`, no-auto-close
+  acknowledgement, `PASS N/N` counts, full check URLs, product-review
+  handoff handles). `docs/requirement-governance.md` gains the mandatory
+  pre-push step plus an append-only known-fragile-test-patterns correction
+  list (first entry: hardcoded wall-clock deadlines sealed into test
+  envelopes, adjudicated on Issue #178), and `docs/flaky-tests.md` archives
+  the timing-sensitive deploy-cli cases adjudicated under the
+  clean-main-baseline method during #193/#195.
 - `turn-envelope.v1` gains an optional `pendingApproval` field (#193
   REQ-001..REQ-003) so an operator verdict for a previously requested
   approval can reach the #187 engine gate through the spawn surface. The

@@ -68,6 +68,7 @@
     "test:integration:signed-task-e2e": "tsx --test tests/integration/signed-task-e2e.test.ts",
     "test:coverage": "tsx --test --experimental-test-coverage --test-concurrency=1 --test-coverage-include='apps/**/*.ts' --test-coverage-include='connectors/**/*.ts' --test-coverage-include='packages/**/*.ts' --test-coverage-include='profiles/**/*.ts' --test-coverage-include='scripts/**/*.js' --test-coverage-lines=85 --test-coverage-branches=65 --test-coverage-functions=80 tests/**/*.test.ts",
     "governance:check": "node ./scripts/requirement-governance-check.js",
+    "governance:precheck": "node ./scripts/governance-precheck.js",
     "security:check": "node ./scripts/security-check.js",
     "release:check": "node ./scripts/release-check.js",
     "distribution:prepare": "npm run build && node ./scripts/prepare-distribution.js",

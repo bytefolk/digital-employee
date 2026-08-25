@@ -1,10 +1,10 @@
 # engine.v1 ↔ codex Op/Event 语义映射（clean-room 设计文档）
 
-状态：设计参照文档（landed；§4 approval.* 词表行以草案形态先行，随 issue #187 审批契约实施 PR 定稿并同 PR 更新本文）
+状态：设计参照文档（landed；§4 approval.* 词表行已随 issue #187 审批契约实施 PR 定稿）
 日期：2026-08-25
 作者：技术 P9
 指令来源：战略 CEO（胡总定 github.com/openai/codex 为参照系）
-配套契约：approval 三事件契约（terminal-and-resume，Option 1），草案见 issue #187 讨论，实施时落库
+配套契约：approval 三事件契约（terminal-and-resume，Option 1）已实施——词表单一来源 contracts.ts，结算码 engine.approval_required / engine.approval_denied / engine.approval_expired / engine.approval_preview_invalid
 
 ## 0. Clean-room 声明
 
@@ -52,15 +52,17 @@ contracts.ts 已声明 TerminalReason 是本仓自有枚举、不是外部枚举
 | cancelled | TurnAborted / Op::SuspendTurnAndShutdown |
 | engine_internal_error | StreamError / Error |
 
-## 4. approval 语义对位（本 slice 新增词表，详见配套草案）
+## 4. approval 语义对位（已实施词表，单一来源 contracts.ts）
 
-| engine.v1（草案） | codex 参照形态 | 差异说明 |
+| engine.v1（已实施） | codex 参照形态 | 差异说明 |
 | --- | --- | --- |
-| approval.requested | EventMsg::ExecApprovalRequest、ApplyPatchApprovalRequest、ElicitationRequest（部分） | codex 按动作类型分多个事件并带 call_id/approval_id 双层标识；engine 用单一事件 + 单层 approvalId + action.kind 判别 |
-| approval.granted | Op::ExecApproval 携带 ReviewDecision::Approved / ApprovedForSession | codex 是入站回注；engine 是恢复 turn 的出站权威记录（单向模型决定） |
-| approval.denied | Op::ExecApproval 携带 ReviewDecision::Denied / Abort | codex 的 Abort（放弃整个会话回合）不单独建模；engine deny 后按 approval_denied 结算 |
+| approval.requested | EventMsg::ExecApprovalRequest、ApplyPatchApprovalRequest、ElicitationRequest（部分） | codex 按动作类型分多个事件并带 call_id/approval_id 双层标识；engine 用单一事件 + 单层 approvalId + action.kind 判别。请求 turn 以 run.failed(engine.approval_required, retryable=true) 结算；preview 前置 fail-closed（engine.approval_preview_invalid） |
+| approval.granted | Op::ExecApproval 携带 ReviewDecision::Approved / ApprovedForSession | codex 是入站回注；engine 是恢复 turn 的出站权威记录（单向模型决定），裁决经下一次密封 envelope 的 pendingApproval 传入，消费在任何 model 消耗之前 |
+| approval.denied | Op::ExecApproval 携带 ReviewDecision::Denied / Abort | codex 的 Abort（放弃整个会话回合）不单独建模；engine deny 后按 engine.approval_denied（retryable=false）结算，不降级为未审批写入，证据记录携带 approvalRef |
 | （不做） | ReviewDecision::ApprovedExecpolicyAmendment（批准并修订策略） | 策略修订超出本 slice；engine 侧策略变更走组织模型决议链，不走运行时事件 |
 | （不做） | EventMsg::GuardianAssessment（安全评估中间层） | 非目标；engine 的 fail-closed 由 policy 投影承担 |
+
+结算语义注记：approval 族终态复用既有 TerminalReason 枚举（cancelled，操作方可见的受治理停止），不新增终态原因；过期/缺失/畸形裁决统一 fail-closed 于 engine.approval_expired，与 denied 同族但错误码可区分（便于上报统计）。
 
 ## 5. 明确不借的形态（非目标清单）
 

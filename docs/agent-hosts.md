@@ -192,3 +192,22 @@ Workbench Bridge 不得：
 例如，[腾讯 WorkBuddy Acceptable Use Policy](https://www.workbuddy.ai/document/acceptable-use-policy) 对未经 API 条款明确授权的自动化 bot/scraper 有限制；这不能由技术 Adapter 绕过。Claude Agent SDK、Codex、Qwen/阿里和其他 Host 也必须分别以届时适用的官方商业/API 条款为准。即使客户端代码是开源的，也不能据此推断模型服务或账号可以转售。
 
 默认商业部署模式应是操作方显式选择 Host 并提供合法凭证（或后续经条款确认的 BYOK），而不是把维护者个人订阅随员工包发布。
+
+## `claude-local` model port（#182，本地操作方专用）
+
+上表列的 Adapter 都走 `agent run` 路径。`turn run` 另有一条独立的 model port 路径，其契约是纯推理缝（`packages/engine/src/model-port.ts`：只返回文本与用量，不暴露可执行面），agent 循环、预算与输出校验都在引擎侧。除零凭据的 `deterministic` 参考实现外，该路径现有一个 `claude-local` port：
+
+| 项 | 说明 |
+| --- | --- |
+| 启用方式 | `DIGITAL_EMPLOYEE_ENGINE_MODEL=claude-local`；二进制默认取 PATH 上的 `claude`，可用 `DIGITAL_EMPLOYEE_CLAUDE_COMMAND` 指定 |
+| 凭据 | **不需要** `ANTHROPIC_API_KEY`。spawn 官方 `claude`，由 Claude Code 自行解析其登录态 |
+| 认证断言 | 运行流的 `apiKeySource` 必须为 `claude_cli_oauth`。声明为 `ANTHROPIC_API_KEY` 的 init 会被拒绝，避免误用服务凭据却报告未经验证的认证来源；声明为 `none` 的 init 映射到专门的 `claude_local_not_logged_in`，提示运行 `claude /login`——对 Claude Code 2.1.223 实测确认 `none` 表示**未登录**（运行会回 `Not logged in · Please run /login`、`error: authentication_failed`），把它当作有效来源会让未认证的运行通过策略门 |
+| 版本窗口 | 与隔离 Adapter 相同：`>=2.1.214 <2.2.0`。窗口外或二进制缺失在 port 解析阶段 fail closed（退出码 1，环境故障），不会被建模成"员工失败"的治理结论（退出码 0） |
+| 环境姿态 | **不覆盖** `HOME` 与 `CLAUDE_CONFIG_DIR`——这是操作方登录态可见的唯一机制。继承环境中的 `ANTHROPIC_API_KEY` 会被剔除；`CLAUDE_CODE_DISABLE_CLAUDE_MDS` 等收敛 flag 保留 |
+| 工具面 | 空工具/MCP/skill/slash-command 集，`--max-turns 1`，Claude Code 在此仅作模型使用 |
+
+**适用边界（硬约束）**：仅限本地操作方在自己机器上使用自己的登录态。不得用于服务器无人值守运行、多租户、代第三方用户执行或商业转售；不得将任何订阅凭据随员工包、镜像或分发物发布。这些场景仍只能使用上表中基于显式 `ANTHROPIC_API_KEY` 的隔离 Adapter。
+
+**该 port 从不读取凭据存储**：不读、不解析、不转发 `~/.claude/.credentials.json`、系统钥匙串或任何凭据文件；唯一机制是 spawn 官方二进制。
+
+**未达成的部分**：该 port 未走 adapter qualification 流程，不得据上表的 `runnable` 结论推断其等价性。保留真实 `HOME` 意味着放弃隔离 Adapter 那种"运行可复现"保证。订阅限流面向单人交互式使用，跨岗位并发派活的并发策略由调用方（如 org-workbench）负责，本 port 不做限流。真实登录态下的端到端验收需本机手工执行，CI 不覆盖。

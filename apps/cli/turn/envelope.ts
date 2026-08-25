@@ -29,6 +29,13 @@ export const TURN_ENVELOPE_SCHEMA_ID =
 export const TURN_ENGINE_MODEL_ENV = "DIGITAL_EMPLOYEE_ENGINE_MODEL" as const
 export const TURN_ENGINE_MODEL_SCRIPT_ENV =
   "DIGITAL_EMPLOYEE_ENGINE_MODEL_SCRIPT" as const
+/**
+ * Optional binary override for the claude-local port (#182). A version manager
+ * or a non-standard install can keep `claude` off the spawn PATH; this names
+ * the entrypoint without putting anything credential-bearing in argv.
+ */
+export const TURN_ENGINE_CLAUDE_COMMAND_ENV =
+  "DIGITAL_EMPLOYEE_CLAUDE_COMMAND" as const
 
 export interface TurnEnvelope {
   schemaVersion: typeof TURN_ENVELOPE_VERSION

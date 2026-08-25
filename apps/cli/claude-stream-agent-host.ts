@@ -24,7 +24,18 @@ export interface ClaudeStreamNormalizerOptions {
   expectedVersion?: string
   versionSupported: (value: string | undefined) => boolean
   now: () => string
+  /**
+   * Authentication sources the announced init may declare. Defaults to the
+   * isolated service adapter's single `ANTHROPIC_API_KEY`. The local operator
+   * model port (#182) accepts the operator-login sources instead, so that a
+   * service credential can never be used while an unverified authentication
+   * source is reported. Membership is asserted exactly: anything outside the
+   * allowed set still fails closed.
+   */
+  expectedApiKeySources?: readonly string[]
 }
+
+const DEFAULT_API_KEY_SOURCES: readonly string[] = ["ANTHROPIC_API_KEY"]
 
 export interface ClaudeStreamCompletion {
   usage: Extract<AgentHostEvent, { type: "usage" }>
@@ -178,7 +189,10 @@ export class ClaudeZeroToolStreamNormalizer {
         event.capabilities.every((entry) => typeof entry === "string"))
     if (
       !boundedSessionId(event.session_id) ||
-      event.apiKeySource !== "ANTHROPIC_API_KEY" ||
+      typeof event.apiKeySource !== "string" ||
+      !(this.options.expectedApiKeySources ?? DEFAULT_API_KEY_SOURCES).includes(
+        event.apiKeySource,
+      ) ||
       event.cwd !== this.options.expectedCwd ||
       event.permissionMode !== "dontAsk" ||
       !exactEmptyArray(event.tools) ||

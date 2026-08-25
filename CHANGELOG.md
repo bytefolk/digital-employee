@@ -6,6 +6,28 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- `turn run` gains a `claude-local` model port (#182 REQ-001..REQ-005), so a
+  local operator can complete a turn with the Claude Code install already
+  authenticated on their machine and no `ANTHROPIC_API_KEY`. The port spawns
+  the official binary and lets Claude Code resolve its own login: it never
+  reads, parses or forwards any credential store, and `HOME` /
+  `CLAUDE_CONFIG_DIR` are deliberately left untouched. The run stream must
+  announce `apiKeySource: claude_cli_oauth`; an `ANTHROPIC_API_KEY`-sourced
+  init is rejected so a service credential cannot be used while reporting an
+  unverified authentication source, and a `none`-sourced init maps to an
+  actionable `claude_local_not_logged_in` (verified against 2.1.223: `none`
+  means not logged in). Token usage is read from the stream, so
+  per-task and per-day budget accounting keeps working. A missing or
+  out-of-window binary fails closed during port resolution (exit 1, an
+  environment fault) instead of being modeled as a failed turn (exit 0).
+  Scope is local interactive use only — unattended, multi-tenant, third-party
+  or resale deployments still require the isolated `ANTHROPIC_API_KEY`
+  adapter, and no subscription credential may be bundled into a distributed
+  employee package. The port has not been through adapter qualification, and
+  end-to-end verification against a genuinely authenticated Claude Code is a
+  manual local check that CI does not cover. See
+  [`docs/agent-hosts.md`](docs/agent-hosts.md).
+
 - The capability evidence standard is now codified and enforced (#140
   REQ-001 / REQ-002 / REQ-004, AC-001 / AC-002): every claim must carry the
   exact Host version, the deterministic fixture (kit) version, the

@@ -191,6 +191,84 @@ test("model port resolves through the environment allowlist only", async () => {
   assert.equal(terminal!.output, "done via env")
 })
 
+test("#182 AC-004: an unknown model port still fails closed", async () => {
+  const workspace = await createWorkspace()
+  const envelope = sealedEnvelope(workspace)
+  const events: Array<Record<string, unknown>> = []
+  const diagnostics: string[] = []
+  const result = await runTurn({
+    workspace,
+    positionId: "repo-owner",
+    envelopeText: JSON.stringify(envelope),
+    env: { DIGITAL_EMPLOYEE_ENGINE_MODEL: "not-a-real-port" },
+    writeEvent: (line) => events.push(JSON.parse(line)),
+    writeDiagnostic: (line) => diagnostics.push(line),
+  })
+  assert.equal(result.exitCode, 1)
+  assert.equal(events.length, 0)
+  assert.ok(
+    diagnostics.some((line) => line.includes("engine.model_unavailable")),
+    "an unrecognized port must not silently degrade",
+  )
+})
+
+test("#182 AC-004: an unusable claude-local binary is an environment fault, not a verdict", async () => {
+  const workspace = await createWorkspace()
+  const envelope = sealedEnvelope(workspace)
+  const events: Array<Record<string, unknown>> = []
+  const diagnostics: string[] = []
+  const result = await runTurn({
+    workspace,
+    positionId: "repo-owner",
+    envelopeText: JSON.stringify(envelope),
+    env: {
+      DIGITAL_EMPLOYEE_ENGINE_MODEL: "claude-local",
+      DIGITAL_EMPLOYEE_CLAUDE_COMMAND: "/nonexistent/claude-for-this-test",
+    },
+    writeEvent: (line) => events.push(JSON.parse(line)),
+    writeDiagnostic: (line) => diagnostics.push(line),
+  })
+  // Exit 1 with no terminal: a missing binary must not be modeled as a failed
+  // turn (which would exit 0 and read as a verdict about the employee).
+  assert.equal(result.exitCode, 1)
+  assert.equal(events.length, 0)
+  assert.ok(
+    diagnostics.some((line) => line.includes("claude_local_binary_unavailable")),
+    "the diagnostic must name the environment fault, not just model_unavailable",
+  )
+})
+
+test("#182 AC-005: a claude-local binary outside the version window fails closed", async () => {
+  const workspace = await createWorkspace()
+  const envelope = sealedEnvelope(workspace)
+  const diagnostics: string[] = []
+  const stubDir = await mkdtemp(path.join(os.tmpdir(), "claude-local-oldver-"))
+  // A single executable path: the probe spawns without a shell, so the command
+  // must not be a space-separated "node <script>" string.
+  const stub = path.join(stubDir, "claude-stub")
+  await writeFile(
+    stub,
+    `#!${process.execPath}\nprocess.stdout.write("2.0.1 (Claude Code)\\n")\n`,
+    { mode: 0o755 },
+  )
+  const result = await runTurn({
+    workspace,
+    positionId: "repo-owner",
+    envelopeText: JSON.stringify(envelope),
+    env: {
+      DIGITAL_EMPLOYEE_ENGINE_MODEL: "claude-local",
+      DIGITAL_EMPLOYEE_CLAUDE_COMMAND: stub,
+    },
+    writeEvent: () => undefined,
+    writeDiagnostic: (line) => diagnostics.push(line),
+  })
+  assert.equal(result.exitCode, 1)
+  assert.ok(
+    diagnostics.some((line) => line.includes("claude_local_version_not_supported")),
+    "an out-of-window version must be rejected as such, not as a missing binary",
+  )
+})
+
 test("AC-002: modeled budget-exceeded terminal exits 0 with escalation verdict", async () => {
   const workspace = await createWorkspace()
   const envelope = sealedEnvelope(workspace, {

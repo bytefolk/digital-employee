@@ -30,11 +30,13 @@ import {
   type ModelPort,
 } from "../../../packages/engine/src/model-port.js"
 import type { EngineTurnRequest } from "../../../packages/engine/src/contracts.js"
+import { createClaudeLocalModelPort, probeLocalClaude } from "./claude-local-model-port.js"
 import { executeTurn } from "../../../packages/engine/src/turn-executor.js"
 import { loadOrgModel } from "../org/model.js"
 import {
   parseTurnEnvelope,
   TurnEnvelopeError,
+  TURN_ENGINE_CLAUDE_COMMAND_ENV,
   TURN_ENGINE_MODEL_ENV,
   TURN_ENGINE_MODEL_SCRIPT_ENV,
   type TurnEnvelope,
@@ -109,6 +111,23 @@ function resolveModelPort(env: NodeJS.ProcessEnv): ModelPort {
       )
     }
     return createDeterministicModelPort(script as string[])
+  }
+  if (engine === "claude-local") {
+    // Local-operator port (#182): drives the operator's already-authenticated
+    // Claude Code install, so no service credential is read or required. Local
+    // interactive use only — see claude-local-model-port.ts for the boundary.
+    const command = env[TURN_ENGINE_CLAUDE_COMMAND_ENV]?.trim() || "claude"
+    // A missing or out-of-window binary is an environment fault: surface it
+    // here so it maps to exit 1, instead of letting the engine model it as a
+    // failed turn and report exit 0.
+    const unusable = probeLocalClaude(command)
+    if (unusable !== undefined) {
+      throw new TurnSpawnError(
+        "engine.model_unavailable",
+        `${unusable}: the local Claude Code binary (${command}) is missing or outside the supported version window`,
+      )
+    }
+    return createClaudeLocalModelPort({ command, environment: env })
   }
   throw new TurnSpawnError(
     "engine.model_unavailable",

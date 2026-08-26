@@ -4,10 +4,10 @@
  *   turn run [workspace] --position <id> (--stdin | --input-file <path>)
  *
  * The spawn surface carries exactly one input source — the sealed
- * turn-envelope.v1 JSON — and one output discipline: NDJSON engine.v1
- * events on stdout, bounded diagnostics on stderr. `--json` is rejected
- * because the NDJSON stream IS the machine surface; a second formatting
- * mode would fork the contract.
+ * turn-envelope.v1/v1alpha2 JSON — and one output discipline: NDJSON
+ * engine.v1 events on stdout, bounded diagnostics on stderr. `--json` is
+ * rejected because the NDJSON stream IS the machine surface; a second
+ * formatting mode would fork the contract.
  */
 
 import { createReadStream } from "node:fs"
@@ -29,9 +29,10 @@ const TURN_INPUT_LIMIT_BYTES = 1024 * 1024
 function turnUsage(): string {
   return `digital-employee turn run [workspace] --position <id> (--stdin | --input-file <path>)
 
-Spawn surface for the built-in engine: consumes a sealed turn-envelope.v1
-request and streams NDJSON engine.v1 events. Exit 0 = exactly one trusted
-terminal; exit 1 = spawn-level failure (no terminal, indeterminate).
+Spawn surface for the built-in engine: consumes a sealed
+turn-envelope.v1/v1alpha2 request and streams NDJSON engine.v1 events.
+Exit 0 = exactly one trusted terminal; exit 1 = spawn-level failure (no
+terminal, indeterminate).
 `
 }
 

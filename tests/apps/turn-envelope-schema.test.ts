@@ -8,6 +8,7 @@ import { buildTurnEnvelopeSchema } from "../../apps/cli/turn/envelope-schema.js"
 import {
   computeEnvelopeDigest,
   parseTurnEnvelope,
+  TURN_ENVELOPE_V1_VERSION,
   TURN_ENVELOPE_VERSION,
 } from "../../apps/cli/turn/envelope.js"
 
@@ -146,4 +147,52 @@ test("#193 AC-005: malformed pendingApproval shapes reject before consumption", 
         (error as { code?: string }).code === "engine.input_invalid",
     )
   }
+})
+
+test("#205 AC-001: a legacy turn-envelope.v1 envelope parses byte-exactly", () => {
+  const raw = sealedEnvelope({ schemaVersion: TURN_ENVELOPE_V1_VERSION })
+  const envelope = parseTurnEnvelope(raw)
+  assert.equal(envelope.schemaVersion, TURN_ENVELOPE_V1_VERSION)
+  assert.equal(envelope.conversationRef, undefined)
+  assert.equal("conversationRef" in envelope, false)
+  // The parsed shape re-seals to the identical digest: no field added,
+  // dropped, or renamed on the legacy path.
+  const { envelopeDigest, ...body } = envelope
+  assert.equal(computeEnvelopeDigest(body), envelopeDigest)
+})
+
+test("#205 AC-001: v1alpha2 without conversationRef behaves like v1", () => {
+  const envelope = parseTurnEnvelope(sealedEnvelope())
+  assert.equal(envelope.schemaVersion, TURN_ENVELOPE_VERSION)
+  assert.equal("conversationRef" in envelope, false)
+})
+
+test("#205 AC-002: a v1alpha2 envelope carries a sealed conversationRef", () => {
+  const envelope = parseTurnEnvelope(
+    sealedEnvelope({ conversationRef: "conv-group-42" }),
+  )
+  assert.equal(envelope.conversationRef, "conv-group-42")
+})
+
+test("#205 AC-003: conversationRef type violations reject on the existing channel", () => {
+  const violations: unknown[] = [42, null, "", "   ", {}, [], "x".repeat(257)]
+  for (const conversationRef of violations) {
+    assert.throws(
+      () => parseTurnEnvelope(sealedEnvelope({ conversationRef })),
+      (error: unknown) =>
+        (error as { code?: string }).code === "engine.input_invalid",
+    )
+  }
+})
+
+test("#205: a v1 envelope carrying conversationRef fails closed", () => {
+  const envelope = sealedEnvelope({
+    schemaVersion: TURN_ENVELOPE_V1_VERSION,
+    conversationRef: "conv-group-42",
+  })
+  assert.throws(
+    () => parseTurnEnvelope(envelope),
+    (error: unknown) =>
+      (error as { code?: string }).code === "engine.input_invalid",
+  )
 })

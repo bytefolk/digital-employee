@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `turn-envelope` bumps to `v1alpha2` with a strictly additive, optional
+  `conversationRef` back-link field (#205, DE-CONVREF-001): an opaque
+  workbench-generated conversation identifier that the spawn surface echoes
+  verbatim on every `engine.v1` event of the turn so consumers can group
+  turns by conversation. Legacy `turn-envelope.v1` envelopes remain accepted
+  with byte-exact behavior, a v1 envelope carrying the field fails closed,
+  and type violations (non-string, empty, oversized) reject through the
+  existing `engine.input_invalid` channel. The published
+  `configs/turn-envelope.schema.json` gains dual-version acceptance and an
+  `if/then` v1 guard under the builder byte-identity discipline.
+
 ## [0.5.0] - 2026-08-26
 
 ### Added

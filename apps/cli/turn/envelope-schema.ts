@@ -1,13 +1,16 @@
 /**
- * Code-side builder for the turn-envelope.v1 JSON Schema (#173 REQ-002,
- * open decision 3: published under configs/ with the builder byte-identity
- * discipline). The published file configs/turn-envelope.schema.json must be
- * byte-identical to `JSON.stringify(buildTurnEnvelopeSchema(), null, 2) +
- * "\n"`; the schema-consistency test enforces this.
+ * Code-side builder for the turn-envelope.v1alpha2 JSON Schema (#173
+ * REQ-002, open decision 3: published under configs/ with the builder
+ * byte-identity discipline; #205 DE-CONVREF-001 adds the optional
+ * conversationRef back-link while still accepting legacy v1). The published
+ * file configs/turn-envelope.schema.json must be byte-identical to
+ * `JSON.stringify(buildTurnEnvelopeSchema(), null, 2) + "\n"`; the
+ * schema-consistency test enforces this.
  */
 
 import {
   TURN_ENVELOPE_SCHEMA_ID,
+  TURN_ENVELOPE_V1_VERSION,
   TURN_ENVELOPE_VERSION,
 } from "./envelope.js"
 
@@ -32,7 +35,7 @@ function budgetScopeSchema(): Record<string, unknown> {
 }
 
 /**
- * Build the turn-envelope.v1 JSON Schema (draft 2020-12). Mirrors
+ * Build the turn-envelope.v1alpha2 JSON Schema (draft 2020-12). Mirrors
  * `parseTurnEnvelope` field-by-field; validator/builder agreement is
  * asserted by the test suite on the fixture set.
  */
@@ -40,7 +43,7 @@ export function buildTurnEnvelopeSchema(): Record<string, unknown> {
   return {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     $id: TURN_ENVELOPE_SCHEMA_ID,
-    title: "turn-envelope.v1 sealed turn request",
+    title: "turn-envelope.v1alpha2 sealed turn request",
     type: "object",
     additionalProperties: false,
     required: [
@@ -52,7 +55,9 @@ export function buildTurnEnvelopeSchema(): Record<string, unknown> {
       "envelopeDigest",
     ],
     properties: {
-      schemaVersion: { const: TURN_ENVELOPE_VERSION },
+      schemaVersion: {
+        enum: [TURN_ENVELOPE_VERSION, TURN_ENVELOPE_V1_VERSION],
+      },
       workspaceRef: boundedIdSchema(),
       positionId: boundedIdSchema(),
       turnId: boundedIdSchema(),
@@ -79,8 +84,14 @@ export function buildTurnEnvelopeSchema(): Record<string, unknown> {
       dayKey: boundedIdSchema(),
       deadline: { type: "string" },
       pendingApproval: { $ref: "#/$defs/pendingApproval" },
+      conversationRef: boundedIdSchema(),
       envelopeDigest: { type: "string", minLength: 1 },
     },
+    if: {
+      properties: { schemaVersion: { const: TURN_ENVELOPE_V1_VERSION } },
+      required: ["schemaVersion"],
+    },
+    then: { not: { required: ["conversationRef"] } },
     $defs: {
       budgetScope: budgetScopeSchema(),
       pendingApproval: {

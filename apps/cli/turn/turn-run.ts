@@ -2,9 +2,9 @@
  * `turn run` spawn surface (#173 REQ-001/REQ-003/REQ-004/REQ-005, OQ-1).
  *
  * Projects the merged engine core onto a stable CLI wire surface for
- * cross-product clients: sealed turn-envelope.v1 in, NDJSON engine.v1
- * events out, exactly one trusted terminal, unambiguous exit codes.
- * Engine-internal contracts are consumed, never changed.
+ * cross-product clients: sealed turn-envelope.v1/v1alpha2 in, NDJSON
+ * engine.v1 events out, exactly one trusted terminal, unambiguous exit
+ * codes. Engine-internal contracts are consumed, never changed.
  *
  * Exit-code semantics (#102 crash discipline):
  *   0 = exactly one trusted terminal reached (completed, or a modeled
@@ -294,7 +294,13 @@ export async function runTurn(options: TurnRunOptions): Promise<TurnRunResult> {
       ...(options.now !== undefined ? { now: options.now } : {}),
       ...(options.newId !== undefined ? { newId: options.newId } : {}),
     })) {
-      writeEvent(JSON.stringify(event))
+      writeEvent(
+        JSON.stringify(
+          envelope.conversationRef !== undefined
+            ? { ...event, conversationRef: envelope.conversationRef }
+            : event,
+        ),
+      )
       if (event.type === "run.completed" || event.type === "run.failed") {
         terminalEmitted = true
       }

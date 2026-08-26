@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fullstack-ai-infra.dev/schemas/turn-envelope.schema.json",
-  "title": "turn-envelope.v1 sealed turn request",
+  "title": "turn-envelope.v1alpha2 sealed turn request",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -14,7 +14,10 @@
   ],
   "properties": {
     "schemaVersion": {
-      "const": "turn-envelope.v1"
+      "enum": [
+        "turn-envelope.v1alpha2",
+        "turn-envelope.v1"
+      ]
     },
     "workspaceRef": {
       "type": "string",
@@ -81,9 +84,31 @@
     "pendingApproval": {
       "$ref": "#/$defs/pendingApproval"
     },
+    "conversationRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
     "envelopeDigest": {
       "type": "string",
       "minLength": 1
+    }
+  },
+  "if": {
+    "properties": {
+      "schemaVersion": {
+        "const": "turn-envelope.v1"
+      }
+    },
+    "required": [
+      "schemaVersion"
+    ]
+  },
+  "then": {
+    "not": {
+      "required": [
+        "conversationRef"
+      ]
     }
   },
   "$defs": {

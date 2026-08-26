@@ -1,5 +1,5 @@
 /**
- * Sealed turn envelope (turn-envelope.v1) — the wire contract for the
+ * Sealed turn envelope (turn-envelope.v1alpha2) — the wire contract for the
  * `turn run` spawn surface (#173 REQ-002, OQ-1 adjudication).
  *
  * The envelope is digest-bound: `envelopeDigest` is the sha256 over the
@@ -7,6 +7,10 @@
  * itself), and the CLI re-verifies it before any consumption. A mismatched
  * or malformed envelope fails closed before any model consumption, per the
  * #90 package-binding discipline.
+ *
+ * v1alpha2 (#205, DE-CONVREF-001) strictly adds the optional
+ * `conversationRef` back-link; legacy `turn-envelope.v1` envelopes remain
+ * accepted with byte-exact behavior.
  */
 
 import { createHash } from "node:crypto"
@@ -21,7 +25,9 @@ import type {
   TurnPendingApprovalInput,
 } from "../../../packages/engine/src/contracts.js"
 
-export const TURN_ENVELOPE_VERSION = "turn-envelope.v1" as const
+export const TURN_ENVELOPE_VERSION = "turn-envelope.v1alpha2" as const
+/** Legacy version still accepted for byte-exact compatibility (#205). */
+export const TURN_ENVELOPE_V1_VERSION = "turn-envelope.v1" as const
 export const TURN_ENVELOPE_SCHEMA_ID =
   "https://fullstack-ai-infra.dev/schemas/turn-envelope.schema.json" as const
 
@@ -48,7 +54,7 @@ export const TURN_ENGINE_QODER_COMMAND_ENV =
   "DIGITAL_EMPLOYEE_QODER_COMMAND" as const
 
 export interface TurnEnvelope {
-  schemaVersion: typeof TURN_ENVELOPE_VERSION
+  schemaVersion: typeof TURN_ENVELOPE_VERSION | typeof TURN_ENVELOPE_V1_VERSION
   workspaceRef: string
   positionId: string
   turnId: string
@@ -64,6 +70,12 @@ export interface TurnEnvelope {
    * `TurnPendingApprovalInput` verbatim — no parallel vocabulary.
    */
   pendingApproval?: TurnPendingApprovalInput
+  /**
+   * Optional conversation back-link (#205, v1alpha2 only): an opaque
+   * workbench-generated conversation identifier, echoed verbatim on every
+   * event of the turn so consumers can group turns by conversation.
+   */
+  conversationRef?: string
   envelopeDigest: string
 }
 
@@ -139,12 +151,16 @@ export function parseTurnEnvelope(raw: unknown): TurnEnvelope {
       "envelope must be a JSON object",
     )
   }
-  if (raw.schemaVersion !== TURN_ENVELOPE_VERSION) {
+  if (
+    raw.schemaVersion !== TURN_ENVELOPE_VERSION &&
+    raw.schemaVersion !== TURN_ENVELOPE_V1_VERSION
+  ) {
     throw new TurnEnvelopeError(
       "engine.envelope_invalid",
-      `schemaVersion must be ${TURN_ENVELOPE_VERSION}`,
+      `schemaVersion must be ${TURN_ENVELOPE_VERSION} or ${TURN_ENVELOPE_V1_VERSION}`,
     )
   }
+  const schemaVersion = raw.schemaVersion as TurnEnvelope["schemaVersion"]
   const workspaceRef = assertBoundedId(raw.workspaceRef, "workspaceRef")
   const positionId = assertBoundedId(raw.positionId, "positionId")
   const turnId = assertBoundedId(raw.turnId, "turnId")
@@ -153,6 +169,20 @@ export function parseTurnEnvelope(raw: unknown): TurnEnvelope {
       "engine.input_invalid",
       "envelope input is required",
     )
+  }
+
+  // conversationRef belongs to v1alpha2 (#205): a v1 envelope carrying it is
+  // a version-mixing audit ambiguity and fails closed on the existing
+  // validation channel.
+  let conversationRef: string | undefined
+  if (raw.conversationRef !== undefined) {
+    if (schemaVersion !== TURN_ENVELOPE_VERSION) {
+      throw new TurnEnvelopeError(
+        "engine.input_invalid",
+        `conversationRef requires schemaVersion ${TURN_ENVELOPE_VERSION}`,
+      )
+    }
+    conversationRef = assertBoundedId(raw.conversationRef, "conversationRef")
   }
 
   let budget: TurnBudget | undefined
@@ -305,7 +335,7 @@ export function parseTurnEnvelope(raw: unknown): TurnEnvelope {
   }
 
   return {
-    schemaVersion: TURN_ENVELOPE_VERSION,
+    schemaVersion,
     workspaceRef,
     positionId,
     turnId,
@@ -316,6 +346,7 @@ export function parseTurnEnvelope(raw: unknown): TurnEnvelope {
       : {}),
     ...(raw.deadline !== undefined ? { deadline: raw.deadline as string } : {}),
     ...(pendingApproval !== undefined ? { pendingApproval } : {}),
+    ...(conversationRef !== undefined ? { conversationRef } : {}),
     envelopeDigest: raw.envelopeDigest,
   }
 }

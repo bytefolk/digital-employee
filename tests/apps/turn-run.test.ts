@@ -15,6 +15,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 import { runTurn } from "../../apps/cli/turn/turn-run.js"
 import {
   computeEnvelopeDigest,
+  TURN_ENVELOPE_V1_VERSION,
   TURN_ENVELOPE_VERSION,
 } from "../../apps/cli/turn/envelope.js"
 import type { ModelPort } from "../../packages/engine/src/index.js"
@@ -698,5 +699,76 @@ test("#193 AC-004: an envelope without pendingApproval keeps current behavior", 
       String(event.type).startsWith("approval."),
     ),
     "no approval lifecycle events without a verdict field",
+  )
+})
+
+test("#205 AC-002: conversationRef back-links every event of the turn", async () => {
+  const workspace = await createWorkspace()
+  const envelope = sealedEnvelope(workspace, {
+    conversationRef: "conv-group-42",
+  })
+  const { result, events } = await execute(
+    workspace,
+    JSON.stringify(envelope),
+    createDeterministicModelPort(["all issues summarized"]),
+  )
+  assert.equal(result.exitCode, 0)
+  assert.ok(events.length > 0)
+  for (const event of events) {
+    assert.equal(
+      event.conversationRef,
+      "conv-group-42",
+      `event ${String(event.type)} must echo the conversation back-link`,
+    )
+  }
+  assert.ok(events.some((event) => event.type === "run.completed"))
+})
+
+test("#205 AC-001: legacy v1 and ref-less v1alpha2 events stay byte-exact", async () => {
+  const workspace = await createWorkspace()
+  const model = createDeterministicModelPort(["all issues summarized"])
+  for (const schemaVersion of [
+    TURN_ENVELOPE_V1_VERSION,
+    TURN_ENVELOPE_VERSION,
+  ]) {
+    const envelope = sealedEnvelope(workspace, { schemaVersion })
+    const { result, events } = await execute(
+      workspace,
+      JSON.stringify(envelope),
+      model,
+    )
+    assert.equal(result.exitCode, 0)
+    assert.ok(events.length > 0)
+    for (const event of events) {
+      assert.equal(
+        "conversationRef" in event,
+        false,
+        `event ${String(event.type)} must not gain a key without the field`,
+      )
+    }
+  }
+})
+
+test("#205 AC-003: a non-string conversationRef fails spawn before any event", async () => {
+  const workspace = await createWorkspace()
+  const envelope = sealedEnvelope(workspace, { conversationRef: 42 })
+  let modelCalls = 0
+  const model: ModelPort = {
+    async complete() {
+      modelCalls += 1
+      return { text: "never" }
+    },
+  }
+  const { result, events, diagnostics } = await execute(
+    workspace,
+    JSON.stringify(envelope),
+    model,
+  )
+  assert.equal(result.exitCode, 1)
+  assert.equal(result.terminalEmitted, false)
+  assert.equal(events.length, 0)
+  assert.equal(modelCalls, 0)
+  assert.ok(
+    diagnostics.some((line) => line.includes("engine.input_invalid")),
   )
 })

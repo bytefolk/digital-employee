@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- `docs/releasing.md` codifies the version-bump semantics (#200): within 0.x,
+  additive capability releases bump MINOR, defect-only releases bump PATCH,
+  breaking changes to a shipped surface bump MINOR with a `Breaking` changelog
+  heading, and MAJOR is reserved for the 1.0 stability commitment. The
+  convention takes effect starting with the 0.5.0 release.
 - Local PR governance precheck (#197 REQ-001): `npm run governance:precheck
   -- --body-file <path>` validates a draft pull request body against the
   exact CI implementation-trace gate before pushing. The precheck builds a

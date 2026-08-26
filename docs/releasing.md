@@ -8,6 +8,12 @@ verified archives; they do not rebuild them.
 
 ## Normal release
 
+Version numbers follow semver vocabulary: within 0.x, additive capability
+releases bump MINOR, defect-only releases bump PATCH, and any breaking change
+to a shipped surface (commands, schemas, envelopes, package layout) bumps
+MINOR and is called out in the changelog under a `Breaking` heading; MAJOR is
+reserved for the 1.0 stability commitment.
+
 1. Merge a commit whose root/core package versions and changelog agree.
 2. Create the matching stable tag on that commit.
 3. Let `.github/workflows/release.yml` reconcile npm, GitHub Releases, and

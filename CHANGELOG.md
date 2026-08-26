@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-26
+
 ### Added
 
 - `docs/releasing.md` codifies the version-bump semantics (#200): within 0.x,
@@ -229,6 +231,10 @@ All notable changes to this project will be documented in this file.
   and that each of the three adapters fails closed with its typed code,
   zero version-probe calls and no model spawn for invalid/`$async`/oversized
   Schemas; Schema-absent requests keep the existing unstructured behavior.
+  Relative to 0.4.0 the failure point for unsupported Schemas moves
+  forward: the run now fails closed at the shared preflight guard before
+  any side effect, instead of later inside adapter-specific probe or
+  terminal validation layers.
 - Issue #113 AC-004 evidence is hardened without changing any authority:
   Claude, Qwen and CodeBuddy projection tests now assert (as Qoder already
   did) that output-Schema bytes never reach process environment values or

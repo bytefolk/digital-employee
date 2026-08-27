@@ -148,3 +148,25 @@ export type {
   ExistingDelegationRef,
   RequestedTaskRecord,
 } from "./delegation.js"
+
+export {
+  ORG_PERMISSIONS_SCHEMA_VERSION,
+  READ_TOOL_ALLOWLIST,
+  createPermissionGate,
+  effectiveMode,
+  evaluateContextAccess,
+  evaluateToolAuthority,
+  normalizeContextPath,
+  permissionsFor,
+} from "./org-permissions.js"
+export type {
+  AuthorityScope,
+  OrganizationPermissions,
+  PermissionDecision,
+  PermissionDecisionSummary,
+  PermissionDenialAttempt,
+  PermissionGate,
+  PermissionTier,
+  PositionMode,
+  PositionPermissions,
+} from "./org-permissions.js"

@@ -62,7 +62,7 @@ export {
 export type { PreparedTerminalSchema } from "./output-schema-guard.js"
 
 export { executeTurn } from "./turn-executor.js"
-export type { TurnExecutorOptions } from "./turn-executor.js"
+export type { EngineMemoryOptions, TurnExecutorOptions } from "./turn-executor.js"
 
 export {
   MAX_BUDGET_CAP,
@@ -116,6 +116,9 @@ export type {
   TurnEvidenceApprovalRef,
   TurnEvidenceBudget,
   TurnEvidencePermissions,
+  TurnEvidenceMemory,
+  TurnEvidenceMemoryItem,
+  TurnEvidenceMemoryWarning,
   TurnEvidenceRecord,
   TurnEvidenceTerminal,
 } from "./turn-evidence.js"

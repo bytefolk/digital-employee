@@ -1,6 +1,14 @@
-import { randomUUID } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 
 import type { SafeValue } from "../../core/src/contracts.js"
+import {
+  derivePositionPrincipal,
+  MemoryPortError,
+  MEMORY_RECALL_SCHEMA_VERSION,
+  type MemoryPort,
+  type MemoryRecall,
+  type MemoryRecallProvenance,
+} from "../../core/src/memory-port.js"
 
 import {
   checkPositionBudget,
@@ -53,8 +61,43 @@ import {
   TURN_EVIDENCE_VERSION,
   type EvidenceSinkPort,
   type TurnEvidenceApprovalRef,
+  type TurnEvidenceMemory,
   type TurnEvidenceRecord,
 } from "./turn-evidence.js"
+
+/**
+ * Memory-recall seam configuration (#180 wiring, consumed through #209).
+ * Disabled by default: recall happens only when `enabled` is exactly true.
+ * The port instance is pinned to one workspace instance + position +
+ * memoryScope binding (#181); the engine passes the pinned scope through
+ * unchanged and never accepts scope supplied or widened by turn input.
+ * `adapterIdentity` is the bounded machine identity of the pinned adapter
+ * (e.g. "mem-http.v1"); it is validated before any port call and recorded
+ * in turn evidence (#209 REQ-001). The port contract itself stays frozen.
+ */
+export interface EngineMemoryOptions {
+  port: MemoryPort
+  enabled: boolean
+  workspaceInstanceId: string
+  sessionId: string
+  memoryScope: string
+  mode: "optional" | "required"
+  adapterIdentity: string
+  limit?: number
+}
+
+/** Bounded machine identity: leading alnum, then `[A-Za-z0-9._:@-]`, ≤128. */
+const ADAPTER_IDENTITY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/
+
+/**
+ * Canonical digest over a recall item's provenance block (#209 REQ-001).
+ * Provenance enters evidence only through this digest — never as raw
+ * fields — keeping the evidence record digest-only and identity-free.
+ */
+function digestProvenance(provenance: MemoryRecallProvenance): string {
+  const canonical = JSON.stringify(provenance, Object.keys(provenance).sort())
+  return createHash("sha256").update(canonical ?? "{}", "utf8").digest("hex")
+}
 
 export interface TurnExecutorOptions {
   model: ModelPort
@@ -64,6 +107,7 @@ export interface TurnExecutorOptions {
   evidenceSink?: EvidenceSinkPort
   orgLookup?: OrgReportingLookup
   doomLoop?: Partial<DoomLoopConfig>
+  memory?: EngineMemoryOptions
   newId?: () => string
 }
 
@@ -81,12 +125,15 @@ const REASON_TO_CODE: Readonly<Record<TerminalReason, string>> = {
   deadline_exceeded: "engine.deadline_exceeded",
   cancelled: "engine.cancelled",
   permission_denied: "engine.permission_denied",
+  memory_unavailable: "engine.memory_unavailable",
+  memory_denied: "engine.memory_denied",
   engine_internal_error: "engine.internal_error",
 }
 
 const RETRYABLE_REASONS: ReadonlySet<TerminalReason> = new Set([
   "invalid_output_exhausted",
   "deadline_exceeded",
+  "memory_unavailable",
   "engine_internal_error",
 ])
 
@@ -284,6 +331,112 @@ export async function* executeTurn(
     return
   }
 
+  // Memory-recall seam (#180): runs before any model consumption. Disabled
+  // by default; when enabled the pinned port is called with the pinned scope
+  // (never supplied or widened by turn input). Recalled text is untrusted
+  // data for the memory_recall slot; evidence keeps digests only.
+  let recallLines: string[] = []
+  let memoryEvidence: TurnEvidenceMemory | undefined
+  if (options.memory && options.memory.enabled === true) {
+    const memoryOptions = options.memory
+    // Bad configuration fails closed before any port call (#209 REQ-004):
+    // the adapter identity must be a bounded machine identifier.
+    if (!ADAPTER_IDENTITY_PATTERN.test(memoryOptions.adapterIdentity ?? "")) {
+      yield fail(
+        REASON_TO_CODE.memory_denied,
+        "memory adapter identity is missing or malformed",
+        "memory_denied",
+        false,
+      )
+      return
+    }
+    let recall: MemoryRecall | undefined
+    try {
+      recall = await memoryOptions.port.recall({
+        workspaceInstanceId: memoryOptions.workspaceInstanceId,
+        sessionId: memoryOptions.sessionId,
+        positionId: request.positionId,
+        principal: derivePositionPrincipal(request.positionId),
+        memoryScope: memoryOptions.memoryScope,
+        mode: memoryOptions.mode,
+        ...(memoryOptions.limit !== undefined
+          ? { limit: memoryOptions.limit }
+          : {}),
+      })
+    } catch (error) {
+      const portCode =
+        error instanceof MemoryPortError ? error.code : undefined
+      if (
+        memoryOptions.mode === "optional" &&
+        portCode === "MEMORY_UNAVAILABLE"
+      ) {
+        // Typed outage in optional mode: empty recall plus one warning; the
+        // turn proceeds without memory.
+        memoryEvidence = {
+          mode: "optional",
+          adapterIdentity: memoryOptions.adapterIdentity,
+          retrievedAt: timestamp(now),
+          itemCount: 0,
+          totalBytes: 0,
+          items: [],
+          warnings: [{ code: "MEMORY_UNAVAILABLE" }],
+        }
+      } else if (portCode === "MEMORY_UNAVAILABLE") {
+        // Required-mode outage: stable retryable failure before model call.
+        yield fail(
+          REASON_TO_CODE.memory_unavailable,
+          "durable memory is unavailable in required mode",
+          "memory_unavailable",
+          true,
+        )
+        return
+      } else {
+        // Denial, scope mismatch, malformed record, bad configuration, or
+        // unsupported contract: fail closed in both modes.
+        yield fail(
+          REASON_TO_CODE.memory_denied,
+          portCode !== undefined
+            ? `memory recall failed closed: ${portCode}`
+            : "memory recall failed closed",
+          "memory_denied",
+          false,
+        )
+        return
+      }
+    }
+    if (recall !== undefined) {
+      if (recall.schemaVersion !== MEMORY_RECALL_SCHEMA_VERSION) {
+        yield fail(
+          REASON_TO_CODE.memory_denied,
+          "memory recall returned an unexpected wire schema version",
+          "memory_denied",
+          false,
+        )
+        return
+      }
+      recallLines = recall.items.map((item) => item.text)
+      memoryEvidence = {
+        mode: memoryOptions.mode,
+        adapterIdentity: memoryOptions.adapterIdentity,
+        retrievedAt: recall.retrievedAt,
+        itemCount: recall.items.length,
+        totalBytes: recall.items.reduce(
+          (sum, item) => sum + Buffer.byteLength(item.text, "utf8"),
+          0,
+        ),
+        items: recall.items.map((item) => ({
+          digest: item.digest,
+          locator: item.locator,
+          kind: item.kind,
+          stateVersion: item.stateVersion,
+          byteLength: Buffer.byteLength(item.text, "utf8"),
+          provenanceDigest: digestProvenance(item.provenance),
+        })),
+        warnings: recall.warnings.map((warning) => ({ code: warning.code })),
+      }
+    }
+  }
+
   const assembled = assembleContext({
     positionId: request.positionId,
     turnId: request.turnId,
@@ -293,6 +446,7 @@ export async function* executeTurn(
       typeof request.input === "string"
         ? request.input
         : JSON.stringify(request.input),
+    memoryRecall: recallLines,
   })
 
   const detector = new DoomLoopDetector(options.doomLoop)
@@ -379,6 +533,7 @@ export async function* executeTurn(
             },
           }
         : {}),
+      ...(memoryEvidence !== undefined ? { memory: memoryEvidence } : {}),
       assemblyManifestDigest: assembled.manifest.digest,
       timeBounds: { startedAt, completedAt: timestamp(now) },
     }

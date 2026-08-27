@@ -60,6 +60,45 @@ export interface TurnEvidencePermissions {
   denials: PermissionDenialAttempt[]
 }
 
+/**
+ * Digest-only evidence for one recalled memory item (#180 memory-recall
+ * seam, consumed through #209). Raw recall text never enters evidence:
+ * items are untrusted data with authority "none"; only digests, locators,
+ * and bounded counters are recorded. Provenance enters as a digest over the
+ * canonical provenance block — never as raw provenance fields (#209
+ * REQ-001).
+ */
+export interface TurnEvidenceMemoryItem {
+  digest: string
+  locator: string
+  kind: string
+  stateVersion: number
+  byteLength: number
+  /** sha256 over the canonical provenance block of the recalled item. */
+  provenanceDigest: string
+}
+
+export interface TurnEvidenceMemoryWarning {
+  code: string
+}
+
+/**
+ * Digest-only memory-consumption evidence (#209 REQ-001): effective mode,
+ * retrievedAt, adapter identity, and per-item locators/state versions/
+ * content digests/provenance digests. Never raw recall content, never
+ * credentials.
+ */
+export interface TurnEvidenceMemory {
+  mode: "optional" | "required"
+  /** Bounded machine identity of the pinned adapter, e.g. "mem-http.v1". */
+  adapterIdentity: string
+  retrievedAt: string
+  itemCount: number
+  totalBytes: number
+  items: TurnEvidenceMemoryItem[]
+  warnings: TurnEvidenceMemoryWarning[]
+}
+
 export interface TurnEvidenceRecord {
   schemaVersion: typeof TURN_EVIDENCE_VERSION
   evidenceId: string
@@ -78,6 +117,8 @@ export interface TurnEvidenceRecord {
   approvalRef?: TurnEvidenceApprovalRef
   /** Permission decision summary + zero-content denial attempts (#159). */
   permissions?: TurnEvidencePermissions
+  /** Digest-only memory-recall consumption evidence (#180 seam). */
+  memory?: TurnEvidenceMemory
   /** Assembly manifest digest from context-assembly.v1. */
   assemblyManifestDigest: string
   timeBounds: {

@@ -37,6 +37,19 @@ All notable changes to this project will be documented in this file.
   permissions; an absent mode defaults to read_only and a malformed mode fails
   `org apply` closed. A new `permission_denied` terminal reason lands with the
   semantic-mapping doc.
+- Engine wires the `memory_recall` context slot to the strict `MemoryPort`
+  seam (#180 wiring, consumed through #209): an opt-in `EngineMemoryOptions`
+  (disabled by default) calls a pinned, scope-bound adapter before any model
+  consumption; `optional` mode converts only a typed `MEMORY_UNAVAILABLE`
+  outage into an empty recall plus one warning, `required` mode settles the
+  turn retryable with `engine.memory_unavailable` before the model call, and
+  denial, scope mismatch, revoked/expired grants, archived/forgotten items,
+  tampered records, bad configuration (including a missing or malformed
+  adapter identity), or an unexpected wire schema version fail closed as
+  `engine.memory_denied` in both modes. `turn-evidence.v1` gains a
+  digest-only `memory` field (adapter identity, item digests, locators, state
+  versions, provenance digests, byte counts) that never carries recall text
+  or raw provenance.
 
 ## [0.5.0] - 2026-08-26
 

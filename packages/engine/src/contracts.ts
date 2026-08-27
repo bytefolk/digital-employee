@@ -32,6 +32,8 @@ export type TerminalReason =
   | "deadline_exceeded"
   | "cancelled"
   | "permission_denied"
+  | "memory_unavailable"
+  | "memory_denied"
   | "engine_internal_error"
 
 /** Lowercase ASCII machine code: `[a-z0-9][a-z0-9._-]{0,127}`. */

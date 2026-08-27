@@ -51,9 +51,13 @@ contracts.ts 已声明 TerminalReason 是本仓自有枚举、不是外部枚举
 | deadline_exceeded | TurnAborted（超时路径） |
 | cancelled | TurnAborted / Op::SuspendTurnAndShutdown |
 | permission_denied | 无直接对应（#159 权限强制：越权请求在模型消耗前失败关闭） |
+| memory_unavailable | 无直接对应（codex 无持久记忆平面；required 模式持久记忆不可用的可重试结算） |
+| memory_denied | 无直接对应（召回被拒/作用域不匹配/记录畸形/配置无效的双模式 fail-closed 结算） |
 | engine_internal_error | StreamError / Error |
 
 结算语义注记（权限强制，#159）：权限强制在引擎执行链两层执行（模型消耗前预检 + 派发时检查），消费 `org apply` 重算的单一强制件 `permissions.json`（org-permissions.v1）。越权上下文读以 `workspace_org_context_denied` 结算、越权工具调用以 `workspace_org_authority_denied` 结算、未知岗位以 `workspace_org_position_unknown` 在生命周期事件发出前结算；拒绝一律携带 `redirectTo=owner`。拒绝尝试入回合证据（positionId、请求的路径或工具名、稳定码、指向），绝不携带被拒资源的内容；重复拒绝不升级、不自动重试。权限拒绝族（`workspace_org_*`）与审批结算族（`engine.approval_*`）正交并存。工件缺失/畸形以 `engine.permissions_invalid` 在模型消耗前失败关闭。
+
+结算语义注记（memory 接缝，#180）：记忆召回接缝在任何 model 消耗之前执行，默认停用、显式启用才召回，作用域由钉住的 MemoryPort 绑定透传、不接受回合输入供给或放宽。optional 模式仅把类型化 `MEMORY_UNAVAILABLE` 故障转为空召回 + 一条警告、回合照常进行；required 模式故障以 `engine.memory_unavailable`（retryable=true）结算；拒绝/作用域不匹配/记录畸形/配置无效/线协议版本异常在两种模式下统一 `engine.memory_denied`（retryable=false）fail-closed。证据仅记召回条目摘要/定位符/状态版本/字节计数，绝不记原文。
 
 ## 4. approval 语义对位（已实施词表，单一来源 contracts.ts）
 

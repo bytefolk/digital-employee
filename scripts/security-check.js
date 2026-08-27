@@ -12,6 +12,14 @@ const BLOCKED = [
   },
   { name: "AWS access key", pattern: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/ },
   {
+    name: "Alibaba Cloud access key",
+    pattern: /\bLTAI[0-9A-Za-z]{12,30}\b/
+  },
+  {
+    name: "signed object-storage URL",
+    pattern: /[?&](?:OSSAccessKeyId|X-Amz-Credential|X-Amz-Signature|x-oss-signature)=/i
+  },
+  {
     name: "OpenAI or Anthropic API key",
     pattern: /\bsk-(?:(?:proj|ant)-)?[A-Za-z0-9_-]{20,}\b/
   },
@@ -42,8 +50,23 @@ const BLOCKED = [
     name: "internal domain",
     pattern: /\b[a-z0-9.-]+\.(?:corp|internal|intranet)\b/i
   },
+  {
+    name: "enterprise-internal URL",
+    pattern:
+      /https?:\/\/[^\s"'`]*(?:alibaba-inc\.com|alibaba\.net|taobao\.net|aliyun-inc\.com|dingtalk\.net)\b/i
+  },
   { name: "private chat-derived knowledge", pattern: /\bcommunity-kb(?:\.json)?\b/i }
 ];
+
+const PUBLIC_BINARY_ALLOWLIST = new Set([
+  "docs/assets/demo-answer.png",
+  "docs/assets/demo-knowledge-cases.png",
+  "docs/assets/dws-community-qr.png",
+  "docs/assets/test-results.png"
+]);
+
+const PUBLIC_BINARY_PATTERN =
+  /^docs\/assets\/.+\.(?:avif|gif|jpe?g|png|webp)$/i;
 
 const filesResult = spawnSync(
   "git",
@@ -58,6 +81,10 @@ if (filesResult.status !== 0) {
 const findings = [];
 for (const file of filesResult.stdout.split("\0").filter(Boolean)) {
   if (file === "package-lock.json" || file === "scripts/security-check.js") continue;
+  if (PUBLIC_BINARY_PATTERN.test(file) && !PUBLIC_BINARY_ALLOWLIST.has(file)) {
+    findings.push(`${file}: blocked unreviewed public binary asset`);
+    continue;
+  }
   let buffer;
   try {
     buffer = await readFile(file);

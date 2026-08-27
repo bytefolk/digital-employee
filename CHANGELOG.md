@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Public documentation no longer embeds non-synthetic conversation captures;
+  `security:check` now fails closed on unreviewed `docs/assets` binaries,
+  Alibaba Cloud access-key shapes, signed object-storage URLs, and
+  enterprise-internal URLs (#207).
+
 ### Added
 
 - `turn-envelope` bumps to `v1alpha2` with a strictly additive, optional

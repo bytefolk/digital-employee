@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -31,10 +31,17 @@ test("security check detects common service key shapes", async () => {
     const examples = [
       ["github", "pat", "A".repeat(28)].join("_"),
       `ASIA${"A1".repeat(8)}`,
+      `LTAI${"A1".repeat(8)}`,
       ["sk", "proj", "A".repeat(32)].join("-"),
       `xoxb-${"1".repeat(12)}-${"a".repeat(24)}`,
       `AIza${"B".repeat(35)}`,
-      `client_secret = "${"c".repeat(32)}"`
+      `client_secret = "${"c".repeat(32)}"`,
+      [
+        "https://bucket.example.com/object?OSSAccessKey",
+        `Id=${"A".repeat(16)}&Sign`,
+        `ature=${"B".repeat(28)}`
+      ].join(""),
+      ["https://service", "alibaba-inc", "com/private"].join(".")
     ];
     await writeFile(path.join(root, "unsafe.txt"), examples.join("\n"));
     await writeFile(
@@ -50,10 +57,13 @@ test("security check detects common service key shapes", async () => {
     assert.equal(result.status, 1);
     assert.match(result.stderr, /blocked GitHub token/);
     assert.match(result.stderr, /blocked AWS access key/);
+    assert.match(result.stderr, /blocked Alibaba Cloud access key/);
+    assert.match(result.stderr, /blocked signed object-storage URL/);
     assert.match(result.stderr, /blocked OpenAI or Anthropic API key/);
     assert.match(result.stderr, /blocked Slack token/);
     assert.match(result.stderr, /blocked Google API key/);
     assert.match(result.stderr, /blocked assigned secret value/);
+    assert.match(result.stderr, /blocked enterprise-internal URL/);
     assert.match(
       result.stderr,
       /unsafe-json\.txt: blocked assigned secret value/
@@ -84,6 +94,40 @@ test("security check permits environment-variable placeholders", async () => {
     const result = runSecurityCheck(root);
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /security-check passed/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("security check rejects an unreviewed public binary asset", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "digital-employee-security-"));
+  try {
+    const initialized = spawnSync("git", ["init", "--quiet"], {
+      cwd: root,
+      encoding: "utf8"
+    });
+    assert.equal(initialized.status, 0, initialized.stderr);
+
+    await mkdir(path.join(root, "docs", "assets", "evidence"), {
+      recursive: true
+    });
+    await writeFile(
+      path.join(
+        root,
+        "docs",
+        "assets",
+        "evidence",
+        "unreviewed-evidence.png"
+      ),
+      Buffer.from([0, 1, 2, 3])
+    );
+
+    const result = runSecurityCheck(root);
+    assert.equal(result.status, 1);
+    assert.match(
+      result.stderr,
+      /unreviewed-evidence\.png: blocked unreviewed public binary asset/
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

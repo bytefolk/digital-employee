@@ -16,6 +16,20 @@ All notable changes to this project will be documented in this file.
   existing `engine.input_invalid` channel. The published
   `configs/turn-envelope.schema.json` gains dual-version acceptance and an
   `if/then` v1 guard under the builder byte-identity discipline.
+- Engine wires organization permission enforcement (#159 REQ-004..REQ-009):
+  a harness pre-check before any model consumption evaluates Context Scope and
+  Authority Scope against the `org apply`-recomputed `permissions.json`
+  artifact (org-permissions.v1). Out-of-scope context reads settle
+  `workspace_org_context_denied`, out-of-authority tool calls settle
+  `workspace_org_authority_denied`, and unknown positions settle
+  `workspace_org_position_unknown` before any lifecycle event; every denial
+  carries `redirectTo=owner` and is recorded in turn evidence with zero
+  content from the denied resource. A missing or malformed artifact fails the
+  turn closed with `engine.permissions_invalid`. `role.mode`
+  (read_only/approval_required) is now consumed and carried into the derived
+  permissions; an absent mode defaults to read_only and a malformed mode fails
+  `org apply` closed. A new `permission_denied` terminal reason lands with the
+  semantic-mapping doc.
 
 ## [0.5.0] - 2026-08-26
 

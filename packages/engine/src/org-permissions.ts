@@ -292,3 +292,146 @@ export function createPermissionGate(permissions: OrganizationPermissions) {
 }
 
 export type PermissionGate = ReturnType<typeof createPermissionGate>
+
+/**
+ * Strict artifact validator for org-permissions.v1 (#159 REQ-009). The engine
+ * re-validates the artifact shape on every read; a missing or malformed
+ * artifact fails the turn closed before model invocation.
+ */
+export function validateOrganizationPermissionsArtifact(
+  value: unknown,
+): OrganizationPermissions {
+  const invalid = (detail: string): never => {
+    throw new TypeError(`workspace_org_permissions_invalid:${detail}`)
+  }
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    invalid("not_an_object")
+  }
+  const record = value as Record<string, unknown>
+  if (record.schemaVersion !== ORG_PERMISSIONS_SCHEMA_VERSION) {
+    invalid("schema_version")
+  }
+  if (typeof record.business !== "string" || record.business.length === 0) {
+    invalid("business")
+  }
+  if (typeof record.owner !== "string" || record.owner.length === 0) {
+    invalid("owner")
+  }
+  const positions = record.positions
+  if (
+    positions === null ||
+    typeof positions !== "object" ||
+    Array.isArray(positions)
+  ) {
+    invalid("positions")
+  }
+  const validated: Record<string, PositionPermissions> = {}
+  for (const [positionId, entry] of Object.entries(
+    positions as Record<string, unknown>,
+  )) {
+    if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
+      invalid(`position:${positionId}`)
+    }
+    const p = entry as Record<string, unknown>
+    if (p.position !== positionId) invalid(`position_mismatch:${positionId}`)
+    if (p.tier !== "owner" && p.tier !== "worker") {
+      invalid(`tier:${positionId}`)
+    }
+    if (
+      p.mode !== undefined &&
+      p.mode !== "read_only" &&
+      p.mode !== "approval_required"
+    ) {
+      invalid(`mode:${positionId}`)
+    }
+    const contextScope = p.contextScope
+    if (
+      contextScope === null ||
+      typeof contextScope !== "object" ||
+      Array.isArray(contextScope)
+    ) {
+      invalid(`context_scope:${positionId}`)
+    }
+    const read = (contextScope as Record<string, unknown>).read
+    if (
+      !Array.isArray(read) ||
+      read.some((scope) => typeof scope !== "string" || scope.length === 0)
+    ) {
+      invalid(`context_scope_read:${positionId}`)
+    }
+    const authorityScope = p.authorityScope
+    if (
+      authorityScope === null ||
+      typeof authorityScope !== "object" ||
+      Array.isArray(authorityScope)
+    ) {
+      invalid(`authority_scope:${positionId}`)
+    }
+    const authority = authorityScope as Record<string, unknown>
+    if (authority.writes !== "deny") invalid(`writes:${positionId}`)
+    const tools = authority.tools
+    if (tools === null || typeof tools !== "object" || Array.isArray(tools)) {
+      invalid(`tools:${positionId}`)
+    }
+    const toolsRecord = tools as Record<string, unknown>
+    for (const key of ["allow", "deny"] as const) {
+      const list = toolsRecord[key]
+      if (
+        !Array.isArray(list) ||
+        list.some((tool) => typeof tool !== "string" || tool.length === 0)
+      ) {
+        invalid(`tools_${key}:${positionId}`)
+      }
+    }
+    const delegation = authority.delegation
+    if (
+      delegation === null ||
+      typeof delegation !== "object" ||
+      Array.isArray(delegation)
+    ) {
+      invalid(`delegation:${positionId}`)
+    }
+    const delegationRecord = delegation as Record<string, unknown>
+    if (typeof delegationRecord.allow !== "boolean") {
+      invalid(`delegation_allow:${positionId}`)
+    }
+    if (
+      !Array.isArray(delegationRecord.targets) ||
+      delegationRecord.targets.some(
+        (target) => typeof target !== "string" || target.length === 0,
+      )
+    ) {
+      invalid(`delegation_targets:${positionId}`)
+    }
+    if (
+      delegationRecord.escalateTo !== null &&
+      typeof delegationRecord.escalateTo !== "string"
+    ) {
+      invalid(`delegation_escalate:${positionId}`)
+    }
+    validated[positionId] = {
+      position: positionId,
+      tier: p.tier as PermissionTier,
+      ...(p.mode !== undefined ? { mode: p.mode as PositionMode } : {}),
+      contextScope: { read: [...(read as string[])] },
+      authorityScope: {
+        writes: "deny",
+        tools: {
+          allow: [...(toolsRecord.allow as string[])],
+          deny: [...(toolsRecord.deny as string[])],
+        },
+        delegation: {
+          allow: delegationRecord.allow as boolean,
+          targets: [...(delegationRecord.targets as string[])],
+          escalateTo: delegationRecord.escalateTo as string | null,
+        },
+      },
+    }
+  }
+  return {
+    schemaVersion: ORG_PERMISSIONS_SCHEMA_VERSION,
+    business: record.business as string,
+    owner: record.owner as string,
+    positions: validated,
+  }
+}

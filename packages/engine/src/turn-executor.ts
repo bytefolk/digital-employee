@@ -38,11 +38,18 @@ import {
 } from "./escalation.js"
 import type { ModelPort, OutputViolation } from "./model-port.js"
 import {
+  createPermissionGate,
+  validateOrganizationPermissionsArtifact,
+  type OrganizationPermissions,
+  type PermissionGate,
+} from "./org-permissions.js"
+import {
   OutputSchemaGuardError,
   prepareTerminalSchema,
 } from "./output-schema-guard.js"
 import {
   digestOutputValue,
+  NO_ASSEMBLY_DIGEST,
   TURN_EVIDENCE_VERSION,
   type EvidenceSinkPort,
   type TurnEvidenceApprovalRef,
@@ -73,6 +80,7 @@ const REASON_TO_CODE: Readonly<Record<TerminalReason, string>> = {
   doom_loop: "engine.doom_loop_detected",
   deadline_exceeded: "engine.deadline_exceeded",
   cancelled: "engine.cancelled",
+  permission_denied: "engine.permission_denied",
   engine_internal_error: "engine.internal_error",
 }
 
@@ -117,6 +125,133 @@ export async function* executeTurn(
       runId,
       timestamp: timestamp(now),
       error: terminalError(code, message, terminalReason, retryable),
+    }
+  }
+
+  // Permission pre-check (#159 REQ-004(a)): enforced before any lifecycle
+  // event is emitted and before any model consumption. Unknown positions and
+  // out-of-scope requests fail closed with stable workspace_org_* codes; each
+  // denial is recorded in turn evidence with zero content from the denied
+  // resource (#159 REQ-005, AC-006, AC-007).
+  let permissionGate: PermissionGate | undefined
+  if (rawRequest.permissions !== undefined) {
+    let parsedPermissions: OrganizationPermissions
+    try {
+      parsedPermissions = validateOrganizationPermissionsArtifact(
+        rawRequest.permissions,
+      )
+    } catch {
+      yield fail(
+        "engine.permissions_invalid",
+        "permissions artifact is missing or malformed",
+        "engine_internal_error",
+        false,
+      )
+      return
+    }
+    permissionGate = createPermissionGate(parsedPermissions)
+    let deniedCode:
+      | "workspace_org_position_unknown"
+      | "workspace_org_context_denied"
+      | "workspace_org_authority_denied"
+      | undefined
+    let deniedMessage = ""
+    const positionCheck = permissionGate.checkPosition(rawRequest.positionId)
+    if (!positionCheck.ok) {
+      deniedCode = "workspace_org_position_unknown"
+      deniedMessage = `position not present in the permissions artifact: ${positionCheck.unknown}`
+    } else {
+      for (const requested of rawRequest.contextReadRequests ?? []) {
+        const decision = permissionGate.evaluateContextRead(
+          rawRequest.positionId,
+          requested,
+        )
+        if (decision.status === "denied") {
+          deniedCode = decision.code
+          deniedMessage = `context read out of scope: ${requested}`
+          break
+        }
+      }
+      if (deniedCode === undefined) {
+        for (const tool of rawRequest.toolRequests ?? []) {
+          const decision = permissionGate.evaluateToolCall(
+            rawRequest.positionId,
+            tool,
+          )
+          if (decision.status === "denied") {
+            deniedCode = decision.code
+            deniedMessage = `tool call out of authority: ${tool}`
+            break
+          }
+        }
+      }
+    }
+    if (deniedCode !== undefined) {
+      const ownerRedirect = rawRequest.permissions.owner
+      const denials =
+        deniedCode === "workspace_org_position_unknown"
+          ? [
+              {
+                positionId: rawRequest.positionId,
+                requested: rawRequest.positionId,
+                code: deniedCode,
+                redirectTo: ownerRedirect,
+              },
+            ]
+          : [...permissionGate.denialAttempts()]
+      const summary =
+        deniedCode === "workspace_org_position_unknown"
+          ? {
+              allowCount: 0,
+              denyCount: 1,
+              codesSeen: [deniedCode],
+              redirectToTargets: [ownerRedirect],
+            }
+          : permissionGate.summary()
+      if (options.evidenceSink) {
+        const record: TurnEvidenceRecord = {
+          schemaVersion: TURN_EVIDENCE_VERSION,
+          evidenceId: newId(),
+          workspaceRef: rawRequest.workspaceRef,
+          positionId: rawRequest.positionId,
+          turnId: rawRequest.turnId,
+          runId,
+          engineVersion: ENGINE_VERSION,
+          inputDigest: digestOutputValue(rawRequest.input),
+          outputDigest: digestOutputValue(null),
+          budget: {
+            turn: {
+              iterationsUsed: 0,
+              tokensUsed: 0,
+              maxIterations: rawRequest.budget?.maxIterations ?? 0,
+              ...(rawRequest.budget?.maxTokens !== undefined
+                ? { maxTokens: rawRequest.budget.maxTokens }
+                : {}),
+            },
+          },
+          terminal: {
+            status: "failed",
+            reason: "permission_denied",
+            errorCode: deniedCode,
+          },
+          permissions: { summary, denials },
+          assemblyManifestDigest: NO_ASSEMBLY_DIGEST,
+          timeBounds: { startedAt, completedAt: timestamp(now) },
+        }
+        try {
+          await options.evidenceSink.write(record)
+        } catch {
+          yield fail(
+            "engine.internal_error",
+            "permission denial evidence write failed",
+            "engine_internal_error",
+            false,
+          )
+          return
+        }
+      }
+      yield fail(deniedCode, deniedMessage, "permission_denied", false)
+      return
     }
   }
 
@@ -236,6 +371,14 @@ export async function* executeTurn(
       terminal,
       ...(escalationRef !== undefined ? { escalationRef } : {}),
       ...(approvalRef !== undefined ? { approvalRef } : {}),
+      ...(permissionGate !== undefined
+        ? {
+            permissions: {
+              summary: permissionGate.summary(),
+              denials: [...permissionGate.denialAttempts()],
+            },
+          }
+        : {}),
       assemblyManifestDigest: assembled.manifest.digest,
       timeBounds: { startedAt, completedAt: timestamp(now) },
     }

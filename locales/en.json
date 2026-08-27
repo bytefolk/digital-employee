@@ -144,6 +144,7 @@
   "org.tree_summary": "positions: {count} · depth: {depth}",
   "org.scope_position": "position: {position}",
   "org.scope_tier": "tier: {tier}",
+  "org.scope_mode": "mode: {mode}",
   "org.scope_context_read": "context read: {scopes}",
   "org.scope_tools_allow": "tools allowed: {tools}",
   "org.scope_writes": "writes: deny (first-release default)",

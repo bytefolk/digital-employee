@@ -105,6 +105,7 @@ export type {
 
 export {
   TURN_EVIDENCE_VERSION,
+  NO_ASSEMBLY_DIGEST,
   createInMemoryEvidenceSink,
   digestOutputValue,
   evidenceRecordContainsForbiddenMaterial,
@@ -114,6 +115,7 @@ export type {
   InMemoryEvidenceSink,
   TurnEvidenceApprovalRef,
   TurnEvidenceBudget,
+  TurnEvidencePermissions,
   TurnEvidenceRecord,
   TurnEvidenceTerminal,
 } from "./turn-evidence.js"
@@ -158,6 +160,7 @@ export {
   evaluateToolAuthority,
   normalizeContextPath,
   permissionsFor,
+  validateOrganizationPermissionsArtifact,
 } from "./org-permissions.js"
 export type {
   AuthorityScope,

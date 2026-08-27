@@ -17,7 +17,7 @@
  */
 
 import { randomUUID } from "node:crypto"
-import { lstat } from "node:fs/promises"
+import { lstat, readFile } from "node:fs/promises"
 import path from "node:path"
 
 import {
@@ -30,10 +30,14 @@ import {
   type ModelPort,
 } from "../../../packages/engine/src/model-port.js"
 import type { EngineTurnRequest } from "../../../packages/engine/src/contracts.js"
+import {
+  validateOrganizationPermissionsArtifact,
+  type OrganizationPermissions,
+} from "../../../packages/engine/src/org-permissions.js"
 import { createClaudeLocalModelPort, probeLocalClaude } from "./claude-local-model-port.js"
 import { createQoderModelPort, probeQoderModelPort } from "./qoder-model-port.js"
 import { executeTurn } from "../../../packages/engine/src/turn-executor.js"
-import { loadOrgModel } from "../org/model.js"
+import { loadOrgModel, orgPaths } from "../org/model.js"
 import {
   parseTurnEnvelope,
   TurnEnvelopeError,
@@ -73,6 +77,34 @@ class TurnSpawnError extends Error {
   ) {
     super(message)
     this.name = "TurnSpawnError"
+  }
+}
+
+/**
+ * Load the org-permissions.v1 artifact fresh for every turn (#159 REQ-009).
+ * A missing or malformed artifact fails the spawn closed before any model
+ * consumption; enforcement then consumes the validated artifact in-engine.
+ */
+async function loadPermissionsArtifact(
+  workspace: string,
+): Promise<OrganizationPermissions> {
+  const permissionsPath = orgPaths(workspace).permissionsPath
+  let raw: string
+  try {
+    raw = await readFile(permissionsPath, "utf8")
+  } catch {
+    throw new TurnSpawnError(
+      "engine.permissions_invalid",
+      "permissions artifact missing or unreadable: run org apply first",
+    )
+  }
+  try {
+    return validateOrganizationPermissionsArtifact(JSON.parse(raw))
+  } catch {
+    throw new TurnSpawnError(
+      "engine.permissions_invalid",
+      "permissions artifact malformed: run org apply to recompute",
+    )
   }
 }
 
@@ -249,6 +281,16 @@ export async function runTurn(options: TurnRunOptions): Promise<TurnRunResult> {
     throw error
   }
 
+  let permissions: OrganizationPermissions
+  try {
+    permissions = await loadPermissionsArtifact(options.workspace)
+  } catch (error) {
+    if (error instanceof TurnSpawnError) {
+      return failSpawn(error.code, error.message)
+    }
+    throw error
+  }
+
   let model: ModelPort
   try {
     model = options.model ?? resolveModelPort(env)
@@ -266,6 +308,7 @@ export async function runTurn(options: TurnRunOptions): Promise<TurnRunResult> {
     runId: randomUUID(),
     input: envelope.input,
     budget: envelope.budget ?? { maxIterations: 1 },
+    permissions,
     ...(envelope.positionBudget !== undefined
       ? {
           positionBudget: envelope.positionBudget,

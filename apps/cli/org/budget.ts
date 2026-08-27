@@ -327,9 +327,19 @@ export function validateOrganizationDocument(
     if (localReference.length === 0) {
       throw invalidDocument(`role_${index}_package_local_reference`)
     }
-    const mode = requireString(entry, "mode", `role_${index}_mode`)
-    if (!(POSITION_PACKAGE_MODES as readonly string[]).includes(mode)) {
-      throw invalidDocument(`role_${index}_mode`)
+    const rawMode = entry.mode
+    let mode: (typeof POSITION_PACKAGE_MODES)[number]
+    if (rawMode === undefined) {
+      // Absent mode defaults to read_only (#159 REQ-006).
+      mode = "read_only"
+    } else {
+      if (
+        typeof rawMode !== "string" ||
+        !(POSITION_PACKAGE_MODES as readonly string[]).includes(rawMode)
+      ) {
+        throw invalidDocument(`role_${index}_mode`)
+      }
+      mode = rawMode as (typeof POSITION_PACKAGE_MODES)[number]
     }
     const memoryScope = requireString(
       entry,
@@ -502,7 +512,6 @@ export function buildWorkspaceOrgSchema(): Record<string, unknown> {
             "description",
             "reportTo",
             "package",
-            "mode",
             "memoryScope",
             "toolAllow",
             "toolDeny",

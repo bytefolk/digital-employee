@@ -4,6 +4,10 @@ import type { SafeValue } from "../../core/src/contracts.js"
 
 import type { BudgetUsage } from "./budget.js"
 import type { EscalationCause } from "./escalation.js"
+import type {
+  PermissionDecisionSummary,
+  PermissionDenialAttempt,
+} from "./org-permissions.js"
 
 export const TURN_EVIDENCE_VERSION = "turn-evidence.v1" as const
 
@@ -44,6 +48,18 @@ export interface TurnEvidenceApprovalRef {
   outcome: "requested" | "granted" | "denied" | "expired"
 }
 
+/**
+ * Per-turn permission decision evidence (#159 REQ-005). Carries the decision
+ * summary plus every denial attempt. Denial attempts carry the position, the
+ * requested path or tool name, the stable code, and the redirect target — and
+ * NEVER any content from the denied resource. This family is disjoint from
+ * the approval settlement fields; both are present where applicable.
+ */
+export interface TurnEvidencePermissions {
+  summary: PermissionDecisionSummary
+  denials: PermissionDenialAttempt[]
+}
+
 export interface TurnEvidenceRecord {
   schemaVersion: typeof TURN_EVIDENCE_VERSION
   evidenceId: string
@@ -60,6 +76,8 @@ export interface TurnEvidenceRecord {
   terminal: TurnEvidenceTerminal
   escalationRef?: string
   approvalRef?: TurnEvidenceApprovalRef
+  /** Permission decision summary + zero-content denial attempts (#159). */
+  permissions?: TurnEvidencePermissions
   /** Assembly manifest digest from context-assembly.v1. */
   assemblyManifestDigest: string
   timeBounds: {
@@ -90,6 +108,14 @@ export function digestOutputValue(output: SafeValue): string {
   const json = JSON.stringify(output)
   return createHash("sha256").update(json ?? "null", "utf8").digest("hex")
 }
+
+/**
+ * Sentinel assembly digest for turns denied before any context assembly happens
+ * (permission pre-check denials, #159 REQ-004(a)).
+ */
+export const NO_ASSEMBLY_DIGEST = createHash("sha256")
+  .update("[]", "utf8")
+  .digest("hex")
 
 /**
  * Static content audit for a record: proves the forbidden material classes

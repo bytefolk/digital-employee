@@ -50,7 +50,10 @@ contracts.ts 已声明 TerminalReason 是本仓自有枚举、不是外部枚举
 | doom_loop | 无直接对应（本仓 doom-loop 检测为自有能力） |
 | deadline_exceeded | TurnAborted（超时路径） |
 | cancelled | TurnAborted / Op::SuspendTurnAndShutdown |
+| permission_denied | 无直接对应（#159 权限强制：越权请求在模型消耗前失败关闭） |
 | engine_internal_error | StreamError / Error |
+
+结算语义注记（权限强制，#159）：权限强制在引擎执行链两层执行（模型消耗前预检 + 派发时检查），消费 `org apply` 重算的单一强制件 `permissions.json`（org-permissions.v1）。越权上下文读以 `workspace_org_context_denied` 结算、越权工具调用以 `workspace_org_authority_denied` 结算、未知岗位以 `workspace_org_position_unknown` 在生命周期事件发出前结算；拒绝一律携带 `redirectTo=owner`。拒绝尝试入回合证据（positionId、请求的路径或工具名、稳定码、指向），绝不携带被拒资源的内容；重复拒绝不升级、不自动重试。权限拒绝族（`workspace_org_*`）与审批结算族（`engine.approval_*`）正交并存。工件缺失/畸形以 `engine.permissions_invalid` 在模型消耗前失败关闭。
 
 ## 4. approval 语义对位（已实施词表，单一来源 contracts.ts）
 

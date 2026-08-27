@@ -6,7 +6,7 @@
  */
 
 import assert from "node:assert/strict"
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import test from "node:test"
@@ -26,6 +26,8 @@ import {
   OSS_MAINTAINER_TEMPLATE,
   renderOrganizationFile,
 } from "../../apps/cli/workspace/templates.js"
+import { validateOrganizationDocument } from "../../apps/cli/org/budget.js"
+import { deriveOrganizationPermissions } from "../../apps/cli/org/permissions.js"
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -83,6 +85,17 @@ async function createWorkspace(): Promise<string> {
     organization.content,
   )
   await mkdir(path.join(workspace, "positions"), { recursive: true })
+  // Derive and write the org-permissions artifact so the turn-run spawn
+  // surface can load it fresh (#159 REQ-009).
+  const validated = validateOrganizationDocument(
+    JSON.parse(new TextDecoder().decode(organization.content)),
+  )
+  const permissions = deriveOrganizationPermissions(validated)
+  await mkdir(path.join(workspace, ".digital-employee"), { recursive: true })
+  await writeFile(
+    path.join(workspace, ".digital-employee", "permissions.json"),
+    `${JSON.stringify(permissions, null, 2)}\n`,
+  )
   return workspace
 }
 
@@ -770,5 +783,32 @@ test("#205 AC-003: a non-string conversationRef fails spawn before any event", a
   assert.equal(modelCalls, 0)
   assert.ok(
     diagnostics.some((line) => line.includes("engine.input_invalid")),
+  )
+})
+
+test("AC-010: missing permissions artifact fails the turn before model consumption", async () => {
+  const workspace = await createWorkspace()
+  // Remove the permissions artifact: the next turn must fail closed before
+  // any model consumption (#159 REQ-009).
+  await rm(path.join(workspace, ".digital-employee", "permissions.json"))
+  const envelope = sealedEnvelope(workspace)
+  let modelCalls = 0
+  const model: ModelPort = {
+    async complete() {
+      modelCalls += 1
+      return { text: "never" }
+    },
+  }
+  const { result, events, diagnostics } = await execute(
+    workspace,
+    JSON.stringify(envelope),
+    model,
+  )
+  assert.equal(result.exitCode, 1)
+  assert.equal(result.terminalEmitted, false)
+  assert.equal(events.length, 0)
+  assert.equal(modelCalls, 0)
+  assert.ok(
+    diagnostics.some((line) => line.includes("engine.permissions_invalid")),
   )
 })

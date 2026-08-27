@@ -15,6 +15,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import type { ValidatedOrganizationDocument } from "../../apps/cli/org/budget.js"
+import { validateOrganizationDocument } from "../../apps/cli/org/budget.js"
 import {
   deriveOrganizationPermissions,
   evaluateContextAccess,
@@ -248,4 +249,111 @@ test("positionDirectorySegments resolves nested reporting chains", () => {
     "release-engineer",
     "community-operator",
   ])
+})
+
+function rawRole(overrides: {
+  id: string
+  reportTo: string | null
+  mode?: string
+}): Record<string, unknown> {
+  const role: Record<string, unknown> = {
+    id: overrides.id,
+    name: overrides.id,
+    description: `position ${overrides.id}`,
+    reportTo: overrides.reportTo,
+    package: {
+      name: overrides.id,
+      version: "0.1.0",
+      digest: DIGEST,
+      localReference: `/tmp/oss/positions/${overrides.id}`,
+    },
+    memoryScope: "/",
+    toolAllow: ["Read", "Grep", "Glob"],
+    toolDeny: [],
+    metadata: {},
+    budget: {
+      perTask: { tokens: 1_000 },
+      perDay: { tokens: 10_000 },
+    },
+  }
+  if (overrides.mode !== undefined) role.mode = overrides.mode
+  return role
+}
+
+function rawDocument(roles: Array<Record<string, unknown>>): Record<string, unknown> {
+  return {
+    schemaVersion: "workspace-org.v1",
+    business: "oss",
+    description: "test organization",
+    owner: "repo-owner",
+    roles,
+    updatedAt: "2026-08-23T00:00:00.000Z",
+  }
+}
+
+test("AC-011: role.mode is carried into the derived permissions", () => {
+  const model = makeDocument([
+    makeRole({ id: "repo-owner", reportTo: null }),
+    {
+      ...makeRole({ id: "issue-researcher", reportTo: "repo-owner" }),
+      mode: "approval_required",
+    },
+  ])
+  const permissions = deriveOrganizationPermissions(model)
+  assert.equal(permissions.positions["repo-owner"]!.mode, "read_only")
+  assert.equal(
+    permissions.positions["issue-researcher"]!.mode,
+    "approval_required",
+  )
+})
+
+test("AC-011: approval_required read actions stay scope-only with no approval surface", () => {
+  const model = makeDocument([
+    makeRole({ id: "repo-owner", reportTo: null }),
+    {
+      ...makeRole({ id: "issue-researcher", reportTo: "repo-owner" }),
+      mode: "approval_required",
+    },
+  ])
+  const permissions = deriveOrganizationPermissions(model)
+  // Read actions evaluate against scopes only; the first release exposes no
+  // approval surface, so an approval_required position never emits approval.
+  assert.equal(
+    evaluateContextAccess(permissions, "issue-researcher", "./context/shared.md")
+      .status,
+    "allowed",
+  )
+  assert.equal(
+    evaluateContextAccess(
+      permissions,
+      "issue-researcher",
+      "./positions/repo-owner/secret.md",
+    ).status,
+    "denied",
+  )
+  assert.equal(
+    evaluateToolAuthority(permissions, "issue-researcher", "Read").status,
+    "allowed",
+  )
+})
+
+test("AC-011: absent mode defaults to read_only at document validation", () => {
+  const validated = validateOrganizationDocument(
+    rawDocument([rawRole({ id: "repo-owner", reportTo: null })]),
+  )
+  assert.equal(validated.roles[0]!.mode, "read_only")
+})
+
+test("AC-011: a malformed mode fails org apply closed", () => {
+  assert.throws(
+    () =>
+      validateOrganizationDocument(
+        rawDocument([
+          rawRole({ id: "repo-owner", reportTo: null, mode: "full_access" }),
+        ]),
+      ),
+    (error: unknown) =>
+      error instanceof TypeError &&
+      error.message === "workspace_org_document_invalid:role_0_mode",
+  )
 })

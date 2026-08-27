@@ -4,6 +4,7 @@ import {
   validatePositionBudgetDeclaration,
   type PositionBudgetDeclaration,
 } from "./budget.js"
+import type { OrganizationPermissions } from "./org-permissions.js"
 
 /**
  * Built-in execution engine protocol identity.
@@ -30,6 +31,7 @@ export type TerminalReason =
   | "doom_loop"
   | "deadline_exceeded"
   | "cancelled"
+  | "permission_denied"
   | "engine_internal_error"
 
 /** Lowercase ASCII machine code: `[a-z0-9][a-z0-9._-]{0,127}`. */
@@ -191,6 +193,17 @@ export interface EngineTurnRequest {
   positionBudget?: PositionBudgetDeclaration
   taskId?: string
   dayKey?: string
+  /**
+   * Organization permissions artifact (org-permissions.v1, recomputed by
+   * `org apply`) for runtime enforcement (#159 REQ-004/REQ-009). When
+   * present, the engine enforces Context Scope and Authority Scope before any
+   * model consumption; a turn always consumes the current artifact.
+   */
+  permissions?: OrganizationPermissions
+  /** Context paths this turn requests to read (enforced vs Context Scope). */
+  contextReadRequests?: readonly string[]
+  /** Tools this turn requests to call (enforced vs Authority Scope). */
+  toolRequests?: readonly string[]
   /**
    * Write action declared at the capability gate (#187). Requires a
    * validated write-approval.v1 preview; the requesting turn settles as a

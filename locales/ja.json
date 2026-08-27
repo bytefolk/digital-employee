@@ -144,6 +144,7 @@
   "org.tree_summary": "ポジション数：{count} · 深さ：{depth}",
   "org.scope_position": "ポジション：{position}",
   "org.scope_tier": "ティア：{tier}",
+  "org.scope_mode": "モード：{mode}",
   "org.scope_context_read": "context read：{scopes}",
   "org.scope_tools_allow": "許可ツール：{tools}",
   "org.scope_writes": "書き込み：拒否（最初のリリースの既定）",

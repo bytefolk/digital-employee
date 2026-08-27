@@ -21,6 +21,7 @@ import type {
   ValidatedOrganizationDocument,
   ValidatedOrganizationRole,
 } from "./budget.js"
+import type { PositionMode } from "../../../packages/engine/src/org-permissions.js"
 
 export const ORG_PERMISSIONS_SCHEMA_VERSION = "org-permissions.v1" as const
 
@@ -50,6 +51,8 @@ export interface AuthorityScope {
 export interface PositionPermissions {
   position: string
   tier: PermissionTier
+  /** Position mode consumed from role.mode; absent defaults to read_only. */
+  mode: PositionMode
   /** Portable workspace-relative read scopes, e.g. "./positions/<path>/". */
   contextScope: { read: string[] }
   authorityScope: AuthorityScope
@@ -149,6 +152,7 @@ export function deriveOrganizationPermissions(
     positions[role.id] = {
       position: role.id,
       tier,
+      mode: role.mode,
       contextScope: deriveContextScope(model, role, tier),
       authorityScope: deriveAuthority(model, role, tier),
     }

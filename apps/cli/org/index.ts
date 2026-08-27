@@ -430,6 +430,7 @@ async function orgScope(options: OrgScopeOptions): Promise<void> {
   }
   process.stdout.write(`${t("org.scope_position", { position: entry.position })}\n`)
   process.stdout.write(`${t("org.scope_tier", { tier: entry.tier })}\n`)
+  process.stdout.write(`${t("org.scope_mode", { mode: entry.mode })}\n`)
   process.stdout.write(
     `${t("org.scope_context_read", { scopes: entry.contextScope.read.join(", ") })}\n`,
   )

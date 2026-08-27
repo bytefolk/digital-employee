@@ -43,7 +43,6 @@
           "description",
           "reportTo",
           "package",
-          "mode",
           "memoryScope",
           "toolAllow",
           "toolDeny",

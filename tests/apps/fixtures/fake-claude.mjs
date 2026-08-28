@@ -82,6 +82,7 @@ if (capture) {
         (value) => value?.includes("SCHEMA_ARGV_MARKER"),
       ),
       apiKeyConfigured: Boolean(process.env.ANTHROPIC_API_KEY),
+      baseUrl: process.env.ANTHROPIC_BASE_URL,
       home: process.env.HOME,
       configDirectory: process.env.CLAUDE_CONFIG_DIR,
       temporaryDirectories: {

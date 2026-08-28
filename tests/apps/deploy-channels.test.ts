@@ -302,6 +302,19 @@ test("buildHttpRuntimeEnvironment forwards engine and token variables", async (t
   assert.equal(environment.UNRELATED_TEST_VAR, undefined)
 })
 
+test("buildHttpRuntimeEnvironment forwards claude-code engine variables", async (t) => {
+  await withEnvVar(t, "ANTHROPIC_API_KEY", "key-value")
+  await withEnvVar(t, "ANTHROPIC_BASE_URL", "https://model.example.test/v1")
+  await withEnvVar(t, "UNRELATED_TEST_VAR", "must-not-leak")
+  const environment = buildHttpRuntimeEnvironment({
+    engine: "claude-code",
+    secretReferences: { httpTokenEnv: HTTP_TOKEN_ENV },
+  })
+  assert.equal(environment.ANTHROPIC_API_KEY, "key-value")
+  assert.equal(environment.ANTHROPIC_BASE_URL, "https://model.example.test/v1")
+  assert.equal(environment.UNRELATED_TEST_VAR, undefined)
+})
+
 test("buildHttpRuntimeEnvironment rejects unknown engines", () => {
   assert.throws(
     () => buildHttpRuntimeEnvironment({ engine: "bogus" }),

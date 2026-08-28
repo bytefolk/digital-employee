@@ -70,6 +70,7 @@ function adapter(
     environment: {
       PATH: process.env.PATH,
       ANTHROPIC_API_KEY: fixtureApiKey,
+      ANTHROPIC_BASE_URL: "https://model.example.test/v1",
       SECRET_SHOULD_NOT_PASS: "private-value",
       NODE_OPTIONS: "--trace-warnings",
     },
@@ -146,6 +147,33 @@ test("Claude probe reports only the conformance-tested zero-tool capabilities", 
   assert.equal(probe.capabilities.session_resume, "unsupported")
 })
 
+test("Claude probe validates an optional ANTHROPIC_BASE_URL", async () => {
+  const insecureRemote = createClaudeAgentHostAdapter({
+    environment: {
+      ANTHROPIC_API_KEY: fixtureApiKey,
+      ANTHROPIC_BASE_URL: "http://model.example.test/v1",
+    },
+    versionExecutor: fixtureVersionExecutor,
+  })
+  const insecureRemoteProbe = await insecureRemote.probe()
+  assert.equal(insecureRemoteProbe.status, "not_ready")
+  assert.equal(
+    insecureRemoteProbe.issues.some(
+      (entry) => entry.code === "claude_base_url_invalid",
+    ),
+    true,
+  )
+
+  const loopbackHttp = createClaudeAgentHostAdapter({
+    environment: {
+      ANTHROPIC_API_KEY: fixtureApiKey,
+      ANTHROPIC_BASE_URL: "http://127.0.0.1:8790",
+    },
+    versionExecutor: fixtureVersionExecutor,
+  })
+  assert.equal((await loopbackHttp.probe()).status, "ready")
+})
+
 test("Claude run uses an empty host workspace and an inline bounded value projection", async () => {
   const parent = await mkdtemp(path.join(os.tmpdir(), "claude-success-"))
   const capture = path.join(parent, "capture.json")
@@ -197,7 +225,9 @@ test("Claude run uses an empty host workspace and an inline bounded value projec
   assert.match(captured.cwd, /digital-employee-claude-/)
   assert.deepEqual(captured.workspaceEntries, [])
   assert.equal(captured.apiKeyConfigured, true)
+  assert.equal(captured.baseUrl, "https://model.example.test/v1")
   assert.equal(captured.environmentKeys.includes("ANTHROPIC_API_KEY"), true)
+  assert.equal(captured.environmentKeys.includes("ANTHROPIC_BASE_URL"), true)
   assert.equal(captured.environmentKeys.includes("SECRET_SHOULD_NOT_PASS"), false)
   assert.equal(captured.environmentKeys.includes("NODE_OPTIONS"), false)
   assert.match(captured.home, /digital-employee-claude-.*\/home$/)

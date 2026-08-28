@@ -199,6 +199,33 @@ export function isSupportedClaudeVersion(value: string | undefined): boolean {
   )
 }
 
+function validatedBaseUrl(environment: NodeJS.ProcessEnv): string | undefined {
+  const value = environment.ANTHROPIC_BASE_URL?.trim()
+  if (!value) return undefined
+  if (value.length > 2_048 || /[\u0000-\u001f\u007f]/.test(value)) return undefined
+  try {
+    const parsed = new URL(value)
+    const loopback =
+      parsed.hostname === "localhost" ||
+      parsed.hostname.endsWith(".localhost") ||
+      parsed.hostname === "127.0.0.1" ||
+      parsed.hostname === "[::1]"
+    if (
+      (parsed.protocol !== "https:" && parsed.protocol !== "http:") ||
+      (parsed.protocol === "http:" && !loopback) ||
+      !parsed.hostname ||
+      parsed.username ||
+      parsed.password ||
+      parsed.hash
+    ) {
+      return undefined
+    }
+  } catch {
+    return undefined
+  }
+  return value
+}
+
 function validateIdentifier(value: string, code: string): void {
   if (!value || value.length > 256 || /[\u0000-\u001f\u007f]/.test(value)) {
     throw new ClaudeAdapterError(code)
@@ -327,6 +354,7 @@ function filteredRunEnvironment(
   configDirectory: string,
   temporaryDirectory: string,
   apiKey: string,
+  baseUrl?: string,
 ): NodeJS.ProcessEnv {
   const result: NodeJS.ProcessEnv = {
     HOME: home,
@@ -335,6 +363,7 @@ function filteredRunEnvironment(
     TEMP: temporaryDirectory,
     CLAUDE_CONFIG_DIR: configDirectory,
     ANTHROPIC_API_KEY: apiKey,
+    ...(baseUrl ? { ANTHROPIC_BASE_URL: baseUrl } : {}),
     CLAUDE_AGENT_SDK_DISABLE_BUILTIN_AGENTS: "1",
     CLAUDE_CODE_AUTO_CONNECT_IDE: "false",
     CLAUDE_CODE_DISABLE_ATTACHMENTS: "1",
@@ -544,6 +573,8 @@ export class ClaudeAgentHostAdapter implements AgentHostAdapter {
     const issues: AgentHostIssue[] = []
     const available = result.status === "installed"
     let status: AgentHostProbeResult["status"] = result.status
+    const configuredBaseUrl = this.environment.ANTHROPIC_BASE_URL?.trim()
+    const baseUrl = validatedBaseUrl(this.environment)
 
     if (result.status === "not_found") {
       issues.push(
@@ -581,6 +612,14 @@ export class ClaudeAgentHostAdapter implements AgentHostAdapter {
         issue(
           "claude_api_key_not_configured",
           "ANTHROPIC_API_KEY is required for the isolated service adapter",
+        ),
+      )
+    } else if (configuredBaseUrl && !baseUrl) {
+      status = "not_ready"
+      issues.push(
+        issue(
+          "claude_base_url_invalid",
+          "ANTHROPIC_BASE_URL must use HTTPS, or HTTP on a loopback host, without embedded credentials",
         ),
       )
     } else {
@@ -711,6 +750,7 @@ export class ClaudeAgentHostAdapter implements AgentHostAdapter {
       if (!credential) {
         throw new ClaudeAdapterError("claude_api_key_not_configured")
       }
+      const baseUrl = validatedBaseUrl(this.environment)
       if (this.temporaryRoot) await mkdir(this.temporaryRoot, { recursive: true })
       runRoot = await mkdtemp(
         path.join(this.temporaryRoot ?? os.tmpdir(), "digital-employee-claude-"),
@@ -812,6 +852,7 @@ export class ClaudeAgentHostAdapter implements AgentHostAdapter {
           configDirectory,
           temporaryDirectory,
           credential,
+          baseUrl,
         ),
       })
       active.child = child

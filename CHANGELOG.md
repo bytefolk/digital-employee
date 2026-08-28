@@ -10,6 +10,12 @@ All notable changes to this project will be documented in this file.
   `security:check` now fails closed on unreviewed `docs/assets` binaries,
   Alibaba Cloud access-key shapes, signed object-storage URLs, and
   enterprise-internal URLs (#207).
+- The Claude Code host adapter now accepts an optional `ANTHROPIC_BASE_URL`
+  and forwards it into the spawned `claude` process after HTTPS (or loopback
+  HTTP) validation without embedded credentials, matching the Qwen Code
+  adapter's `OPENAI_BASE_URL` parity (#215). An invalid configured value
+  fails `probe`/`preflight` closed with `claude_base_url_invalid`, and the
+  HTTP deploy channel forwards the variable for the `claude-code` engine.
 
 ### Added
 

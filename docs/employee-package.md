@@ -53,8 +53,9 @@ package/policy preflight used by `run`, and fail-closed capability comparison.
 Runnable adapter preflight requires an explicit deployment credential rather
 than a personal CLI login: `QODER_PERSONAL_ACCESS_TOKEN` for Qoder,
 `ANTHROPIC_API_KEY` for Claude, `OPENAI_API_KEY` plus `OPENAI_MODEL` for Qwen,
-or `CODEBUDDY_API_KEY` plus `CODEBUDDY_MODEL` for CodeBuddy. Optional Qwen and
-CodeBuddy Base URL settings are deployment configuration. Preflight does not
+or `CODEBUDDY_API_KEY` plus `CODEBUDDY_MODEL` for CodeBuddy. Optional
+`ANTHROPIC_BASE_URL` for Claude, `OPENAI_BASE_URL` for Qwen and
+`CODEBUDDY_BASE_URL` for CodeBuddy are deployment configuration. Preflight does not
 spend credits or verify model entitlement; that remains untested until a real
 `run`. Codex remains probe-only.
 

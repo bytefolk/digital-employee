@@ -394,7 +394,7 @@ export function buildHttpRuntimeEnvironment(
     "NODE_EXTRA_CA_CERTS",
   ] as const
   const engineVariables: Record<string, readonly string[]> = {
-    "claude-code": ["ANTHROPIC_API_KEY"],
+    "claude-code": ["ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"],
     qoder: ["QODER_PERSONAL_ACCESS_TOKEN"],
     "qwen-code": ["OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_BASE_URL"],
     codebuddy: [

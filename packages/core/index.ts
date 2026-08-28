@@ -587,3 +587,28 @@ export {
   createMemHttpMemoryAdapter,
 } from "./src/mem-http-memory-adapter.js"
 export type { MemHttpMemoryAdapterOptions } from "./src/mem-http-memory-adapter.js"
+export {
+  CONTEXT_BUNDLE_SCHEMA_VERSION,
+  CONTEXT_MAX_BUNDLE_BYTES,
+  CONTEXT_MAX_BUNDLE_ITEMS,
+  CONTEXT_RULE_VERSION,
+  CONTEXT_UNTRUSTED_WARNING,
+  ContextPortError,
+  canonicalContextJson,
+  computeContextArtifactDigest,
+  computeContextBundleDigest,
+  deriveContextPrincipal,
+  validateContextBundle,
+} from "./src/context-port.js"
+export type {
+  ContextBundle,
+  ContextBundleBounds,
+  ContextBundleItem,
+  ContextPort,
+  ContextPortErrorCode,
+  ContextReadMode,
+  ContextReadRequest,
+  ContextScope,
+} from "./src/context-port.js"
+export { createContextCliAdapter } from "./src/context-cli-adapter.js"
+export type { ContextCliAdapterOptions } from "./src/context-cli-adapter.js"

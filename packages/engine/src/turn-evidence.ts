@@ -99,6 +99,45 @@ export interface TurnEvidenceMemory {
   warnings: TurnEvidenceMemoryWarning[]
 }
 
+/**
+ * Digest-only evidence for one recalled workbench context item (#179).
+ * Raw context text never enters evidence: items are untrusted data with
+ * trust "untrusted-context-data"; only artifact digests, locators, and
+ * bounded counters are recorded.
+ */
+export interface TurnEvidenceContextItem {
+  artifactDigest: string
+  locator: string
+  kind: string
+  sourceRevision: number
+  derivedRevision: number
+  byteLength: number
+}
+
+export interface TurnEvidenceContextWarning {
+  code: string
+}
+
+/**
+ * Digest-only context-consumption evidence (#179 REQ-005): effective mode,
+ * adapter identity, bundle digest, completed watermark, and per-item
+ * artifact digests/locators. Never raw context content, never credentials.
+ */
+export interface TurnEvidenceContext {
+  mode: "optional" | "required"
+  /** Bounded machine identity of the pinned adapter, e.g. "context-cli.v1". */
+  adapterIdentity: string
+  retrievedAt: string
+  /** sha256 bundle digest covering scope/watermark/items/warnings. */
+  bundleDigest: string
+  /** Completed watermark occurrence revision at recall time. */
+  watermarkRevision: number
+  itemCount: number
+  totalBytes: number
+  items: TurnEvidenceContextItem[]
+  warnings: TurnEvidenceContextWarning[]
+}
+
 export interface TurnEvidenceRecord {
   schemaVersion: typeof TURN_EVIDENCE_VERSION
   evidenceId: string
@@ -119,6 +158,8 @@ export interface TurnEvidenceRecord {
   permissions?: TurnEvidencePermissions
   /** Digest-only memory-recall consumption evidence (#180 seam). */
   memory?: TurnEvidenceMemory
+  /** Digest-only workbench-context consumption evidence (#179 seam). */
+  context?: TurnEvidenceContext
   /** Assembly manifest digest from context-assembly.v1. */
   assemblyManifestDigest: string
   timeBounds: {
@@ -156,6 +197,15 @@ export function digestOutputValue(output: SafeValue): string {
  */
 export const NO_ASSEMBLY_DIGEST = createHash("sha256")
   .update("[]", "utf8")
+  .digest("hex")
+
+/**
+ * Digest-shaped sentinel recorded as `bundleDigest` when an optional-mode
+ * context outage degrades to an empty context (#179 REQ-005): no bundle was
+ * observed, so no real bundle digest exists.
+ */
+export const NO_CONTEXT_BUNDLE_DIGEST = createHash("sha256")
+  .update("context-bundle.v1:empty", "utf8")
   .digest("hex")
 
 /**

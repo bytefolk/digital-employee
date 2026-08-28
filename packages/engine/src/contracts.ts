@@ -34,6 +34,8 @@ export type TerminalReason =
   | "permission_denied"
   | "memory_unavailable"
   | "memory_denied"
+  | "context_unavailable"
+  | "context_denied"
   | "engine_internal_error"
 
 /** Lowercase ASCII machine code: `[a-z0-9][a-z0-9._-]{0,127}`. */

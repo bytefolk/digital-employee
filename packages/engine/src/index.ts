@@ -62,7 +62,11 @@ export {
 export type { PreparedTerminalSchema } from "./output-schema-guard.js"
 
 export { executeTurn } from "./turn-executor.js"
-export type { EngineMemoryOptions, TurnExecutorOptions } from "./turn-executor.js"
+export type {
+  EngineContextOptions,
+  EngineMemoryOptions,
+  TurnExecutorOptions,
+} from "./turn-executor.js"
 
 export {
   MAX_BUDGET_CAP,
@@ -106,6 +110,7 @@ export type {
 export {
   TURN_EVIDENCE_VERSION,
   NO_ASSEMBLY_DIGEST,
+  NO_CONTEXT_BUNDLE_DIGEST,
   createInMemoryEvidenceSink,
   digestOutputValue,
   evidenceRecordContainsForbiddenMaterial,
@@ -119,6 +124,9 @@ export type {
   TurnEvidenceMemory,
   TurnEvidenceMemoryItem,
   TurnEvidenceMemoryWarning,
+  TurnEvidenceContext,
+  TurnEvidenceContextItem,
+  TurnEvidenceContextWarning,
   TurnEvidenceRecord,
   TurnEvidenceTerminal,
 } from "./turn-evidence.js"

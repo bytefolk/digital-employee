@@ -50,6 +50,24 @@ All notable changes to this project will be documented in this file.
   digest-only `memory` field (adapter identity, item digests, locators, state
   versions, provenance digests, byte counts) that never carries recall text
   or raw provenance.
+- Engine adds the strict read-only `ContextPort` and pins the workbench
+  `context adapter recall` CLI/stdio adapter (#179, context repo pinned at
+  f63f57f): an opt-in `EngineContextOptions` (disabled by default) recalls
+  the position's granted `context-bundle.v1` before any model consumption and
+  re-validates the envelope byte-for-byte (exact keys, artifact and bundle
+  digest recomputation, item/byte bounds, timestamp and freshness checks,
+  exact pinned scope). Recalled context is projected into a new
+  `context_bundle` assembly slot as quoted untrusted data and cannot change
+  tools, authority, policy, or system instructions; `optional` mode converts
+  only a typed `CONTEXT_UNAVAILABLE` outage into an empty context plus one
+  warning, `required` mode settles the turn retryable with
+  `engine.context_unavailable` before the model call, and auth denial, scope
+  mismatch, corrupt records, malformed envelopes, or bad configuration fail
+  closed as `engine.context_denied` in both modes (unknown failures are
+  treated as denials, never as outages). `turn-evidence.v1` gains a
+  digest-only `context` field (adapter identity, bundle digest, watermark
+  revision, artifact digests, locators, byte counts) that never carries
+  context text or credentials.
 
 ## [0.5.0] - 2026-08-26
 

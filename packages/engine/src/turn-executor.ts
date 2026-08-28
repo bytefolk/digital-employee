@@ -2,6 +2,12 @@ import { createHash, randomUUID } from "node:crypto"
 
 import type { SafeValue } from "../../core/src/contracts.js"
 import {
+  ContextPortError,
+  deriveContextPrincipal,
+  type ContextBundle,
+  type ContextPort,
+} from "../../core/src/context-port.js"
+import {
   derivePositionPrincipal,
   MemoryPortError,
   MEMORY_RECALL_SCHEMA_VERSION,
@@ -58,9 +64,11 @@ import {
 import {
   digestOutputValue,
   NO_ASSEMBLY_DIGEST,
+  NO_CONTEXT_BUNDLE_DIGEST,
   TURN_EVIDENCE_VERSION,
   type EvidenceSinkPort,
   type TurnEvidenceApprovalRef,
+  type TurnEvidenceContext,
   type TurnEvidenceMemory,
   type TurnEvidenceRecord,
 } from "./turn-evidence.js"
@@ -86,6 +94,24 @@ export interface EngineMemoryOptions {
   limit?: number
 }
 
+/**
+ * Workbench-context seam configuration (#179). Disabled by default: recall
+ * happens only when `enabled` is exactly true. The port instance is pinned
+ * to one workspace + position binding through the granted runtime token;
+ * the engine derives the principal itself and never accepts scope supplied
+ * or widened by turn input. Recalled context is quoted untrusted data for
+ * the context_bundle slot; evidence keeps digests only.
+ */
+export interface EngineContextOptions {
+  port: ContextPort
+  enabled: boolean
+  workspaceId: string
+  mode: "optional" | "required"
+  adapterIdentity: string
+  maxItems?: number
+  maxBytes?: number
+}
+
 /** Bounded machine identity: leading alnum, then `[A-Za-z0-9._:@-]`, ≤128. */
 const ADAPTER_IDENTITY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/
 
@@ -108,6 +134,7 @@ export interface TurnExecutorOptions {
   orgLookup?: OrgReportingLookup
   doomLoop?: Partial<DoomLoopConfig>
   memory?: EngineMemoryOptions
+  context?: EngineContextOptions
   newId?: () => string
 }
 
@@ -127,6 +154,8 @@ const REASON_TO_CODE: Readonly<Record<TerminalReason, string>> = {
   permission_denied: "engine.permission_denied",
   memory_unavailable: "engine.memory_unavailable",
   memory_denied: "engine.memory_denied",
+  context_unavailable: "engine.context_unavailable",
+  context_denied: "engine.context_denied",
   engine_internal_error: "engine.internal_error",
 }
 
@@ -134,6 +163,7 @@ const RETRYABLE_REASONS: ReadonlySet<TerminalReason> = new Set([
   "invalid_output_exhausted",
   "deadline_exceeded",
   "memory_unavailable",
+  "context_unavailable",
   "engine_internal_error",
 ])
 
@@ -437,6 +467,124 @@ export async function* executeTurn(
     }
   }
 
+  // Workbench-context seam (#179): runs before any model consumption.
+  // Disabled by default; when enabled the pinned port is called with the
+  // derived principal (never supplied or widened by turn input). Recalled
+  // context is untrusted data for the context_bundle slot; evidence keeps
+  // digests only.
+  let contextLines: string[] = []
+  let contextEvidence: TurnEvidenceContext | undefined
+  if (options.context && options.context.enabled === true) {
+    const contextOptions = options.context
+    // Bad configuration fails closed before any port call: the adapter
+    // identity must be a bounded machine identifier.
+    if (!ADAPTER_IDENTITY_PATTERN.test(contextOptions.adapterIdentity ?? "")) {
+      yield fail(
+        REASON_TO_CODE.context_denied,
+        "context adapter identity is missing or malformed",
+        "context_denied",
+        false,
+      )
+      return
+    }
+    let bundle: ContextBundle | undefined
+    try {
+      bundle = await contextOptions.port.recall({
+        workspaceId: contextOptions.workspaceId,
+        positionId: request.positionId,
+        principal: deriveContextPrincipal(request.positionId),
+        mode: contextOptions.mode,
+        ...(contextOptions.maxItems !== undefined
+          ? { maxItems: contextOptions.maxItems }
+          : {}),
+        ...(contextOptions.maxBytes !== undefined
+          ? { maxBytes: contextOptions.maxBytes }
+          : {}),
+      })
+    } catch (error) {
+      const portCode =
+        error instanceof ContextPortError ? error.code : undefined
+      if (
+        contextOptions.mode === "optional" &&
+        portCode === "CONTEXT_UNAVAILABLE"
+      ) {
+        // Typed outage in optional mode: empty context plus one warning;
+        // the turn proceeds without workbench context.
+        contextEvidence = {
+          mode: "optional",
+          adapterIdentity: contextOptions.adapterIdentity,
+          retrievedAt: timestamp(now),
+          bundleDigest: NO_CONTEXT_BUNDLE_DIGEST,
+          watermarkRevision: 0,
+          itemCount: 0,
+          totalBytes: 0,
+          items: [],
+          warnings: [{ code: "CONTEXT_UNAVAILABLE" }],
+        }
+      } else if (portCode === "CONTEXT_UNAVAILABLE") {
+        // Required-mode outage: stable retryable failure before model call.
+        yield fail(
+          REASON_TO_CODE.context_unavailable,
+          "workbench context is unavailable in required mode",
+          "context_unavailable",
+          true,
+        )
+        return
+      } else {
+        // Denial, scope mismatch, corrupt record, bad configuration, or an
+        // invalid envelope: fail closed in both modes.
+        yield fail(
+          REASON_TO_CODE.context_denied,
+          portCode !== undefined
+            ? `context recall failed closed: ${portCode}`
+            : "context recall failed closed",
+          "context_denied",
+          false,
+        )
+        return
+      }
+    }
+    if (bundle !== undefined) {
+      // Defense in depth: the pinned port already enforced the exact scope,
+      // and the engine re-asserts it before projection.
+      if (
+        bundle.scope.workspaceId !== contextOptions.workspaceId ||
+        bundle.scope.positionId !== request.positionId ||
+        bundle.scope.principal !== deriveContextPrincipal(request.positionId)
+      ) {
+        yield fail(
+          REASON_TO_CODE.context_denied,
+          "context recall returned a bundle outside the pinned scope",
+          "context_denied",
+          false,
+        )
+        return
+      }
+      contextLines = bundle.items.map((item) => item.text)
+      contextEvidence = {
+        mode: contextOptions.mode,
+        adapterIdentity: contextOptions.adapterIdentity,
+        retrievedAt: bundle.retrievedAt,
+        bundleDigest: bundle.bundleDigest,
+        watermarkRevision: bundle.completedWatermark.occurrenceRevision,
+        itemCount: bundle.items.length,
+        totalBytes: bundle.items.reduce(
+          (sum, item) => sum + Buffer.byteLength(item.text, "utf8"),
+          0,
+        ),
+        items: bundle.items.map((item) => ({
+          artifactDigest: item.artifactDigest,
+          locator: item.locator,
+          kind: item.kind,
+          sourceRevision: item.sourceRevision,
+          derivedRevision: item.derivedRevision,
+          byteLength: Buffer.byteLength(item.text, "utf8"),
+        })),
+        warnings: bundle.warnings.map((code) => ({ code })),
+      }
+    }
+  }
+
   const assembled = assembleContext({
     positionId: request.positionId,
     turnId: request.turnId,
@@ -447,6 +595,7 @@ export async function* executeTurn(
         ? request.input
         : JSON.stringify(request.input),
     memoryRecall: recallLines,
+    contextBundle: contextLines,
   })
 
   const detector = new DoomLoopDetector(options.doomLoop)
@@ -534,6 +683,7 @@ export async function* executeTurn(
           }
         : {}),
       ...(memoryEvidence !== undefined ? { memory: memoryEvidence } : {}),
+      ...(contextEvidence !== undefined ? { context: contextEvidence } : {}),
       assemblyManifestDigest: assembled.manifest.digest,
       timeBounds: { startedAt, completedAt: timestamp(now) },
     }

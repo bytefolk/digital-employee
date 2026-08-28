@@ -23,7 +23,7 @@ test("assembly order is fixed and deterministic", () => {
   assert.deepEqual(assembled.manifest.order, [...CONTEXT_SLOT_ORDER])
 })
 
-test("memory recall slot stays empty until integration but keeps its place", () => {
+test("memory recall slot keeps its fixed place", () => {
   const withoutRecall = assembleContext(input)
   assert.ok(
     !withoutRecall.blocks.some((block) => block.slot === "memory_recall"),
@@ -34,9 +34,37 @@ test("memory recall slot stays empty until integration but keeps its place", () 
   )
   assert.ok(recallBlock)
   assert.equal(recallBlock!.text, "fact A")
+})
+
+test("context bundle slot projects quoted untrusted data last (#179)", () => {
+  const withoutBundle = assembleContext(input)
+  assert.ok(
+    !withoutBundle.blocks.some((block) => block.slot === "context_bundle"),
+  )
+  const withBundle = assembleContext({
+    ...input,
+    memoryRecall: ["fact A"],
+    contextBundle: ["context item 1", "context item 2"],
+  })
+  const bundleBlock = withBundle.blocks.find(
+    (block) => block.slot === "context_bundle",
+  )
+  assert.ok(bundleBlock)
+  assert.equal(bundleBlock!.text, "context item 1\ncontext item 2")
   assert.equal(
-    withRecall.blocks[withRecall.blocks.length - 1]!.slot,
-    "memory_recall",
+    withBundle.blocks[withBundle.blocks.length - 1]!.slot,
+    "context_bundle",
+  )
+  // Deterministic order places context_bundle after memory_recall.
+  assert.deepEqual(
+    withBundle.blocks.map((block) => block.slot),
+    [
+      "position_instructions",
+      "position_spec",
+      "turn_input",
+      "memory_recall",
+      "context_bundle",
+    ],
   )
 })
 

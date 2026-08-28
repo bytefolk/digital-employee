@@ -4,20 +4,24 @@ export const CONTEXT_ASSEMBLY_VERSION = "context-assembly.v1" as const
 
 /**
  * Deterministic assembly order. The position bundle is the mandatory layer;
- * the memory-recall slot is the single seam for the memory plane and stays
- * empty until memory integration lands (its position is contractually fixed).
+ * the memory-recall slot is the seam for the memory plane and the
+ * context-bundle slot is the seam for the workbench context plane (#179).
+ * Both project quoted untrusted data; their positions are contractually
+ * fixed.
  */
 export type ContextSlot =
   | "position_instructions"
   | "position_spec"
   | "turn_input"
   | "memory_recall"
+  | "context_bundle"
 
 export const CONTEXT_SLOT_ORDER: readonly ContextSlot[] = [
   "position_instructions",
   "position_spec",
   "turn_input",
   "memory_recall",
+  "context_bundle",
 ]
 
 export interface ContextBlock {
@@ -50,8 +54,10 @@ export interface AssembleContextInput {
   instructions?: string
   spec?: string
   turnInput: string
-  /** Memory-plane recall lines; empty in the read-only skeleton. */
+  /** Memory-plane recall lines. */
   memoryRecall?: readonly string[]
+  /** Workbench context-plane bundle item texts (#179), quoted untrusted. */
+  contextBundle?: readonly string[]
 }
 
 export interface ContextWindowLimits {
@@ -94,11 +100,13 @@ export function assembleContext(
     throw new TypeError("turnInput must be a non-empty string")
   }
   const recall = input.memoryRecall ?? []
+  const bundle = input.contextBundle ?? []
   const candidates: Array<{ slot: ContextSlot; text: string | undefined }> = [
     { slot: "position_instructions", text: input.instructions },
     { slot: "position_spec", text: input.spec },
     { slot: "turn_input", text: input.turnInput },
     { slot: "memory_recall", text: recall.length > 0 ? recall.join("\n") : undefined },
+    { slot: "context_bundle", text: bundle.length > 0 ? bundle.join("\n") : undefined },
   ]
 
   const blocks: ContextBlock[] = []

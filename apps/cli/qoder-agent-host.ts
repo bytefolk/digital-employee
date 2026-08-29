@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process"
+import { resolveWindowsExecutable } from "./windows-exec.js"
 import type { ChildProcessByStdio } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { constants } from "node:fs"
@@ -821,14 +822,6 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
           "This Qoder CLI version has not passed adapter conformance",
         ),
       )
-    } else if (process.platform === "win32") {
-      status = "not_ready"
-      issues.push(
-        issue(
-          "host_platform_not_conformance_verified",
-          "This adapter requires POSIX process-group cleanup; Windows is not yet runnable",
-        ),
-      )
     } else if (!this.environment.QODER_PERSONAL_ACCESS_TOKEN?.trim()) {
       status = "not_ready"
       issues.push(
@@ -1149,9 +1142,10 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
       await this.beforeSpawn?.()
       const beforeSpawnError = stoppedRunError(active)
       if (beforeSpawnError) throw beforeSpawnError
-      const child = spawn(this.command, args, {
+      const winExec = resolveWindowsExecutable(this.command)
+      const child = spawn(winExec?.command ?? this.command, args, {
         cwd: workspace,
-        shell: false,
+        shell: winExec?.needsShell === true,
         windowsHide: true,
         detached: process.platform !== "win32",
         stdio: ["pipe", "pipe", "pipe"],

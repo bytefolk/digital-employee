@@ -69,6 +69,12 @@ test("current-facing release documentation follows the root package version", as
     "docs/memory-port.md": [
       `current public \`${version}\` engine preview`,
       `public \`${version}\` engine preview`
+    ],
+    "packages/core/README.md": [
+      `current public \`${version}\` engine preview`,
+      "`EngineMemoryOptions` / `TurnExecutorOptions.memory`",
+      "`enabled` is exactly `true`",
+      "remains disabled by default"
     ]
   };
 
@@ -126,6 +132,9 @@ test("current-facing release documentation follows the root package version", as
     "docs/memory-port.md": [
       /current public `(\d+\.\d+\.\d+)`\s+engine preview/g,
       /public `(\d+\.\d+\.\d+)`\s+engine preview/g
+    ],
+    "packages/core/README.md": [
+      /current public `(\d+\.\d+\.\d+)`\s+engine preview/g
     ]
   };
 
@@ -151,6 +160,10 @@ test("current-facing release documentation follows the root package version", as
     "docs/memory-port.md": [
       "This slice does **not** enable memory in the execution engine",
       "this release deliberately leaves it unattached to the execution engine"
+    ],
+    "packages/core/README.md": [
+      "engine-detached `MemoryPort`",
+      "is not enabled by constructing the execution engine"
     ]
   };
 

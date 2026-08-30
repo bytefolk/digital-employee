@@ -77,6 +77,44 @@ test("missing hosts return a structured blocking issue", async () => {
   assert.equal(result.issues[0]?.blocking, true)
 })
 
+test("resolved-but-unspawnable hosts get a distinct blocking issue (REQ-002 in #223)", async () => {
+  const result = await probeCliAgentHost("qoder", async () => ({
+    status: "not_spawnable",
+  }))
+  assert.equal(result.available, false)
+  assert.equal(result.status, "not_spawnable")
+  assert.equal(result.issues[0]?.code, "host_executable_not_spawnable")
+  assert.equal(result.issues[0]?.blocking, true)
+  assert.notEqual(result.issues[0]?.code, "host_executable_not_found")
+})
+
+test("shared version probe resolves .cmd shims through PATHEXT on Windows (REQ-001 in #223)", async (t) => {
+  if (process.platform !== "win32") {
+    t.skip("PATHEXT resolution is a win32-only concern")
+    return
+  }
+  const temporary = await mkdtemp(path.join(os.tmpdir(), "host-pathext-probe-"))
+  t.after(() => rm(temporary, { recursive: true, force: true }))
+  const shim = path.join(temporary, "qodercli.cmd")
+  await writeFile(
+    shim,
+    "@echo off\r\necho qodercli 1.2.3-shim\r\nexit /b 0\r\n",
+  )
+  const originalPath = process.env.PATH
+  process.env.PATH = `${temporary}${path.delimiter}${originalPath ?? ""}`
+  t.after(() => {
+    if (originalPath === undefined) delete process.env.PATH
+    else process.env.PATH = originalPath
+  })
+  const result = await probeCliAgentHost("qoder")
+  assert.equal(result.status, "installed")
+  assert.equal(result.available, true)
+  assert.ok(
+    result.version?.includes("qodercli 1.2.3-shim"),
+    `expected shim version output, got: ${String(result.version)}`,
+  )
+})
+
 test("aborting a version probe reaps its signal-ignoring process group", async (t) => {
   if (process.platform === "win32") {
     t.skip("POSIX process-group cleanup is not available on Windows")

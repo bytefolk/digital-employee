@@ -14,6 +14,7 @@ import {
   signalAgentHostProcessTree,
   waitForAgentHostProcessTreeExit,
 } from "./agent-host-process-tree.js"
+import { resolveWindowsExecutable } from "./windows-exec.js"
 
 export const BUILT_IN_AGENT_HOST_IDS = [
   "claude-code",
@@ -36,7 +37,7 @@ interface CliAgentHostDefinition {
 export interface VersionCommandResult {
   status: Extract<
     AgentHostProbeStatus,
-    "installed" | "not_found" | "probe_failed"
+    "installed" | "not_found" | "not_spawnable" | "probe_failed"
   >
   output?: string
 }
@@ -192,19 +193,44 @@ export const executeVersionCommand: VersionCommandExecutor = (
       resolve({ status: "probe_failed" })
       return
     }
+    // On Windows, spawn(cmd, { shell: false }) hands the bare name to
+    // CreateProcess, which does not apply PATHEXT — so `.cmd`/`.bat` shims
+    // (the format npm installs global CLIs as) surface as ENOENT and get
+    // collapsed into host_executable_not_found even though `where` resolves
+    // them. Mirror the OS resolver: walk PATH × PATHEXT to a concrete file,
+    // and spawn a resolved shim through cmd.exe. The argv vector here is a
+    // compile-time constant declared by the adapter definitions ("--version",
+    // optionally prefixed by a fixed "-p" / "code"), never user input, so the
+    // DEP0190 unquoted-argument concern for shell:true does not apply.
+    let spawnCommand = command
+    let spawnShell: boolean = false
+    let resolvedOnWindows = false
+    if (process.platform === "win32") {
+      const resolved = resolveWindowsExecutable(command)
+      if (resolved) {
+        spawnCommand = resolved.command
+        spawnShell = resolved.needsShell
+        resolvedOnWindows = true
+      }
+    }
     let child
     try {
-      child = spawn(command, args, {
+      child = spawn(spawnCommand, args, {
         detached: process.platform !== "win32",
         env: versionProbeEnvironment(process.env),
-        shell: false,
+        shell: spawnShell,
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
       })
     } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
       resolve({
-        status: (error as NodeJS.ErrnoException).code === "ENOENT"
-          ? "not_found"
+        status: code === "ENOENT"
+          ? resolvedOnWindows
+            ? "not_spawnable"
+            : "not_found"
+          : resolvedOnWindows
+          ? "not_spawnable"
           : "probe_failed",
       })
       return
@@ -252,9 +278,14 @@ export const executeVersionCommand: VersionCommandExecutor = (
       stderr.push(Buffer.from(chunk))
     })
     child.once("error", (error) => {
+      const code = (error as NodeJS.ErrnoException).code
       void settle({
-        status: (error as NodeJS.ErrnoException).code === "ENOENT"
-          ? "not_found"
+        status: code === "ENOENT"
+          ? resolvedOnWindows
+            ? "not_spawnable"
+            : "not_found"
+          : resolvedOnWindows
+          ? "not_spawnable"
           : "probe_failed",
       })
     })
@@ -300,6 +331,12 @@ export async function probeCliAgentHost(
     issues.push({
       code: "host_executable_not_found",
       message: `${definition.displayName} executable was not found on PATH`,
+      blocking: true,
+    })
+  } else if (result.status === "not_spawnable") {
+    issues.push({
+      code: "host_executable_not_spawnable",
+      message: `${definition.displayName} executable was resolved on PATH but could not be spawned`,
       blocking: true,
     })
   } else if (result.status === "probe_failed") {

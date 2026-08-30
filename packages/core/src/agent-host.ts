@@ -47,6 +47,7 @@ export type AgentHostProbeStatus =
   | "ready"
   | "not_ready"
   | "not_found"
+  | "not_spawnable"
   | "probe_failed"
 
 export interface AgentHostIssue {

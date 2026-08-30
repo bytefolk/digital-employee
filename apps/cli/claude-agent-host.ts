@@ -584,6 +584,13 @@ export class ClaudeAgentHostAdapter implements AgentHostAdapter {
           `${CLAUDE_DISPLAY_NAME} executable was not found on PATH`,
         ),
       )
+    } else if (result.status === "not_spawnable") {
+      issues.push(
+        issue(
+          "host_executable_not_spawnable",
+          `${CLAUDE_DISPLAY_NAME} executable was resolved on PATH but could not be spawned`,
+        ),
+      )
     } else if (result.status === "probe_failed") {
       issues.push(
         issue(

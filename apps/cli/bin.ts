@@ -74,7 +74,7 @@ Agent-native usage:
   digital-employee org tree [workspace] [--json]
   digital-employee org apply [workspace] [--json]
   digital-employee org scope <position> [workspace] [--tool <name> | --context <path>] [--json]
-  digital-employee turn run [workspace] --position <id> (--stdin | --input-file <path>)
+  digital-employee turn run [workspace] --position <id> (--stdin | --input-file <path> | --question "...")
   digital-employee task delegate [workspace] --stdin --history-file <workspace-local-path>
   digital-employee hire validate <file> [--json]
   digital-employee deploy [package-path] [--package path] --channel <id> --engine <id> --runtime agent-native|standalone-v1 [options]
@@ -645,6 +645,7 @@ async function main() {
     position: values.position,
     stdin: values.stdin,
     inputFile: values.inputFile,
+    question: values.question,
     json: values.json,
     help: values.help,
   });

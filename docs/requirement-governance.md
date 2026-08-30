@@ -170,6 +170,25 @@ decidedAt: "2026-08-14T08:20:00Z"
 Update the R3 AC and known-limits section verbatim; do not erase the broader
 R2 decision.
 
+A follow-up decision, raised by #224, names how the macOS half of AC-002 is
+produced: CI runs ubuntu-only, so macOS evidence comes from a named local
+qualification mechanism rather than an absent macOS runner.
+
+<!-- requirement-decision:v1 -->
+```yaml
+schemaVersion: requirement-decision.v1
+canonicalIssue: "https://github.com/fullstack-ai-infra/digital-employee/issues/224"
+previousRevision: R1
+resultingRevision: R2
+decisionType: narrowing
+oldDecision: "AC-002 macOS evidence source is unspecified."
+newDecision: "AC-002 macOS evidence is produced by a local qualification run on the org Mac execution line and recorded per the evidence ledger; no macOS CI runner is added in this milestone."
+reason: "CI is ubuntu-only; macOS coverage must come from a named, honestly-labeled manual mechanism rather than an absent runner."
+impact: "macOS acceptance evidence is logged as local qualification and labeled as such; CI platform coverage is unchanged."
+approver: "@PeterGuy326"
+decidedAt: "2026-08-30T16:24:06Z"
+```
+
 ### Breaking or compatibility
 
 Change a public contract or compatibility promise.

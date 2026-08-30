@@ -10,7 +10,8 @@ Digital Employee 是一个本地优先、对话优先的数字组织工作区。
 一个可寻址数字员工，一次对话 = 带岗位 Context 与权限边界的工作。岗位运行在内建的、TypeScript 原生
 执行引擎之上，它是默认 Host
 （[Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165)，
-design 状态）；外部 Agent Host 适配器只是选项，不是依赖。
+产品方向）。引擎/turn 核心已在 `0.6.0` 发布预览；完整默认 Host Workbench 路径仍在
+交付中，外部 Agent Host 适配器只是选项，不是依赖。
 
 ## Digital Employee 处在哪一层
 
@@ -21,9 +22,9 @@ Agent 框架（Claude Code、Qoder、Qwen Code、CodeBuddy、Codex……）回�
 
 我们正在靠拢的卖点：**门槛很低、不用敲命令**——业务负责人不需要写 prompt 模板、不需要
 手动配置 Agent Host；说一句话、喊一个岗位名，就能拿到带出处的结果，整个组织仍由负责人
-兜底。**注意：完整方向仍在规划中，尚未发布**：`workspace init`、`org tree` 与
-`org apply` 只存在于 `0.4.0` 之后的当前源码；`chat @岗位` 与持久化 Workbench 集成仍在
-规划中（见下方状态表）。
+兜底。**完整的无命令 Workbench 方向仍在规划中**。当前公开 `0.6.0` 已把
+`workspace init`、`org tree` 与 `org apply` 作为预览能力发布；`chat @岗位` 与持久化
+Workbench 集成仍在规划中（见下方状态表）。
 
 ## 能力状态
 
@@ -32,17 +33,18 @@ Agent 框架（Claude Code、Qoder、Qwen Code、CodeBuddy、Codex……）回�
 
 | 能力 | 状态 |
 | --- | --- |
-| `init`、`doctor`、`validate`、`eval`、one-shot `run`、`setup` | **已发布**（公开 npm `0.4.0`）；fixture `eval` 不代表真实模型权益已验证 |
-| package-bound `deploy` | **已发布**（`0.4.0`），仅限文档化 fail-closed 边界（HTTP 可到 `ready`；钉钉对账外部 HOLD） |
-| 员工包 / Skill / Schema / eval 契约与 Agent Host Adapter | **已发布**（`0.4.0`）；Host Adapter 为 `preview` 与 `fixture-conformant`，未 live-qualified |
+| `init`、`doctor`、`validate`、`eval`、one-shot `run`、`setup` | **已发布**于当前公开 npm `0.6.0`（最初随 `0.4.0` 发布）；fixture `eval` 不代表真实模型权益已验证 |
+| package-bound `deploy` | **已发布**于当前 `0.6.0`（最初随 `0.4.0` 发布），仅限文档化 fail-closed 边界（HTTP 可到 `ready`；钉钉对账外部 HOLD） |
+| 员工包 / Skill / Schema / eval 契约与 Agent Host Adapter | **已发布**于当前 `0.6.0`（初始公开基线为 `0.4.0`）；Host Adapter 为 `preview` 与 `fixture-conformant`，未 live-qualified |
 | `standalone-v1` 兼容运行时 | **已发布**兼容路径；不是新主线能力的目标路径 |
 | 2026-08-23 pivot 之后的旧轨 issue | 按 #164 批准的台账处置——KEEP 11 / REPURPOSE 9 / PARK 5；见[旧轨处置台账](docs/roadmap.zh-CN.md#旧轨收尾与-issue-处置) |
-| `workspace init`（oss-maintainer 模板） | 当前源码已**交付**原型（`0.4.0` 之后，#156）；不属于已发布 `0.4.0` 制品 |
-| `org tree` / `org apply` | `0.4.0` 之后当前源码已交付；不属于已发布 `0.4.0` 制品 |
-| 负责人 → 一个直接下属的显式委派 | `0.4.0` 之后源码预览 / deterministic E3；Workbench 持久化/UI 与逐 Host E4 尚未验证（见[边界](docs/delegation.md)） |
+| `workspace init`（oss-maintainer 模板） | 当前 `0.6.0` 的**已发布预览**（最初随 `0.5.0` 发布，#156） |
+| `org tree` / `org apply` | 当前 `0.6.0` 的**已发布预览**（最初随 `0.5.0` 发布）；应用权限失败关闭 |
+| 负责人 → 一个直接下属的显式委派 | 当前 `0.6.0` 的**已发布预览** / deterministic E3（最初随 `0.5.0` 发布）；Workbench 持久化/UI 与逐 Host E4 尚未验证（见[边界](docs/delegation.md)） |
 | `chat @岗位` | **规划中**的 Workbench 集成（Epic #155 第一里程碑） |
-| `mem` + `context` 长期 Context 与岗位权限边界 | **规划中**（design 状态，Epic #155 第一里程碑 / M2） |
-| 内建执行引擎（默认 Host，S1 只读核心） | **规划中**（design 状态，Epic #165；与第一里程碑对齐，截止 2026-09-30） |
+| 可选 Memory/Context 召回与权限强制 | `0.6.0` **已发布预览**：绑定 scope 的引擎接缝，默认关闭，不代表持久化产品闭环 |
+| 持久长期 Context、Workbench 连续性与 context 蒸馏 | **规划中**；未随 v0.6.0 召回接缝发布 |
+| 内建执行引擎 | 已通过安装后 root 包的 `./engine` 导出与 `turn run` **发布预览**；完整默认 Host Workbench 旅程仍在规划中（Epic #165） |
 | oss-maintainer 展示案例（quickstart 形态） | **规划中**（Epic #155 M1） |
 | 渠道扩展（飞书/企微） | **规划中更后期**；不属于首个里程碑 |
 
@@ -60,7 +62,7 @@ Agent 框架（Claude Code、Qoder、Qwen Code、CodeBuddy、Codex……）回�
 mkdir digital-employee-workspace
 cd digital-employee-workspace
 npm init -y
-npm install @fullstack-ai-infra/digital-employee@0.4.0
+npm install @fullstack-ai-infra/digital-employee@0.6.0
 npx digital-employee doctor --json
 npx digital-employee init ./my-employee \
   --recipe minimal-answer.v1 \
@@ -207,19 +209,19 @@ node ./dist/apps/cli/bin.js deploy ../team-answer \
 
 ## 版本状态
 
-标签版本 `0.4.0` 已通过 root/core npm 包、GHCR 和 GitHub Releases 公开发布：
+标签版本 `0.6.0` 已通过 root/core npm 包、GHCR 和 GitHub Releases 公开发布：
 
 | 渠道 | 安装或下载方式 |
 | --- | --- |
-| npm（CLI） | `npm install --global @fullstack-ai-infra/digital-employee@0.4.0` |
-| npm（core） | `npm install @fullstack-ai-infra/digital-employee-core@0.4.0` |
-| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.4.0` |
-| GitHub Release | 从 [`v0.4.0`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.4.0) 下载 root/core 包和校验文件 |
+| npm（CLI） | `npm install --global @fullstack-ai-infra/digital-employee@0.6.0` |
+| npm（core） | `npm install @fullstack-ai-infra/digital-employee-core@0.6.0` |
+| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.6.0` |
+| GitHub Release | 从 [`v0.6.0`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.6.0) 下载 root/core 包和校验文件 |
 
-独立的 `@fullstack-ai-infra/digital-employee-core@0.4.0` npm 包已经公开。一次性 registry
+独立的 `@fullstack-ai-infra/digital-employee-core@0.6.0` npm 包已经公开。一次性 registry
 bootstrap 已完成，后续版本由 `release.yml` 通过 npm Trusted Publishing 发布。当前 `main`
-已包含标签之后的改动，本身不代表一个已发布版本。不要覆盖或重新标记 `0.4.0`、`0.3.0` 或
-`0.1.0`。
+已包含标签之后的改动，本身不代表一个已发布版本。不要覆盖或重新标记任何已发布版本，
+包括 `0.6.0`、`0.5.0`、`0.4.0`、`0.3.0` 或 `0.1.0`。
 
 冻结的 `0.1.0` 兼容版本通过三个公开渠道分发：
 
@@ -369,7 +371,7 @@ DWS 连接器要求显式 `profile` 和逐条 `approvedQueries`。它不会自�
 DWS 的安装、授权和完整能力请查看
 [DingTalk Workspace CLI 开源仓库](https://github.com/DingTalk-Real-AI/dingtalk-workspace-cli)。
 
-## 已发布能力（0.4.0 基线）
+## 已发布能力（0.4.0 历史基线与当前增量）
 
 | 能力 | 状态 |
 | --- | --- |
@@ -381,11 +383,13 @@ DWS 的安装、授权和完整能力请查看
 | 签名任务、包摘要、本机快照、租约 fencing、事件链、Runner 签名回执 | 已发布（V0.3 源码技术预览） |
 | 卖家自有长期 Runner 进程、本地持久 replay/outbox 和重连 | 旧轨已收尾；保留范围以[处置台账](docs/roadmap.zh-CN.md#旧轨收尾与-issue-处置) KEEP 线为准 |
 | 服务端设备注册、任务分发、用量核验、Quote/Credit 和结算 | 私有平台；不进入本框架仓库 |
-| `workspace init`（oss-maintainer 模板） | 当前源码已交付原型（`0.4.0` 之后，#156）；不属于已发布制品 |
-| `org tree` / `org apply` | `0.4.0` 之后当前源码已交付；尚未发布 |
+| `workspace init`（oss-maintainer 模板） | 最初随 `0.5.0` 发布预览；包含于当前 `0.6.0`（#156） |
+| `org tree` / `org apply` | 最初随 `0.5.0` 发布预览；包含于当前 `0.6.0` |
+| 负责人 → 一个直接下属的显式委派 | 最初随 `0.5.0` 发布 deterministic E3 预览；包含于当前 `0.6.0`，未 live-qualified |
 | `chat @岗位` 与持久化 Workbench 集成 | 规划中；Epic #155 第一里程碑 |
-| `mem` + `context` 长期 Context、岗位权限边界 | 规划中；Epic #155 第一里程碑/M2 |
-| 内建执行引擎（默认 Host，S1 只读核心） | 规划中；Epic #165，与第一里程碑对齐（截止 2026-09-30） |
+| 可选 Memory/Context 召回与岗位权限强制 | `0.6.0` 已发布引擎接缝预览；默认关闭，不代表持久化产品闭环 |
+| 持久长期 Context、Workbench 连续性与 context 蒸馏 | 规划中；未随 v0.6.0 召回接缝发布 |
+| 内建执行引擎 | `0.5.0` 起发布 `./engine` 与 `turn run` 预览；完整默认 Host Workbench 旅程仍在规划中 |
 | oss-maintainer 展示案例 | 规划中；Epic #155 |
 | Codex CLI 运行 Adapter | 仅探测；受阻于无法可靠移除所有模型可见内建工具 |
 | `standalone-v1` 岗位及渠道、知识源、模型、工具 registry | 已发布；兼容路径 |
@@ -426,7 +430,9 @@ marketplace 上架、租赁、动态价格、可信计量、评价和分账属�
 [`mem`](https://github.com/fullstack-ai-infra/mem) 是新主线上长期 Context 的底座：岗位
 对话产生的决策与任务状态写入记忆平面，新会话/换 Host 后可召回续接；本仓库不重复建设
 memory plane。当前严格类型边界、固定版本 HTTP 适配器、凭证与授权职责见
-[MemoryPort 接入说明](docs/memory-port.md)；该切片尚未接入执行引擎。
+[MemoryPort 接入说明](docs/memory-port.md)。当前公开 `0.6.0` 引擎预览可显式接入
+该端口做回合前召回，但默认停用；这不等于持久化 Workbench、自动记忆写入或完整长期
+Context 产品闭环。
 
 在 Agent-native 路径中，`mem` 应位于经过批准的扩展边界之后；`standalone-v1` 只为兼容
 保留历史答疑编排、引用、反馈和人工接力能力，不能据此把答疑流程重新定义为整个 Digital

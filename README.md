@@ -11,8 +11,10 @@ conversation is work carried out with that position's Context and permission
 boundary. Positions run on a built-in, TypeScript-native execution engine as
 the default Host
 ([Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165),
-design state); external Agent Host adapters remain an option, not a
-dependency. The roadmap and strategy live in
+product direction). The engine/turn core is a released preview in `0.6.0`;
+the complete default-Host Workbench path remains in delivery, and external
+Agent Host adapters remain an option, not a dependency. The roadmap and
+strategy live in
 [docs/strategy.md](docs/strategy.md) and [docs/roadmap.md](docs/roadmap.md).
 
 ## Where Digital Employee sits
@@ -27,10 +29,10 @@ of orchestrating tools by hand.
 The pitch we are moving toward: the barrier to entry is low — a business owner
 does not need to write prompts or wire up an Agent Host by hand. Name a
 position, get an answer with its source, and the owner stays accountable for
-the whole organization. **The complete direction is planned, not yet
-released**: `workspace init`, `org tree`, and `org apply` exist only in
-current source after `0.4.0`; `chat @position` and its durable Workbench
-integration remain planned (see the status table below).
+the whole organization. **The complete no-command Workbench direction remains
+planned**. The current public `0.6.0` release includes `workspace init`,
+`org tree`, and `org apply` as preview surfaces; `chat @position` and its
+durable Workbench integration remain planned (see the status table below).
 
 ## Capability status
 
@@ -40,17 +42,18 @@ integration remain planned (see the status table below).
 
 | Capability | Status |
 | --- | --- |
-| `init`, `doctor`, `validate`, `eval`, one-shot `run`, `setup` | **Released** in public npm `0.4.0`; fixture `eval` does not prove live model entitlement |
-| package-bound `deploy` | **Released** in `0.4.0` within its documented fail-closed boundary (HTTP can reach `ready`; DingTalk reconciliation is externally HOLD) |
-| Employee-package / Skill / Schema / eval contracts, Agent Host Adapters | **Released** in `0.4.0`; Host adapters are `preview` and `fixture-conformant`, not live-qualified |
+| `init`, `doctor`, `validate`, `eval`, one-shot `run`, `setup` | **Released** in current public npm `0.6.0` (first shipped in `0.4.0`); fixture `eval` does not prove live model entitlement |
+| package-bound `deploy` | **Released** in current `0.6.0` (first shipped in `0.4.0`) within its documented fail-closed boundary (HTTP can reach `ready`; DingTalk reconciliation is externally HOLD) |
+| Employee-package / Skill / Schema / eval contracts, Agent Host Adapters | **Released** in current `0.6.0` (initial public baseline `0.4.0`); Host adapters are `preview` and `fixture-conformant`, not live-qualified |
 | `standalone-v1` compatibility runtime | **Released** compatibility path; not the target for new mainline capabilities |
 | Old-track issues after the 2026-08-23 pivot | Disposed per the approved #164 ledger — KEEP 11 / REPURPOSE 9 / PARK 5; see the [old-track disposition ledger](docs/roadmap.md#old-track-wrap-up-and-issue-disposition) |
-| `workspace init` (oss-maintainer template) | **Shipped** in current source as a prototype after `0.4.0` (#156); not part of the published `0.4.0` artifact |
-| `org tree` / `org apply` | **Shipped in current source after `0.4.0`**; not part of the published `0.4.0` artifact |
-| Explicit owner → one direct-report delegation | **Source preview / deterministic E3** after `0.4.0`; Workbench persistence/UI and per-Host E4 remain unverified ([boundary](docs/delegation.md)) |
+| `workspace init` (oss-maintainer template) | **Released preview** in current `0.6.0` (first published in `0.5.0`, #156) |
+| `org tree` / `org apply` | **Released preview** in current `0.6.0` (first published in `0.5.0`); applied permissions fail closed |
+| Explicit owner → one direct-report delegation | **Released preview / deterministic E3** in current `0.6.0` (first published in `0.5.0`); Workbench persistence/UI and per-Host E4 remain unverified ([boundary](docs/delegation.md)) |
 | `chat @position` | **Planned** Workbench integration (Epic #155 first milestone) |
-| Long-term Context via `mem` + `context`, permission boundaries | **Planned** (design state, Epic #155 first milestone / M2) |
-| Built-in execution engine (default Host, S1 read-only core) | **Planned** (design state, Epic #165; aligned with the first milestone, due 2026-09-30) |
+| Opt-in Memory/Context recall and permission enforcement | **Released preview** in `0.6.0` as scope-bound engine seams; disabled by default and not a durable product loop |
+| Durable long-term Context, Workbench continuity, and context distillation | **Planned**; not shipped by the v0.6.0 recall seams |
+| Built-in execution engine | **Released preview** through the installed root package's `./engine` export and `turn run`; the complete default-Host Workbench journey remains planned (Epic #165) |
 | oss-maintainer showcase (quickstart form) | **Planned** (Epic #155 M1) |
 | Channel expansion (Lark/WeCom) | **Planned later**; excluded from the first milestone |
 
@@ -69,7 +72,7 @@ Start with the exact public release:
 mkdir digital-employee-workspace
 cd digital-employee-workspace
 npm init -y
-npm install @fullstack-ai-infra/digital-employee@0.4.0
+npm install @fullstack-ai-infra/digital-employee@0.6.0
 npx digital-employee doctor --json
 npx digital-employee init ./my-employee \
   --recipe minimal-answer.v1 \
@@ -220,21 +223,22 @@ governance record and the outstanding evidence gap.
 
 ## Release status
 
-The tagged `0.4.0` release is public through the root and core npm packages,
+The tagged `0.6.0` release is public through the root and core npm packages,
 GHCR, and GitHub Releases:
 
 | Channel | Command or download |
 | --- | --- |
-| npm (CLI) | `npm install --global @fullstack-ai-infra/digital-employee@0.4.0` |
-| npm (core) | `npm install @fullstack-ai-infra/digital-employee-core@0.4.0` |
-| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.4.0` |
-| GitHub Release | Download the root/core packages and checksums from [`v0.4.0`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.4.0) |
+| npm (CLI) | `npm install --global @fullstack-ai-infra/digital-employee@0.6.0` |
+| npm (core) | `npm install @fullstack-ai-infra/digital-employee-core@0.6.0` |
+| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.6.0` |
+| GitHub Release | Download the root/core packages and checksums from [`v0.6.0`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.6.0) |
 
-The standalone `@fullstack-ai-infra/digital-employee-core@0.4.0` package is
+The standalone `@fullstack-ai-infra/digital-employee-core@0.6.0` package is
 public. Its one-time registry bootstrap is complete, and subsequent versions
 publish from `release.yml` through npm Trusted Publishing. The current `main`
 branch contains changes made after the tag and is not itself a published
-release. Do not retag or overwrite `0.4.0`, `0.3.0` or `0.1.0`.
+release. Do not retag or overwrite any published version, including `0.6.0`,
+`0.5.0`, `0.4.0`, `0.3.0`, or `0.1.0`.
 
 The frozen `0.1.0` compatibility release is distributed through three public
 channels:
@@ -270,13 +274,14 @@ docker run --rm -p 3000:3000 digital-employee:candidate \
 ## What the product owns
 
 - the workspace skeleton and organization model: the directory tree is the org
-  chart, and every hire carries a budget (skeleton shipped as a prototype in
-  current source; organization commands planned, not delivered);
-- position conversation with Context and permission boundaries (planned, not
-  delivered);
-- the built-in TypeScript-native execution engine as the default Host, with
-  external Agent Host adapters retained as an option (planned; the S1 slice is
-  a read-only core);
+  chart, and every hire carries a budget (`workspace init`, `org tree`, and
+  `org apply` are released previews);
+- position conversation with Context and permission boundaries (the turn,
+  permission, and explicit single-hop seams are released previews; the
+  `chat @position` Workbench product path remains planned);
+- the built-in TypeScript-native execution engine as the default-Host
+  direction, with its S1/turn core released as a preview and external Agent
+  Host adapters retained as an option;
 - portable, versioned employee packages and deterministic package digests;
 - default-deny Agent Host adapters and runtime policy for one-shot runs;
 - sealed local execution inputs, normalized events, and signed receipts;

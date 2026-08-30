@@ -48,16 +48,17 @@ The workspace runs positions on a built-in, TypeScript-native execution engine
 capability model (prompt / context / harness / loop / graph), tracked by
 [Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165).
 
-- **S1 — read-only engine core (due 2026-09-30, aligned with the first
-  milestone):** turn-contract execution, per-turn context assembly, loop
-  control with fail-safe termination, structural fail-closed (no tool surface,
-  no network egress, no write authority — enforced by construction), and
-  per-turn evidence records. Design state today; not delivered.
-- **S2 — harness layer (M2–M3):** tool dispatch, MCP client, approval gates,
-  sandboxing and runtime enforcement of position permission boundaries; S2
-  extends the S1 zero-tool baseline and never weakens it. Planned.
-- **S3 — graph layer (M4+):** cross-position routing, parallelism and
-  delegation orchestration over the organization model. Planned.
+- **S1 — read-only engine core:** turn-contract execution, per-turn context
+  assembly, fail-safe loop control, structural fail-closed behavior, and
+  per-turn evidence records are a released preview in the current `0.6.0`
+  root package (first published in `0.5.0`).
+- **S2 — harness layer (M2–M3):** approval events, organization-permission
+  enforcement, and opt-in Context/Memory ports have released preview slices;
+  broader tool dispatch, MCP, and sandboxing remain planned. Every extension
+  must preserve the S1 fail-closed baseline.
+- **S3 — graph layer (M4+):** one explicit owner-to-direct-report delegation
+  is a released, deterministic-E3 preview. General cross-position routing,
+  parallelism, recursion, and autonomous orchestration remain planned.
 
 Engine narrative discipline: the engine is independently original. Public
 documents in this repository do not name third-party agent frameworks;
@@ -118,9 +119,10 @@ remain private company-internal concerns.
 - long-term Context integration: `mem` R1-level memory plane writes and recalls
   plus rule-based `context` fact distillation, decoupling continuity from
   Host-native session resume;
-- the built-in TypeScript-native execution engine as the default Host
-  (design; the S1 slice is a read-only core), with external Agent Host
-  adapters retained as an option (#165);
+- the built-in TypeScript-native execution engine as the default-Host
+  direction (the S1/turn core is a released preview; the complete Workbench
+  path remains in delivery), with external Agent Host adapters retained as an
+  option (#165);
 - the already released employee-package, Skill, Schema, eval and Host Adapter
   contracts, plus `init` / `doctor` / `validate` / `eval` / one-shot `run` /
   `setup` / package-bound `deploy`, which the workspace builds on;
@@ -179,7 +181,7 @@ fixes the old-track disposition ledger.
 
 ### What the current source supports
 
-1. Build the current source checkout or install the public `0.4.0` release.
+1. Build the current source checkout or install the public `0.6.0` release.
 2. Create and validate an employee package with `init` and `validate`, then
    use `doctor --engine` for bounded local Host diagnosis. These steps do not
    prove model entitlement.
@@ -188,36 +190,44 @@ fixes the old-track disposition ledger.
 4. Bind a validated package to a truthful local deployment outcome with the
    package-bound `deploy` command within its documented fail-closed boundary.
 5. Create a workspace skeleton with `workspace init --template oss-maintainer`
-   (prototype shipped in current source after `0.4.0`; the target must be a
-   missing or empty directory — any other target fails closed).
+   (released preview in `0.6.0`, first published in `0.5.0`; the target must
+   be a missing or empty directory — any other target fails closed).
+6. Inspect and apply the organization with the released-preview `org tree`
+   and `org apply` commands, then use the turn engine, bounded explicit
+   delegation, permission enforcement, or opt-in Memory/Context ports only
+   within their documented preview boundaries.
 
-`org tree` / `org apply`, `chat @position`, permission-boundary enforcement,
-mem-backed long-term Context and the built-in engine do **not** exist in the
-current source; they are **design** state tracked by
-[Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)
-and
-[Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165).
-Do not describe planned capabilities as available. Consult the
-[verification ledger](verification.md) for exact evidence.
+`chat @position`, durable Workbench persistence/UI, productive long-term
+memory and context distillation, and the complete default-Host journey remain
+planned under [Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)
+and [Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165).
+The shipped Memory/Context seams are opt-in and do not claim that full product
+loop. Consult the [verification ledger](verification.md) for exact evidence.
 
 ### Target end-to-end path (new mainline)
 
 1. The user runs `workspace init ./<business> --template oss-maintainer` and
    gets a workspace with an organization tree and per-position employee
-   packages. (Prototype shipped in current source.)
+   packages. (Released preview in `0.6.0`.)
 2. The user inspects the organization with `org tree` and sees who is
-   addressable and what each position can see and do. (Planned.)
+   addressable and what each position can see and do. (Released preview in
+   `0.6.0`; full Workbench presentation remains planned.)
 3. The user asks `chat @repo-owner` (owner delegates, worker executes) or
    `chat @issue-researcher` (narrow Context, narrow permission) and receives a
-   result with citations and a traceable delegation chain. (Planned.)
+   result with citations and a traceable delegation chain. (`chat` remains
+   planned; the lower-level explicit single-hop delegation seam is a released
+   preview.)
 4. Decisions and task state persist to the `mem` memory plane; session text is
-   collected for `context` distillation. (Planned; the recall seam is asserted
-   first, mem-backed recall is M2 scope.)
+   collected for `context` distillation. (The opt-in recall seams are released
+   previews; durable persistence and distillation remain planned.)
 5. A new session or Host recalls the same position memory and continues the
-   work. (Planned.)
+   work. (The bounded engine recall seam is released; the end-to-end Workbench
+   continuity journey remains planned.)
 6. An organizational change runs through `org apply`: Context survives, and
    permission scopes are recomputed without silent expansion; a hire without
-   an allocated budget fails closed. (Planned.)
+   an allocated budget fails closed. (`org apply`, permission derivation, and
+   static hire validation are released previews; the complete change workflow
+   remains planned.)
 
 ## Milestone contract
 

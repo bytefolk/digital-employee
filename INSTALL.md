@@ -6,7 +6,7 @@ and ask it to set up the framework.
 
 ## Published-versus-source boundary
 
-The current public npm release is `0.4.0`. It contains the Agent-native `init`,
+The current public npm release is `0.6.0`. It contains the Agent-native `init`,
 `doctor`, `validate`, `eval`, and one-shot `run` paths, the convenience
 `setup` command, and the package-bound `deploy` command.
 
@@ -20,12 +20,12 @@ The current public npm release is `0.4.0`. It contains the Agent-native `init`,
 ```bash
 # 1. Install the published package as a dependency
 npm init -y 2>/dev/null || true
-npm install @fullstack-ai-infra/digital-employee@0.4.0
+npm install @fullstack-ai-infra/digital-employee@0.6.0
 
 # 2. Diagnose the installed Agent Hosts without invoking a model
 npx digital-employee doctor --json
 
-# 3. Scaffold an employee package with a command shipped in 0.4.0
+# 3. Scaffold with a command first shipped in 0.4.0 and included in 0.6.0
 npx digital-employee init ./my-employee \
   --recipe minimal-answer.v1 \
   --author your-team

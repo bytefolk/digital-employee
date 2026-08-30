@@ -23,8 +23,8 @@ node ./dist/apps/cli/bin.js eval ../team-answer
 node ./dist/apps/cli/bin.js doctor
 ```
 
-With the published `0.4.0` npm package installed globally, the equivalent
-commands are:
+With the current published `0.6.0` npm package installed globally, the
+equivalent commands are:
 
 ```bash
 digital-employee init ./team-answer --recipe minimal-answer.v1 --author your-team
@@ -305,8 +305,9 @@ Following that evidence, distribution is split into independent artifacts:
    employee package/version but stays outside this repository's runtime
    contract.
 
-The current source implements the first two plus four one-shot Host Adapters
-and a single fail-closed local subset of the third through `deploy`. A
+The current public `0.6.0` root package implements the first two plus four
+one-shot Host Adapters and a single fail-closed local subset of the third
+through `deploy`. A
 multi-deployment registry, queue, audit/reconnect lifecycle, and Agent-native
 `service start` wrapper remain open; the fourth belongs to the separate
 platform/pricing phase.

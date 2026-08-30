@@ -41,12 +41,14 @@ Digital Employee 不再实现另一套通用模型。岗位运行在内建的、
 [Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165)
 跟踪。
 
-- **S1 — 只读引擎核心（截止 2026-09-30，与第一里程碑对齐）：**回合契约执行、
-  逐回合 Context 组装、带安全终止的 loop 控制、结构性失败关闭（无工具面、无网络
-  出站、无写权限——由构造保证）、逐回合证据记录。当前为 design 状态；未交付。
-- **S2 — harness 层（M2–M3）：**工具分发、MCP client、审批门、沙箱和岗位权限边界
-  的运行时强制；S2 在 S1 零工具基线之上扩展，绝不削弱它。规划中。
-- **S3 — graph 层（M4+）：**组织模型之上的跨岗位路由、并行与委派编排。规划中。
+- **S1 — 只读引擎核心：**回合契约执行、逐回合 Context 组装、带安全终止的 loop
+  控制、结构性失败关闭和逐回合证据记录，已作为预览随当前根包 `0.6.0` 发布
+  （最初随 `0.5.0` 发布）。
+- **S2 — harness 层（M2–M3）：**审批事件、组织权限强制及可选 Context/Memory
+  端口已有已发布预览切片；更广的工具分发、MCP 与沙箱仍在规划中。所有扩展都不得
+  削弱 S1 的失败关闭基线。
+- **S3 — graph 层（M4+）：**负责人到一个直接下属的显式委派已有 deterministic E3
+  已发布预览；通用跨岗位路由、并行、递归与自主编排仍在规划中。
 
 引擎叙事纪律：引擎独立原创。本仓库公开文档不点名任何第三方 agent 框架；能力决策
 只引用本仓库自己的需求记录。
@@ -96,8 +98,8 @@ Digital Employee 不再实现另一套通用模型。岗位运行在内建的、
   可调用的工具），owner/worker 默认档位，无静默继承；
 - 长期 Context 集成：`mem` R1 级记忆平面写入与召回，加上基于规则的 `context` 事实
   蒸馏，将持续性与 Host 原生会话恢复解耦；
-- 作为默认 Host 的内建 TypeScript 原生执行引擎（design；第一片 S1 为只读核心），
-  外部 Agent Host 适配器保留为选项（#165）；
+- 作为默认 Host 方向的内建 TypeScript 原生执行引擎（S1/turn 核心已有已发布预览；
+  完整 Workbench 路径仍在交付），外部 Agent Host 适配器保留为选项（#165）；
 - 已发布的员工包、Skill、Schema、eval 与 Host Adapter 契约，以及 `init` /
   `doctor` / `validate` / `eval` / one-shot `run` / `setup` / 绑定员工包的
   `deploy`，工作台在其之上构建；
@@ -145,35 +147,41 @@ Digital Employee 不再实现另一套通用模型。岗位运行在内建的、
 
 ### 当前源码已经支持
 
-1. 构建当前源码 checkout，或安装公开的 `0.4.0` 版本。
+1. 构建当前源码 checkout，或安装公开的 `0.6.0` 版本。
 2. 用 `init` 创建并校验员工包，再用 `doctor --engine` 做有上限的本机 Host 诊断；
    这些步骤不能证明模型权益可用。
 3. 显式提供部署凭证后，用 `run --engine` 发起一次真实的本机 one-shot Agent/模型
    执行；它可能消耗供应商额度。
 4. 用绑定员工包的 `deploy` 命令，在文档化的失败关闭边界内，把经过校验的员工包绑定
    到诚实的本地部署结果。
-5. 用 `workspace init --template oss-maintainer` 创建工作区骨架（`0.4.0` 之后的
-   当前源码中交付的原型；目标目录必须不存在或为空，其他情况失败关闭）。
+5. 用 `workspace init --template oss-maintainer` 创建工作区骨架（`0.6.0` 已发布
+   预览，最初随 `0.5.0` 发布；目标目录必须不存在或为空，其他情况失败关闭）。
+6. 用已发布预览 `org tree` / `org apply` 查看并应用组织；turn 引擎、有界显式
+   委派、权限强制及可选 Memory/Context 端口只能在各自文档化预览边界内使用。
 
-`org tree` / `org apply`、`chat @position`、权限边界强制、mem 长期 Context 和内建
-引擎在当前源码中**不存在**；它们是由
+`chat @position`、持久化 Workbench/UI、可生产使用的长期记忆与 context 蒸馏，以及
+完整默认 Host 旅程仍由
 [Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155) 和
 [Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165)
-跟踪的 **design** 状态。规划中的能力不能描述为可用。精确证据以
+规划。已发布的 Memory/Context 接缝为可选能力，不代表完整产品闭环。精确证据以
 [验证账本](verification.md)为准。
 
 ### 目标端到端路径（新主线）
 
 1. 用户运行 `workspace init ./<business> --template oss-maintainer`，得到带组织树和
-   岗位员工包的工作区。（原型已在当前源码交付。）
-2. 用户用 `org tree` 查看组织：谁可寻址、每个岗位能看到什么、能做什么。（规划中。）
+   岗位员工包的工作区。（`0.6.0` 已发布预览。）
+2. 用户用 `org tree` 查看组织：谁可寻址、每个岗位能看到什么、能做什么。
+   （`0.6.0` 已发布预览；完整 Workbench 展示仍在规划中。）
 3. 用户向 `chat @repo-owner`（owner 委派、worker 执行）或 `chat @issue-researcher`
-   （窄 Context、窄权限）提问，得到带引用和可追溯委派链的结果。（规划中。）
+   （窄 Context、窄权限）提问，得到带引用和可追溯委派链的结果。（`chat` 仍在
+   规划中；底层显式单跳委派接缝已有已发布预览。）
 4. 决策和任务状态持久化到 `mem` 记忆平面；会话文本被收集用于 `context` 蒸馏。
-   （规划中；先验收召回接缝，mem 召回属 M2 范围。）
-5. 新会话或新 Host 召回同一岗位的记忆并继续工作。（规划中。）
+   （可选召回接缝已有已发布预览；持久化与蒸馏仍在规划中。）
+5. 新会话或新 Host 召回同一岗位的记忆并继续工作。（有界引擎召回接缝已发布；
+   端到端 Workbench 连续性仍在规划中。）
 6. 组织变更通过 `org apply` 完成：Context 保留，权限 Scope 重算且不发生静默扩张；
-   没有配齐预算的招聘失败关闭。（规划中。）
+   没有配齐预算的招聘失败关闭。（`org apply`、权限派生和静态招聘校验已有已发布
+   预览；完整变更工作流仍在规划中。）
 
 ## 里程碑契约
 

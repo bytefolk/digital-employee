@@ -11,20 +11,25 @@
 
 ## 已交付基线
 
-| 领域 | 当前源码中的证据 | 成熟度与剩余边界 |
+| 领域 | 当前源码与公开版本中的证据 | 成熟度与剩余边界 |
 | --- | --- | --- |
-| 员工包开发 | 宿主中立的 `init`、理解员工包的 `validate`、有上限的 `doctor`、`minimal-answer.v1` 与 `structured-action.v1` recipe，以及可执行的离线契约 eval | 当前源码与公开 `0.4.0` 制品中已 **shipped**；fixture eval 不代表真实模型权益已验证 |
-| 工作区骨架 | `workspace init --template oss-maintainer` 生成组织文件、四个岗位包和 context 目录（#156） | `0.4.0` 之后的当前源码中以原型形式 **shipped**；不属于已发布 `0.4.0` 制品 |
+| 员工包开发 | 宿主中立的 `init`、理解员工包的 `validate`、有上限的 `doctor`、`minimal-answer.v1` 与 `structured-action.v1` recipe，以及可执行的离线契约 eval | 当前公开 `0.6.0` 已 **shipped**（初始公开基线为 `0.4.0`）；fixture eval 不代表真实模型权益已验证 |
+| 工作区骨架 | `workspace init --template oss-maintainer` 生成组织文件、四个岗位包和 context 目录（#156） | 当前 `0.6.0` 的**已发布预览**（最初随 `0.5.0` 发布） |
+| 组织与权限 | `org tree`、`org apply`、`org scope`、派生权限制品及引擎失败关闭强制 | **已发布预览**；组织命令最初随 `0.5.0` 发布，引擎权限强制在 `0.6.0` 加入 |
+| 内建 turn 引擎 | 安装后 root 包的 `./engine` 导出与 `turn run` CLI | 当前 `0.6.0` 的**已发布预览**（最初随 `0.5.0` 发布）；完整默认 Host Workbench 路径尚未交付 |
+| 显式单跳委派 | 负责人到一个直接下属的 `task delegate` 路径，权限 scope 只取交集 | 当前 `0.6.0` 的**已发布预览 / deterministic E3**（最初随 `0.5.0` 发布）；不声称通用 graph、Workbench 持久化/UI 或逐 Host E4 |
+| Memory 与 Context 引擎接缝 | 可选、绑定 scope 的 `MemoryPort` 与只读 `ContextPort` wiring | `0.6.0` 的**已发布预览**；可生产长期记忆、Workbench 连续性与 context 蒸馏尚未交付 |
 | 本机 Agent Host 执行 | 对 Qoder CLI、Claude Code、Qwen Code、CodeBuddy Code 提供版本锁定的 one-shot 路径 | **preview** 且 **fixture-conformant**；尚未证明真实模型权益 |
 | Codex | 发现与 readiness 诊断 | **probe-only**；不是可运行 Adapter |
 | Runner 内核 | 单任务的包摘要与密封快照、签名任务/租约校验、replay 端口、hash-chain 事件和签名回执 | 可嵌入的 **preview** 内核；未交付长期 Runner 或公开网络 SDK |
 | 兼容运行时 | `standalone-v1` 答疑员工运行时与 connectors | 已 **shipped** 的兼容路径；不是新主线能力的目标路径 |
 | 部署命令 | 绑定员工包的 `deploy`，诚实的本地结果与失败关闭恢复 | **preview** 能力面；HTTP 可到 `ready`；钉钉对账处于外部 HOLD |
 
-`workspace init`、`org tree` 与 `org apply` 原型已在 `0.4.0` 之后的当前源码交付。
-`chat @position` 与持久化 Workbench 旅程仍由下方新主线推进。内建引擎 Epic
+`workspace init`、`org tree` 与 `org apply` 原型已作为预览随当前公开 `0.6.0`
+发布（最初随 `0.5.0` 发布）。`chat @position` 与持久化 Workbench 旅程仍由下方
+新主线推进。内建引擎 Epic
 （[#165](https://github.com/fullstack-ai-infra/digital-employee/issues/165)）
-继续分别管理尚未发布的切片与验收门禁。
+继续分别管理剩余尚未发布的切片与验收门禁。
 
 ## 交付依赖图（新主线）
 
@@ -93,7 +98,7 @@ flowchart LR
 
 | Story | 交付物 | 依赖 | 团队 |
 | --- | --- | --- | --- |
-| [#156](https://github.com/fullstack-ai-infra/digital-employee/issues/156) | oss-maintainer 模板的 `workspace init` 原型（当前源码已交付） | Epic #155 | 工作区 |
+| [#156](https://github.com/fullstack-ai-infra/digital-employee/issues/156) | oss-maintainer 模板的 `workspace init` 原型（`0.6.0` 已发布预览） | Epic #155 | 工作区 |
 | [#157](https://github.com/fullstack-ai-infra/digital-employee/issues/157) | 组织模型：`org tree` / `org apply`、目录树语义与岗位预算治理 | #156 | 组织模型 |
 | [#158](https://github.com/fullstack-ai-infra/digital-employee/issues/158) | `chat @position` 对话桥（回合契约） | #102、#156 | Chat 桥 |
 | [#159](https://github.com/fullstack-ai-infra/digital-employee/issues/159) | 岗位权限边界（Context Scope + Authority Scope） | #156 | 治理 |
@@ -147,7 +152,7 @@ issue。
 | Issue | 标题 | 处置 |
 | --- | --- | --- |
 | [#155](https://github.com/fullstack-ai-infra/digital-employee/issues/155) | [Epic] 本地数字组织工作台 | **KEEP** — 新主线交付索引；取代 #25 成为北极星 |
-| [#156](https://github.com/fullstack-ai-infra/digital-employee/issues/156) | feat(workspace): `workspace init` 原型 | **KEEP** — W1（当前源码已交付） |
+| [#156](https://github.com/fullstack-ai-infra/digital-employee/issues/156) | feat(workspace): `workspace init` 原型 | **KEEP** — W1（`0.6.0` 已发布预览） |
 | [#157](https://github.com/fullstack-ai-infra/digital-employee/issues/157) | feat(org): 组织模型、`org tree` / `org apply` | **KEEP** — W1 |
 | [#158](https://github.com/fullstack-ai-infra/digital-employee/issues/158) | feat(chat): `chat @position` 对话桥 | **KEEP** — W1 |
 | [#159](https://github.com/fullstack-ai-infra/digital-employee/issues/159) | feat(org): 岗位权限边界 | **KEEP** — W1 |

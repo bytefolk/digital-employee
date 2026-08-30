@@ -263,7 +263,14 @@ export async function runnerDoctor(
     checks.push({
       name: "platform_support",
       result: "fail",
-      message: "Windows is not supported; POSIX platforms only",
+      // AC-001 (docs/requirement-governance.md): the governance record says
+      // "AC-002 requires Linux and macOS evidence; Windows is NOT VERIFIED and
+      // remains a named limit." Track that language here so no surface (this
+      // doctor line, README, docs/agent-hosts.md, adapter probes) implies a
+      // permanence the record does not. See docs/architecture.md#windows-status
+      // for the anchored evidence gap and the two-piece prerequisite.
+      message:
+        "Windows is NOT VERIFIED in this milestone (named limit); see docs/architecture.md#windows-status",
     })
   } else {
     checks.push({

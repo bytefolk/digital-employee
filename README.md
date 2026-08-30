@@ -213,7 +213,10 @@ write tools and approval callbacks. Their model control plane remains reachable,
 while employee tool/MCP data-plane network access is denied. Conformance
 fixtures have been run, but live model entitlement has not been tested.
 The runnable preview is currently POSIX-only so descendant process groups can
-be terminated and verified before a terminal event is published.
+be terminated and verified before a terminal event is published. Windows is
+**NOT VERIFIED** in this milestone and remains a named limit — see
+[Windows status](docs/architecture.md#windows-status) for the anchored
+governance record and the outstanding evidence gap.
 
 ## Release status
 

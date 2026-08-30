@@ -194,9 +194,36 @@ All four use a new stateless session, filtered environment, stdin/native stream
 transport and an explicit deployment service API key rather than a personal
 CLI login. They reject MCP, attachments, resume, writes and approval callbacks.
 The runnable preview is POSIX-only: a terminal event is withheld until the
-detached process group has exited. Windows remains not-ready until equivalent
-Job Object process-tree cleanup is implemented and covered by deterministic
-Adapter fixtures.
+detached process group has exited.
+
+### Windows status
+
+Windows is **NOT VERIFIED** in this milestone and remains a **named limit**,
+per the AC-002 amendment recorded in `docs/requirement-governance.md`. This is
+an evidence-gap decision, not a permanent unsupported statement. The
+outstanding work is two pieces, both required before the named limit can be
+lifted:
+
+1. **Job Object process-tree cleanup** — the win32 branch of
+   `signalAgentHostProcessTree` currently uses `taskkill /pid <pid> /T` (fixed
+   in #225), which reaches descendants correctly for the shared version probe
+   but is not the equivalent-strength primitive of the POSIX detached
+   process-group model. The stronger Windows primitive is
+   `CreateJobObject` + `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` +
+   `AssignProcessToJobObject`, which the kernel enforces even if the parent
+   crashes.
+2. **win32 leak-oracle fixture** — `inspectProcessIdentities` in
+   `packages/core/src/adapter-qualification.ts` currently short-circuits on
+   win32 because the oracle shells out to `/bin/ps`. Without a win32 oracle
+   there is no fixture-side way to prove absence of leaks, and the acceptance
+   bar in this section requires exactly that.
+
+Until both pieces land, Windows fails closed at doctor and at adapter probe
+with a **named-limit** code (`platform_named_limit` at the runner surface,
+`host_platform_not_conformance_verified` at the adapter surface). The gate
+itself is intended, correct, and traceable; this section is the single anchor
+for its wording so `README`, `docs/agent-hosts.md`, `runner doctor`, and every
+adapter probe track the same governance record.
 
 Across all built-in Adapters, `structured_output` has one meaning:
 **Adapter-enforced terminal validity**. When `outputSchema` is present, the

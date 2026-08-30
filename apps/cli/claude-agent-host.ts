@@ -604,7 +604,7 @@ export class ClaudeAgentHostAdapter implements AgentHostAdapter {
       issues.push(
         issue(
           "host_platform_not_conformance_verified",
-          "This adapter requires POSIX process-group cleanup; Windows is not yet runnable",
+          "Windows is NOT VERIFIED in this milestone (named limit): the runnable Adapter still requires POSIX process-group cleanup; see docs/architecture.md#windows-status",
         ),
       )
     } else if (!this.environment.ANTHROPIC_API_KEY?.trim()) {

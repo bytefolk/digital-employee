@@ -8,7 +8,7 @@
 
 `digital-employee` 不实现另一套通用 Agent loop。模型推理、上下文窗口、原生工具循环和宿主会话由 Agent Host 负责；本项目负责员工包、Host Adapter、能力协商、策略、标准事件，以及后续的通道、队列、审计和人工接力。
 
-当前源码中有四条版本锁定的 **runnable** 路径：Qoder CLI 1.1.x、Claude Code `>=2.1.214 <2.2.0`、Qwen Code `0.17.1` 和 CodeBuddy Code `2.106.4`。它们都是 one-shot、无状态、POSIX 本机/单租户技术预览；Qoder 只获得最小只读文件投影，另外三个是不暴露原生工具的 context-only Adapter。四条路径都不支持 MCP、附件、会话恢复、写工具或审批回调，也都没有使用真实模型权益验收。Windows 因尚无经过验证的 Job Object 进程树清理而 fail closed。Codex 仍是 **probe-only**：Codex CLI 0.148.0 无法可靠移除所有模型可见的内建工具，其中包括 `apply_patch`，详见 [0.148.0 复审](research/codex-cli-0.148.0-default-deny-audit.md)。
+当前源码中有四条版本锁定的 **runnable** 路径：Qoder CLI 1.1.x、Claude Code `>=2.1.214 <2.2.0`、Qwen Code `0.17.1` 和 CodeBuddy Code `2.106.4`。它们都是 one-shot、无状态、POSIX 本机/单租户技术预览；Qoder 只获得最小只读文件投影，另外三个是不暴露原生工具的 context-only Adapter。四条路径都不支持 MCP、附件、会话恢复、写工具或审批回调，也都没有使用真实模型权益验收。Windows 在本里程碑 **NOT VERIFIED**，作为治理记录中的**已命名限制（named limit）**暂缓，等 Job Object 进程树清理 + win32 leak-oracle fixture 落地后解锁，详见 [Windows status](architecture.md#windows-status)。Codex 仍是 **probe-only**：Codex CLI 0.148.0 无法可靠移除所有模型可见的内建工具，其中包括 `apply_patch`，详见 [0.148.0 复审](research/codex-cli-0.148.0-default-deny-audit.md)。
 
 官方产品文档只能证明某个宿主值得适配，不能把 `documented` 提升为本仓库的 `supported`。只有版本锁定、Adapter 实现和仓库内 Adapter 专用确定性 fixture 全部通过后，一项能力才能参与运行前兼容性判断。
 
@@ -220,7 +220,7 @@ Workbench Bridge 不得：
 | --- | --- |
 | 启用方式 | `DIGITAL_EMPLOYEE_ENGINE_MODEL=qoder`；二进制默认取 PATH 上的 `qodercli`，可用 `DIGITAL_EMPLOYEE_QODER_COMMAND` 指定 |
 | 凭据 | 唯一入口是环境 allowlist 中的 `QODER_PERSONAL_ACCESS_TOKEN`。令牌不进 argv、envelope、事件流或诊断；沿用 Adapter 的 auth-payload 文件纪律（0600、run 局部、运行结束即删除） |
-| 版本族 | 与隔离 Adapter 相同：`1.1.x` conformance 族。族外版本、二进制缺失或未验证平台（Windows）在 port 解析阶段 fail closed（退出码 1，环境故障），不会被建模成"员工失败"的治理结论（退出码 0） |
+| 版本族 | 与隔离 Adapter 相同：`1.1.x` conformance 族。族外版本、二进制缺失或本里程碑 **NOT VERIFIED / named limit** 的平台（Windows，详见 [Windows status](architecture.md#windows-status)）在 port 解析阶段 fail closed（退出码 1，环境故障），不会被建模成"员工失败"的治理结论（退出码 0） |
 | 工具面 | 零工具：`tools.default=deny` 且 allow 为空、无文件系统授权、网络 deny、approval never、无 MCP、`maxTurns=1`。Adapter 的 init 断言会在运行期复核公告的工具集 |
 | 用量 | **如实缺失**：Adapter 的 usage 事件不是稳定契约（`usage_events: unknown`），该 port 只返回文本、不返回 token 数。per-task/per-day 的 token 记账对该 port 记 0，iteration 预算仍生效；不得据此 port 做 token 级预算拦截 |
 

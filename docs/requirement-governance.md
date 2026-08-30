@@ -189,6 +189,25 @@ approver: "@PeterGuy326"
 decidedAt: "2026-08-30T16:24:06Z"
 ```
 
+A further decision on #224 resolves Q1/Q2 (dependency type): the bounded
+evidence-only spike is scheduled first, and the Job Object body is held until
+a named signal, keeping the Windows named limit in force until then.
+
+<!-- requirement-decision:v1 -->
+```yaml
+schemaVersion: requirement-decision.v1
+canonicalIssue: "https://github.com/fullstack-ai-infra/digital-employee/issues/224"
+previousRevision: R2
+resultingRevision: R3
+decisionType: dependency
+oldDecision: "Q1 unresolved (Job Object funding undecided); Q2 unresolved (bounded oracle spike not approved)."
+newDecision: "A3+B1: bounded evidence-only spike #231 (win32 leak oracle + port of the four POSIX-only Adapter fixtures, fail-closed gate unchanged) is scheduled as W2+ work; the Job Object body #232 is HOLD until a named signal (enterprise Windows deployment demand, isolation-audit requirement, or #231 merged); the named limit stays until #232 completes."
+reason: "Acceptance first: a win32 oracle must exist before any cleanup mechanism can be verified; Job Object scope waits for real deployment signal rather than narrative pressure."
+impact: "#231 becomes the scheduled prerequisite of #232; no runtime behavior changes; Windows remains NOT VERIFIED / named limit."
+approver: "@PeterGuy326"
+decidedAt: "2026-08-30T16:27:24Z"
+```
+
 ### Breaking or compatibility
 
 Change a public contract or compatibility promise.

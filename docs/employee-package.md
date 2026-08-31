@@ -23,8 +23,8 @@ node ./dist/apps/cli/bin.js eval ../team-answer
 node ./dist/apps/cli/bin.js doctor
 ```
 
-With the current published `0.6.0` npm package installed globally, the
-equivalent commands are:
+With the published `0.6.0` npm package installed globally, the equivalent
+commands are:
 
 ```bash
 digital-employee init ./team-answer --recipe minimal-answer.v1 --author your-team
@@ -32,6 +32,10 @@ digital-employee validate ./team-answer
 digital-employee eval ./team-answer
 digital-employee doctor
 ```
+
+This source checkout declares package version `0.6.1`. Its manifest and local
+artifacts do not establish npm, tag, GHCR image, or GitHub Release availability,
+which requires a release receipt.
 
 `init` requires a new, Agent-Skill-compatible target directory and never
 merges into or overwrites an existing directory. It builds in a sibling
@@ -305,7 +309,7 @@ Following that evidence, distribution is split into independent artifacts:
    employee package/version but stays outside this repository's runtime
    contract.
 
-The current public `0.6.0` root package implements the first two plus four
+The public `0.6.0` root package implements the first two plus four
 one-shot Host Adapters and a single fail-closed local subset of the third
 through `deploy`. A
 multi-deployment registry, queue, audit/reconnect lifecycle, and Agent-native

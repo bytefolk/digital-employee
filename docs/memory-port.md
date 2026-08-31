@@ -3,11 +3,13 @@
 `MemoryPort` is the strict durable-memory seam for a local digital-organization
 workspace. The first adapter speaks the public HTTP API of
 [`mem`](https://github.com/fullstack-ai-infra/mem) revision
-`4c714aa352f79f0080a24904668210d6c445ba10`. The current public `0.6.0`
-engine preview can consume this port through explicit `EngineMemoryOptions`;
-recall remains disabled unless `enabled` is exactly `true`. This seam does
-not copy conversation history, resume an Agent Host, extract model-authored
-memories, write task state automatically, or grant access.
+`4c714aa352f79f0080a24904668210d6c445ba10`. The public `0.6.0` engine
+preview can consume this port through explicit `EngineMemoryOptions`; recall
+remains disabled unless `enabled` is exactly `true`. This checkout declares
+package version `0.6.1`; its source and packed artifacts do not establish npm,
+tag, GHCR image, or GitHub Release availability, which requires a release
+receipt. This seam does not copy conversation history, resume an Agent Host,
+extract model-authored memories, write task state automatically, or grant access.
 
 ## Boundary
 
@@ -86,7 +88,7 @@ const memory = createMemHttpMemoryAdapter({
 
 Set the named variable in the process environment through the operator's
 secret manager. Do not render it into a workspace file or pass it on argv.
-The returned value implements `MemoryPort`. In the public `0.6.0` engine
+The returned value implements `MemoryPort`. In the published `0.6.0` engine
 preview, an embedder may pass it through `TurnExecutorOptions.memory` with
 the exact workspace, session, scope, mode, and adapter identity binding.
 Omitting that option or setting `enabled: false` performs no recall.

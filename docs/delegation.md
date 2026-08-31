@@ -3,8 +3,10 @@
 The S3-P0 delegation seam implements the bounded engine slice approved in
 [Issue #158 R3](https://github.com/fullstack-ai-infra/digital-employee/issues/158)
 and [Issue #165 R4](https://github.com/fullstack-ai-infra/digital-employee/issues/165).
-It is a released preview in the current public npm `0.6.0` package (first
-published in `0.5.0`), but it is not a live-qualified capability.
+It is a released preview in the public npm `0.6.0` package (first published in
+`0.5.0`), but it is not a live-qualified capability. This checkout declares
+package version `0.6.1`; source and packed artifacts do not establish npm, tag,
+GHCR image, or GitHub Release availability, which requires a release receipt.
 
 ## Ownership boundary
 

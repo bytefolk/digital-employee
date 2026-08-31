@@ -13,144 +13,157 @@ async function readRepositoryFile(relativePath: string): Promise<string> {
   return readFile(path.join(repositoryRoot, relativePath), "utf8");
 }
 
-test("current-facing release documentation follows the root package version", async () => {
+test("release documentation separates static artifacts from verified availability", async () => {
   const manifest = JSON.parse(
     await readRepositoryFile("package.json")
   ) as { version?: unknown };
-  const version = manifest.version;
-  assert.ok(typeof version === "string");
-  assert.match(version, /^\d+\.\d+\.\d+$/);
+  const sourceVersion = manifest.version;
+  assert.ok(typeof sourceVersion === "string");
+  assert.match(sourceVersion, /^\d+\.\d+\.\d+$/);
 
-  const requiredMarkers: Record<string, string[]> = {
-    "AGENTS.md": [
-      `Quick start (public npm ${version})`,
-      `@fullstack-ai-infra/digital-employee@${version}`,
-      `current public npm version is \`${version}\``
-    ],
-    "INSTALL.md": [
-      `current public npm release is \`${version}\``,
-      `@fullstack-ai-infra/digital-employee@${version}`
-    ],
-    "README.md": [
-      `The tagged \`${version}\` release is public`,
-      `@fullstack-ai-infra/digital-employee@${version}`,
-      `@fullstack-ai-infra/digital-employee-core@${version}`,
-      `ghcr.io/fullstack-ai-infra/digital-employee:${version}`,
-      `releases/tag/v${version}`
-    ],
-    "README.zh-CN.md": [
-      `标签版本 \`${version}\` 已通过`,
-      `@fullstack-ai-infra/digital-employee@${version}`,
-      `@fullstack-ai-infra/digital-employee-core@${version}`,
-      `ghcr.io/fullstack-ai-infra/digital-employee:${version}`,
-      `releases/tag/v${version}`
-    ],
-    "docs/verification.md": [
-      `\`${version}\` is the current tagged release`
-    ],
-    "docs/strategy.md": [
-      `install the public \`${version}\` release`
-    ],
-    "docs/strategy.zh-CN.md": [
-      `安装公开的 \`${version}\` 版本`
-    ],
-    "docs/roadmap.md": [
-      `current public \`${version}\``
-    ],
-    "docs/roadmap.zh-CN.md": [
-      `当前公开 \`${version}\``
-    ],
-    "docs/delegation.md": [
-      `current public npm \`${version}\` package`
-    ],
-    "docs/employee-package.md": [
-      `current published \`${version}\` npm package`
-    ],
-    "docs/memory-port.md": [
-      `current public \`${version}\` engine preview`,
-      `public \`${version}\` engine preview`
-    ],
-    "packages/core/README.md": [
-      `current public \`${version}\` engine preview`,
-      "`EngineMemoryOptions` / `TurnExecutorOptions.memory`",
-      "`enabled` is exactly `true`",
-      "remains disabled by default"
-    ]
+  const recordedPublicVersion = "0.6.0";
+  const currentFacingSurfaces = [
+    "AGENTS.md",
+    "INSTALL.md",
+    "README.md",
+    "README.zh-CN.md",
+    "docs/verification.md",
+    "docs/strategy.md",
+    "docs/strategy.zh-CN.md",
+    "docs/roadmap.md",
+    "docs/roadmap.zh-CN.md",
+    "docs/delegation.md",
+    "docs/employee-package.md",
+    "docs/memory-port.md",
+    "packages/core/README.md"
+  ];
+  const releaseEvidenceMarkers: Record<string, string[]> = Object.fromEntries(
+    currentFacingSurfaces.map((relativePath) => [relativePath, ["release receipt"]])
+  );
+  const installGuidance: Record<
+    string,
+    {
+      sourceInstall: string;
+      receiptCondition: string;
+      fallbackInstall: string;
+      fallbackCondition: string;
+    }
+  > = {
+    "AGENTS.md": {
+      sourceInstall: `npm install @fullstack-ai-infra/digital-employee@${sourceVersion}`,
+      receiptCondition: `If the release receipt verifies \`${sourceVersion}\` on npm`,
+      fallbackInstall: `npm install @fullstack-ai-infra/digital-employee@${recordedPublicVersion}`,
+      fallbackCondition: `Otherwise, use the recorded public \`${recordedPublicVersion}\` fallback`
+    },
+    "INSTALL.md": {
+      sourceInstall: `npm install @fullstack-ai-infra/digital-employee@${sourceVersion}`,
+      receiptCondition: `If the release receipt verifies \`${sourceVersion}\` on npm`,
+      fallbackInstall: `npm install @fullstack-ai-infra/digital-employee@${recordedPublicVersion}`,
+      fallbackCondition: `Otherwise, use the recorded public \`${recordedPublicVersion}\` fallback`
+    },
+    "README.md": {
+      sourceInstall: `npm install @fullstack-ai-infra/digital-employee@${sourceVersion}`,
+      receiptCondition: `If the release receipt verifies \`${sourceVersion}\` on npm`,
+      fallbackInstall: `npm install @fullstack-ai-infra/digital-employee@${recordedPublicVersion}`,
+      fallbackCondition: `Otherwise, use the recorded public \`${recordedPublicVersion}\` fallback`
+    },
+    "README.zh-CN.md": {
+      sourceInstall: `npm install @fullstack-ai-infra/digital-employee@${sourceVersion}`,
+      receiptCondition: `如果 release receipt 验证 npm 中的 \`${sourceVersion}\``,
+      fallbackInstall: `npm install @fullstack-ai-infra/digital-employee@${recordedPublicVersion}`,
+      fallbackCondition: `否则使用已记录公开的 \`${recordedPublicVersion}\` fallback`
+    },
+    "packages/core/README.md": {
+      sourceInstall: `npm install @fullstack-ai-infra/digital-employee-core@${sourceVersion}`,
+      receiptCondition: `If the release receipt verifies \`${sourceVersion}\` on npm`,
+      fallbackInstall: `npm install @fullstack-ai-infra/digital-employee-core@${recordedPublicVersion}`,
+      fallbackCondition: `Otherwise, use the recorded public \`${recordedPublicVersion}\` fallback`
+    }
   };
+  const sourceInstallCommands = [
+    `npm install @fullstack-ai-infra/digital-employee@${sourceVersion}`,
+    `npm install @fullstack-ai-infra/digital-employee-core@${sourceVersion}`
+  ];
+  const forbiddenArtifactMarkers = [
+    `ghcr.io/fullstack-ai-infra/digital-employee:${sourceVersion}`,
+    `releases/tag/v${sourceVersion}`,
+    `current public npm version is \`${sourceVersion}\``,
+    `current public npm release is \`${sourceVersion}\``,
+    `The tagged \`${sourceVersion}\` release is public`,
+    `标签版本 \`${sourceVersion}\` 已通过`,
+    `current published \`${sourceVersion}\` npm package`
+  ];
 
-  for (const [relativePath, markers] of Object.entries(requiredMarkers)) {
+  for (const relativePath of currentFacingSurfaces) {
     const content = await readRepositoryFile(relativePath);
     const normalizedContent = content.replace(/\s+/g, " ");
-    for (const marker of markers) {
+    assert.ok(
+      normalizedContent.includes(recordedPublicVersion),
+      `${relativePath} must retain recorded public ${recordedPublicVersion} evidence`
+    );
+    assert.ok(
+      normalizedContent.includes(sourceVersion),
+      `${relativePath} must name source package version ${sourceVersion}`
+    );
+    for (const marker of releaseEvidenceMarkers[relativePath]) {
       const normalizedMarker = marker.replace(/\s+/g, " ");
       assert.ok(
         normalizedContent.includes(normalizedMarker),
-        `${relativePath} is missing: ${normalizedMarker}`
+        `${relativePath} is missing release-evidence boundary: ${normalizedMarker}`
       );
     }
-  }
-
-  const currentClaimPatterns: Record<string, RegExp[]> = {
-    "AGENTS.md": [
-      /Quick start \(public npm (\d+\.\d+\.\d+)\)/g,
-      /current public npm version is `(\d+\.\d+\.\d+)`/g
-    ],
-    "INSTALL.md": [
-      /current public npm release is `(\d+\.\d+\.\d+)`/g
-    ],
-    "README.md": [
-      /(?:the )?current(?: public(?: npm)?)? `(\d+\.\d+\.\d+)`/gi,
-      /The tagged `(\d+\.\d+\.\d+)` release is public/g
-    ],
-    "README.zh-CN.md": [
-      /当前(?:公开 )?`(\d+\.\d+\.\d+)`/g,
-      /标签版本 `(\d+\.\d+\.\d+)` 已通过/g
-    ],
-    "docs/verification.md": [
-      /Public\s+`(\d+\.\d+\.\d+)` is the current tagged release/g
-    ],
-    "docs/strategy.md": [
-      /install the public `(\d+\.\d+\.\d+)` release/g,
-      /(?:the )?current(?: public(?: npm)?)? `(\d+\.\d+\.\d+)`/gi
-    ],
-    "docs/strategy.zh-CN.md": [
-      /安装公开的 `(\d+\.\d+\.\d+)` 版本/g,
-      /当前(?:公开 |根包 )?`(\d+\.\d+\.\d+)`/g
-    ],
-    "docs/roadmap.md": [
-      /(?:the )?current(?: public(?: npm)?)? `(\d+\.\d+\.\d+)`/gi
-    ],
-    "docs/roadmap.zh-CN.md": [
-      /当前(?:公开 )?`(\d+\.\d+\.\d+)`/g
-    ],
-    "docs/delegation.md": [
-      /current public npm `(\d+\.\d+\.\d+)` package/g
-    ],
-    "docs/employee-package.md": [
-      /current published `(\d+\.\d+\.\d+)` npm package/g
-    ],
-    "docs/memory-port.md": [
-      /current public `(\d+\.\d+\.\d+)`\s+engine preview/g,
-      /public `(\d+\.\d+\.\d+)`\s+engine preview/g
-    ],
-    "packages/core/README.md": [
-      /current public `(\d+\.\d+\.\d+)`\s+engine preview/g
-    ]
-  };
-
-  for (const [relativePath, patterns] of Object.entries(currentClaimPatterns)) {
-    const content = await readRepositoryFile(relativePath);
-    for (const pattern of patterns) {
-      const claims = [...content.matchAll(pattern)];
-      assert.ok(claims.length > 0, `${relativePath} has no claim matching ${pattern}`);
-      for (const claim of claims) {
-        assert.equal(
-          claim[1],
-          version,
-          `${relativePath} has stale current-version claim: ${claim[0]}`
-        );
-      }
+    const guidance = installGuidance[relativePath];
+    for (const sourceInstall of sourceInstallCommands) {
+      assert.equal(
+        content.includes(sourceInstall),
+        guidance?.sourceInstall === sourceInstall,
+        `${relativePath} must only contain its receipt-conditioned source install command`
+      );
     }
+    if (guidance) {
+      const receiptCondition = guidance.receiptCondition.replace(/\s+/g, " ");
+      const fallbackCondition = guidance.fallbackCondition.replace(/\s+/g, " ");
+      assert.ok(
+        normalizedContent.includes(receiptCondition),
+        `${relativePath} is missing its receipt condition for the source install`
+      );
+      assert.ok(
+        normalizedContent.includes(guidance.sourceInstall),
+        `${relativePath} is missing its source-version install command`
+      );
+      assert.ok(
+        normalizedContent.includes(fallbackCondition),
+        `${relativePath} is missing its recorded-public fallback condition`
+      );
+      assert.ok(
+        normalizedContent.includes(guidance.fallbackInstall),
+        `${relativePath} is missing its recorded-public fallback install command`
+      );
+      assert.ok(
+        normalizedContent.indexOf(receiptCondition) < normalizedContent.indexOf(guidance.sourceInstall),
+        `${relativePath} must condition the source install on the receipt`
+      );
+      assert.ok(
+        normalizedContent.indexOf(fallbackCondition) < normalizedContent.indexOf(guidance.fallbackInstall),
+        `${relativePath} must condition the fallback install on the absence of that receipt`
+      );
+    }
+    for (const forbiddenMarker of forbiddenArtifactMarkers) {
+      assert.ok(
+        !content.includes(forbiddenMarker),
+        `${relativePath} falsely advertises unverified artifact: ${forbiddenMarker}`
+      );
+    }
+    assert.doesNotMatch(
+      content,
+      /(?:current public(?: npm)?|current published)\s+`?0\.6\.0`?|当前(?:公开 )?`0\.6\.0`/i,
+      `${relativePath} conflates the recorded public release with current source`
+    );
+    assert.doesNotMatch(
+      content,
+      /release-preparation candidate|发布前候选|源码候选/i,
+      `${relativePath} has a time-bound claim that would stale after publication`
+    );
   }
 
   const forbiddenStaleMarkers: Record<string, string[]> = {
@@ -178,7 +191,7 @@ test("current-facing release documentation follows the root package version", as
   }
 });
 
-test("current-version alignment preserves named historical release evidence", async () => {
+test("release documentation preserves named historical release evidence", async () => {
   const requiredHistoricalMarkers: Record<string, string[]> = {
     "CHANGELOG.md": [
       "## [0.5.0] - 2026-08-26",

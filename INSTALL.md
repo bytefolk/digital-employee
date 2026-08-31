@@ -6,9 +6,12 @@ and ask it to set up the framework.
 
 ## Published-versus-source boundary
 
-The current public npm release is `0.6.0`. It contains the Agent-native `init`,
-`doctor`, `validate`, `eval`, and one-shot `run` paths, the convenience
-`setup` command, and the package-bound `deploy` command.
+This checkout declares package version `0.6.1`; its source and packed artifacts
+do not establish public npm, tag, GHCR, or GitHub Release availability. Verify
+the release receipt before treating a version as available. The recorded public
+npm release `0.6.0` contains the Agent-native `init`, `doctor`,
+`validate`, `eval`, and one-shot `run` paths, the convenience `setup` command,
+and the package-bound `deploy` command.
 
 ## Prerequisites
 
@@ -17,15 +20,31 @@ The current public npm release is `0.6.0`. It contains the Agent-native `init`,
 
 ## Install steps (deterministic, credential-free)
 
-```bash
-# 1. Install the published package as a dependency
-npm init -y 2>/dev/null || true
-npm install @fullstack-ai-infra/digital-employee@0.6.0
+Initialize the workspace first:
 
-# 2. Diagnose the installed Agent Hosts without invoking a model
+```bash
+npm init -y 2>/dev/null || true
+```
+
+If the release receipt verifies `0.6.1` on npm, install that exact version:
+
+```bash
+npm install @fullstack-ai-infra/digital-employee@0.6.1
+```
+
+Otherwise, use the recorded public `0.6.0` fallback:
+
+```bash
+npm install @fullstack-ai-infra/digital-employee@0.6.0
+```
+
+After either installation path:
+
+```bash
+# Diagnose the installed Agent Hosts without invoking a model
 npx digital-employee doctor --json
 
-# 3. Scaffold with a command first shipped in 0.4.0 and included in 0.6.0
+# Scaffold with a command first shipped in 0.4.0 and included in 0.6.0
 npx digital-employee init ./my-employee \
   --recipe minimal-answer.v1 \
   --author your-team

@@ -10,8 +10,12 @@ Digital Employee 是一个本地优先、对话优先的数字组织工作区。
 一个可寻址数字员工，一次对话 = 带岗位 Context 与权限边界的工作。岗位运行在内建的、TypeScript 原生
 执行引擎之上，它是默认 Host
 （[Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165)，
-产品方向）。引擎/turn 核心已在 `0.6.0` 发布预览；完整默认 Host Workbench 路径仍在
-交付中，外部 Agent Host 适配器只是选项，不是依赖。
+产品方向）。引擎/turn 核心已在公开 `0.6.0` 发布预览；`0.6.1` 源码树不改变运行时。
+完整默认 Host Workbench 路径仍在交付中，外部 Agent Host 适配器只是选项，不是依赖。
+
+> **发布可用性边界：**当前源码 checkout 的包版本为 `0.6.1`。其 manifest、PR 或打包
+> 制品都不能证明 npm、标签、GHCR 或 GitHub Release 可用；release receipt 才是唯一的
+> 可用性证据。下方记录的公开 `0.6.0` 收据是历史证据。
 
 ## Digital Employee 处在哪一层
 
@@ -22,9 +26,9 @@ Agent 框架（Claude Code、Qoder、Qwen Code、CodeBuddy、Codex……）回�
 
 我们正在靠拢的卖点：**门槛很低、不用敲命令**——业务负责人不需要写 prompt 模板、不需要
 手动配置 Agent Host；说一句话、喊一个岗位名，就能拿到带出处的结果，整个组织仍由负责人
-兜底。**完整的无命令 Workbench 方向仍在规划中**。当前公开 `0.6.0` 已把
-`workspace init`、`org tree` 与 `org apply` 作为预览能力发布；`chat @岗位` 与持久化
-Workbench 集成仍在规划中（见下方状态表）。
+兜底。**完整的无命令 Workbench 方向仍在规划中**。公开 `0.6.0` 已把
+`workspace init`、`org tree` 与 `org apply` 作为预览能力发布；`0.6.1` 源码版本只修正文档。
+`chat @岗位` 与持久化 Workbench 集成仍在规划中（见下方状态表）。
 
 ## 能力状态
 
@@ -33,14 +37,14 @@ Workbench 集成仍在规划中（见下方状态表）。
 
 | 能力 | 状态 |
 | --- | --- |
-| `init`、`doctor`、`validate`、`eval`、one-shot `run`、`setup` | **已发布**于当前公开 npm `0.6.0`（最初随 `0.4.0` 发布）；fixture `eval` 不代表真实模型权益已验证 |
-| package-bound `deploy` | **已发布**于当前 `0.6.0`（最初随 `0.4.0` 发布），仅限文档化 fail-closed 边界（HTTP 可到 `ready`；钉钉对账外部 HOLD） |
-| 员工包 / Skill / Schema / eval 契约与 Agent Host Adapter | **已发布**于当前 `0.6.0`（初始公开基线为 `0.4.0`）；Host Adapter 为 `preview` 与 `fixture-conformant`，未 live-qualified |
+| `init`、`doctor`、`validate`、`eval`、one-shot `run`、`setup` | **已发布**于公开 npm `0.6.0`（最初随 `0.4.0` 发布）；fixture `eval` 不代表真实模型权益已验证 |
+| package-bound `deploy` | **已发布**于公开 `0.6.0`（最初随 `0.4.0` 发布），仅限文档化 fail-closed 边界（HTTP 可到 `ready`；钉钉对账外部 HOLD） |
+| 员工包 / Skill / Schema / eval 契约与 Agent Host Adapter | **已发布**于公开 `0.6.0`（初始公开基线为 `0.4.0`）；Host Adapter 为 `preview` 与 `fixture-conformant`，未 live-qualified |
 | `standalone-v1` 兼容运行时 | **已发布**兼容路径；不是新主线能力的目标路径 |
 | 2026-08-23 pivot 之后的旧轨 issue | 按 #164 批准的台账处置——KEEP 11 / REPURPOSE 9 / PARK 5；见[旧轨处置台账](docs/roadmap.zh-CN.md#旧轨收尾与-issue-处置) |
-| `workspace init`（oss-maintainer 模板） | 当前 `0.6.0` 的**已发布预览**（最初随 `0.5.0` 发布，#156） |
-| `org tree` / `org apply` | 当前 `0.6.0` 的**已发布预览**（最初随 `0.5.0` 发布）；应用权限失败关闭 |
-| 负责人 → 一个直接下属的显式委派 | 当前 `0.6.0` 的**已发布预览** / deterministic E3（最初随 `0.5.0` 发布）；Workbench 持久化/UI 与逐 Host E4 尚未验证（见[边界](docs/delegation.md)） |
+| `workspace init`（oss-maintainer 模板） | 公开 `0.6.0` 的**已发布预览**（最初随 `0.5.0` 发布，#156） |
+| `org tree` / `org apply` | 公开 `0.6.0` 的**已发布预览**（最初随 `0.5.0` 发布）；应用权限失败关闭 |
+| 负责人 → 一个直接下属的显式委派 | 公开 `0.6.0` 的**已发布预览** / deterministic E3（最初随 `0.5.0` 发布）；Workbench 持久化/UI 与逐 Host E4 尚未验证（见[边界](docs/delegation.md)） |
 | `chat @岗位` | **规划中**的 Workbench 集成（Epic #155 第一里程碑） |
 | 可选 Memory/Context 召回与权限强制 | `0.6.0` **已发布预览**：绑定 scope 的引擎接缝，默认关闭，不代表持久化产品闭环 |
 | 持久长期 Context、Workbench 连续性与 context 蒸馏 | **规划中**；未随 v0.6.0 召回接缝发布 |
@@ -48,7 +52,7 @@ Workbench 集成仍在规划中（见下方状态表）。
 | oss-maintainer 展示案例（quickstart 形态） | **规划中**（Epic #155 M1） |
 | 渠道扩展（飞书/企微） | **规划中更后期**；不属于首个里程碑 |
 
-规划中的行今天都不可用。不要把源码 `main` checkout、PR 或候选制品当作已发布能力。
+规划中的行今天都不可用。不要把源码 `main` checkout、PR 或打包制品当作已发布能力。
 
 ## 运行
 
@@ -56,13 +60,29 @@ Workbench 集成仍在规划中（见下方状态表）。
 
 ### 从 npm 安装
 
-从精确的公开版本开始：
+先初始化工作目录：
 
 ```bash
 mkdir digital-employee-workspace
 cd digital-employee-workspace
 npm init -y
+```
+
+如果 release receipt 验证 npm 中的 `0.6.1`，安装该精确版本：
+
+```bash
+npm install @fullstack-ai-infra/digital-employee@0.6.1
+```
+
+否则使用已记录公开的 `0.6.0` fallback：
+
+```bash
 npm install @fullstack-ai-infra/digital-employee@0.6.0
+```
+
+两种安装路径均可继续执行：
+
+```bash
 npx digital-employee doctor --json
 npx digital-employee init ./my-employee \
   --recipe minimal-answer.v1 \
@@ -209,7 +229,8 @@ node ./dist/apps/cli/bin.js deploy ../team-answer \
 
 ## 版本状态
 
-标签版本 `0.6.0` 已通过 root/core npm 包、GHCR 和 GitHub Releases 公开发布：
+本 checkout 的 `0.6.1` 包版本不是公开可用性的声明。公开 `0.6.0` 收据已通过 root/core
+npm 包、GHCR 和 GitHub Releases 验证：
 
 | 渠道 | 安装或下载方式 |
 | --- | --- |
@@ -219,9 +240,9 @@ node ./dist/apps/cli/bin.js deploy ../team-answer \
 | GitHub Release | 从 [`v0.6.0`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.6.0) 下载 root/core 包和校验文件 |
 
 独立的 `@fullstack-ai-infra/digital-employee-core@0.6.0` npm 包已经公开。一次性 registry
-bootstrap 已完成，后续版本由 `release.yml` 通过 npm Trusted Publishing 发布。当前 `main`
-已包含标签之后的改动，本身不代表一个已发布版本。不要覆盖或重新标记任何已发布版本，
-包括 `0.6.0`、`0.5.0`、`0.4.0`、`0.3.0` 或 `0.1.0`。
+bootstrap 已完成，后续版本由 `release.yml` 通过 npm Trusted Publishing 发布。源码分支或
+打包制品本身不代表一个已发布版本。不要覆盖或重新标记任何已发布版本，包括 `0.6.0`、
+`0.5.0`、`0.4.0`、`0.3.0` 或 `0.1.0`。
 
 冻结的 `0.1.0` 兼容版本通过三个公开渠道分发：
 
@@ -383,9 +404,9 @@ DWS 的安装、授权和完整能力请查看
 | 签名任务、包摘要、本机快照、租约 fencing、事件链、Runner 签名回执 | 已发布（V0.3 源码技术预览） |
 | 卖家自有长期 Runner 进程、本地持久 replay/outbox 和重连 | 旧轨已收尾；保留范围以[处置台账](docs/roadmap.zh-CN.md#旧轨收尾与-issue-处置) KEEP 线为准 |
 | 服务端设备注册、任务分发、用量核验、Quote/Credit 和结算 | 私有平台；不进入本框架仓库 |
-| `workspace init`（oss-maintainer 模板） | 最初随 `0.5.0` 发布预览；包含于当前 `0.6.0`（#156） |
-| `org tree` / `org apply` | 最初随 `0.5.0` 发布预览；包含于当前 `0.6.0` |
-| 负责人 → 一个直接下属的显式委派 | 最初随 `0.5.0` 发布 deterministic E3 预览；包含于当前 `0.6.0`，未 live-qualified |
+| `workspace init`（oss-maintainer 模板） | 最初随 `0.5.0` 发布预览；包含于公开 `0.6.0`（#156） |
+| `org tree` / `org apply` | 最初随 `0.5.0` 发布预览；包含于公开 `0.6.0` |
+| 负责人 → 一个直接下属的显式委派 | 最初随 `0.5.0` 发布 deterministic E3 预览；包含于公开 `0.6.0`，未 live-qualified |
 | `chat @岗位` 与持久化 Workbench 集成 | 规划中；Epic #155 第一里程碑 |
 | 可选 Memory/Context 召回与岗位权限强制 | `0.6.0` 已发布引擎接缝预览；默认关闭，不代表持久化产品闭环 |
 | 持久长期 Context、Workbench 连续性与 context 蒸馏 | 规划中；未随 v0.6.0 召回接缝发布 |
@@ -430,7 +451,7 @@ marketplace 上架、租赁、动态价格、可信计量、评价和分账属�
 [`mem`](https://github.com/fullstack-ai-infra/mem) 是新主线上长期 Context 的底座：岗位
 对话产生的决策与任务状态写入记忆平面，新会话/换 Host 后可召回续接；本仓库不重复建设
 memory plane。当前严格类型边界、固定版本 HTTP 适配器、凭证与授权职责见
-[MemoryPort 接入说明](docs/memory-port.md)。当前公开 `0.6.0` 引擎预览可显式接入
+[MemoryPort 接入说明](docs/memory-port.md)。公开 `0.6.0` 引擎预览可显式接入
 该端口做回合前召回，但默认停用；这不等于持久化 Workbench、自动记忆写入或完整长期
 Context 产品闭环。
 

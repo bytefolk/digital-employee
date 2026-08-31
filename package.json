@@ -1,6 +1,6 @@
 {
   "name": "@fullstack-ai-infra/digital-employee",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "An Agent-native CLI and outer runtime for portable digital employees.",
   "type": "module",
   "license": "Apache-2.0",

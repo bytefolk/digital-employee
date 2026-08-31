@@ -50,8 +50,10 @@ capability model (prompt / context / harness / loop / graph), tracked by
 
 - **S1 — read-only engine core:** turn-contract execution, per-turn context
   assembly, fail-safe loop control, structural fail-closed behavior, and
-  per-turn evidence records are a released preview in the current `0.6.0`
-  root package (first published in `0.5.0`).
+  per-turn evidence records are a released preview in the public `0.6.0`
+  root package (first published in `0.5.0`). The source package version
+  `0.6.1` does not add a runtime claim or establish a publication channel;
+  verify the release receipt for availability.
 - **S2 — harness layer (M2–M3):** approval events, organization-permission
   enforcement, and opt-in Context/Memory ports have released preview slices;
   broader tool dispatch, MCP, and sandboxing remain planned. Every extension
@@ -181,7 +183,9 @@ fixes the old-track disposition ledger.
 
 ### What the current source supports
 
-1. Build the current source checkout or install the public `0.6.0` release.
+1. Build the `0.6.1` source checkout, or install the recorded public `0.6.0`
+   release; source and packed artifacts are not proof of availability, which
+   requires a release receipt.
 2. Create and validate an employee package with `init` and `validate`, then
    use `doctor --engine` for bounded local Host diagnosis. These steps do not
    prove model entitlement.

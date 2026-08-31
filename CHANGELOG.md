@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-08-31
+
+### Changed
+
+- Document the release-availability boundary for the immutable `0.6.0` npm
+  artifacts. The source package version `0.6.1` and packed artifacts do not
+  establish an npm package, tag, GHCR image, or GitHub Release; the release
+  receipt is required. Current-facing documentation retains the recorded public
+  `0.6.0` evidence and the explicit opt-in `MemoryPort` wiring boundary.
+
 ## [0.6.0] - 2026-08-29
 
 ### Changed

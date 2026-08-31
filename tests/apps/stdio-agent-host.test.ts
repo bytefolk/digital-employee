@@ -437,11 +437,30 @@ test("the qualification kit issues a fixture-conformant record for the reference
   })
 })
 
-test("the release regression harness re-runs the vector set against the v0.4.0 baseline", async () => {
+test("the release regression harness binds a fresh vector run to the current manifest snapshot", async () => {
   // REQ-002 / AC-002: on every release path run (npm test inside npm run
-  // check), the deterministic vector set re-runs against the reference Host
-  // and the freshly earned snapshot is compared against the committed v0.4.0
-  // baseline; any disappeared or weakened capability row fails the gate.
+  // check), the deterministic vector set re-runs against the reference Host.
+  // The freshly earned result must preserve the historical v0.4.0 baseline and
+  // exactly reproduce the snapshot named by the current package manifest.
+  const release = String(
+    JSON.parse(readFileSync(path.join(packageRoot, "package.json"), "utf8"))
+      .version,
+  )
+  const currentSnapshot = validateAdapterQualificationSnapshot(
+    JSON.parse(
+      readFileSync(
+        path.join(
+          packageRoot,
+          "fixtures",
+          "qualification",
+          "snapshots",
+          `v${release}.json`,
+        ),
+        "utf8",
+      ),
+    ),
+  )
+  assert.equal(currentSnapshot.release, release)
   const baseline = validateAdapterQualificationSnapshot(
     JSON.parse(
       readFileSync(
@@ -460,23 +479,20 @@ test("the release regression harness re-runs the vector set against the v0.4.0 b
   assert.equal(baseline.hostId, REFERENCE_STDIO_HOST_ID)
   assert.equal(baseline.hostVersion, "1.0.0")
   assert.equal(baseline.kitVersion, "1.1.0")
-  const release = String(
-    JSON.parse(readFileSync(path.join(packageRoot, "package.json"), "utf8"))
-      .version,
-  )
-  const directory = await mkdtemp(path.join(os.tmpdir(), "stdio-baseline-"))
+  const directory = await mkdtemp(path.join(os.tmpdir(), "stdio-release-"))
   await withFlags(["REFERENCE_STDIO_QUALIFICATION_MODE"], async () => {
     const adapter = new ExternalStdioAgentHostAdapter(referenceConfig())
     const observed: Array<{ childPid: number; grandchildPid: number }> = []
     try {
       const record = await runQualificationSuite(adapter, {
         workingDirectory: directory,
-        generatedAt: "2026-08-06T04:00:00Z",
+        generatedAt: currentSnapshot.generatedAt,
         caseTimeoutMs: 10_000,
         processTreeFixture: referenceProcessTreeFixture(adapter, observed),
       })
       const current = createQualificationSnapshot(record, { release })
       assert.deepEqual(compareQualificationSnapshots(baseline, current), [])
+      assert.deepEqual(current, currentSnapshot)
       // AC-003: the new read/search-only projection domain earned its row
       // through the same standardized path.
       assert.deepEqual(

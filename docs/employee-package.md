@@ -23,7 +23,7 @@ node ./dist/apps/cli/bin.js eval ../team-answer
 node ./dist/apps/cli/bin.js doctor
 ```
 
-With the current published `0.6.0` npm package installed globally, the
+With the current published `0.6.1` npm package installed globally, the
 equivalent commands are:
 
 ```bash

@@ -22,7 +22,7 @@ Agent 框架（Claude Code、Qoder、Qwen Code、CodeBuddy、Codex……）回�
 
 我们正在靠拢的卖点：**门槛很低、不用敲命令**——业务负责人不需要写 prompt 模板、不需要
 手动配置 Agent Host；说一句话、喊一个岗位名，就能拿到带出处的结果，整个组织仍由负责人
-兜底。**完整的无命令 Workbench 方向仍在规划中**。当前公开 `0.6.0` 已把
+兜底。**完整的无命令 Workbench 方向仍在规划中**。当前公开 `0.6.1` 已把
 `workspace init`、`org tree` 与 `org apply` 作为预览能力发布；`chat @岗位` 与持久化
 Workbench 集成仍在规划中（见下方状态表）。
 
@@ -62,7 +62,7 @@ Workbench 集成仍在规划中（见下方状态表）。
 mkdir digital-employee-workspace
 cd digital-employee-workspace
 npm init -y
-npm install @fullstack-ai-infra/digital-employee@0.6.0
+npm install @fullstack-ai-infra/digital-employee@0.6.1
 npx digital-employee doctor --json
 npx digital-employee init ./my-employee \
   --recipe minimal-answer.v1 \
@@ -209,16 +209,16 @@ node ./dist/apps/cli/bin.js deploy ../team-answer \
 
 ## 版本状态
 
-标签版本 `0.6.0` 已通过 root/core npm 包、GHCR 和 GitHub Releases 公开发布：
+标签版本 `0.6.1` 已通过 root/core npm 包、GHCR 和 GitHub Releases 公开发布：
 
 | 渠道 | 安装或下载方式 |
 | --- | --- |
-| npm（CLI） | `npm install --global @fullstack-ai-infra/digital-employee@0.6.0` |
-| npm（core） | `npm install @fullstack-ai-infra/digital-employee-core@0.6.0` |
-| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.6.0` |
-| GitHub Release | 从 [`v0.6.0`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.6.0) 下载 root/core 包和校验文件 |
+| npm（CLI） | `npm install --global @fullstack-ai-infra/digital-employee@0.6.1` |
+| npm（core） | `npm install @fullstack-ai-infra/digital-employee-core@0.6.1` |
+| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.6.1` |
+| GitHub Release | 从 [`v0.6.1`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.6.1) 下载 root/core 包和校验文件 |
 
-独立的 `@fullstack-ai-infra/digital-employee-core@0.6.0` npm 包已经公开。一次性 registry
+独立的 `@fullstack-ai-infra/digital-employee-core@0.6.1` npm 包已经公开。一次性 registry
 bootstrap 已完成，后续版本由 `release.yml` 通过 npm Trusted Publishing 发布。当前 `main`
 已包含标签之后的改动，本身不代表一个已发布版本。不要覆盖或重新标记任何已发布版本，
 包括 `0.6.0`、`0.5.0`、`0.4.0`、`0.3.0` 或 `0.1.0`。
@@ -430,7 +430,7 @@ marketplace 上架、租赁、动态价格、可信计量、评价和分账属�
 [`mem`](https://github.com/fullstack-ai-infra/mem) 是新主线上长期 Context 的底座：岗位
 对话产生的决策与任务状态写入记忆平面，新会话/换 Host 后可召回续接；本仓库不重复建设
 memory plane。当前严格类型边界、固定版本 HTTP 适配器、凭证与授权职责见
-[MemoryPort 接入说明](docs/memory-port.md)。当前公开 `0.6.0` 引擎预览可显式接入
+[MemoryPort 接入说明](docs/memory-port.md)。当前公开 `0.6.1` 引擎预览可显式接入
 该端口做回合前召回，但默认停用；这不等于持久化 Workbench、自动记忆写入或完整长期
 Context 产品闭环。
 

@@ -15,11 +15,11 @@ specifications.
 
 | Area | Evidence in current source and public release | Maturity and remaining boundary |
 | --- | --- | --- |
-| Employee-package authoring | Host-neutral `init`, package-aware `validate`, bounded `doctor`, the `minimal-answer.v1` and `structured-action.v1` recipes, and executable offline contract evals | **shipped** in current public `0.6.0` (initial public baseline `0.4.0`); fixture eval does not prove live model entitlement |
-| Workspace skeleton | `workspace init --template oss-maintainer` materializes the organization file, four position packages and the context directory (#156) | **released preview** in current `0.6.0` (first published in `0.5.0`) |
+| Employee-package authoring | Host-neutral `init`, package-aware `validate`, bounded `doctor`, the `minimal-answer.v1` and `structured-action.v1` recipes, and executable offline contract evals | **shipped** in current public `0.6.1` (initial public baseline `0.4.0`); fixture eval does not prove live model entitlement |
+| Workspace skeleton | `workspace init --template oss-maintainer` materializes the organization file, four position packages and the context directory (#156) | **released preview** in current `0.6.1` (first published in `0.5.0`) |
 | Organization and permissions | `org tree`, `org apply`, `org scope`, derived permission artifacts, and fail-closed engine enforcement | **released preview**; organization commands first published in `0.5.0`, engine enforcement added in `0.6.0` |
-| Built-in turn engine | Installed root-package `./engine` export and `turn run` CLI | **released preview** in current `0.6.0` (first published in `0.5.0`); the complete default-Host Workbench path is not shipped |
-| Explicit single-hop delegation | One owner-to-direct-report `task delegate` route with intersection-only scope | **released preview / deterministic E3** in current `0.6.0` (first published in `0.5.0`); no general graph, Workbench persistence/UI, or per-Host E4 claim |
+| Built-in turn engine | Installed root-package `./engine` export and `turn run` CLI | **released preview** in current `0.6.1` (first published in `0.5.0`); the complete default-Host Workbench path is not shipped |
+| Explicit single-hop delegation | One owner-to-direct-report `task delegate` route with intersection-only scope | **released preview / deterministic E3** in current `0.6.1` (first published in `0.5.0`); no general graph, Workbench persistence/UI, or per-Host E4 claim |
 | Memory and Context engine seams | Opt-in scope-bound `MemoryPort` and read-only `ContextPort` wiring | **released preview** in `0.6.0`; productive long-term memory, Workbench continuity, and context distillation remain unshipped |
 | Local Agent Host execution | Version-gated one-shot paths for Qoder CLI, Claude Code, Qwen Code and CodeBuddy Code | **preview** and **fixture-conformant**; live entitlement is not proven |
 | Codex | Discovery and readiness diagnosis | **probe-only**; it is not a runnable Adapter |
@@ -28,7 +28,7 @@ specifications.
 | Deploy command | Package-bound `deploy` with truthful local outcome and fail-closed recovery | **preview** surface; HTTP can reach `ready`; DingTalk reconciliation is externally HOLD |
 
 The `workspace init`, `org tree`, and `org apply` prototypes are released
-previews in current public `0.6.0` (first published in `0.5.0`).
+previews in current public `0.6.1` (first published in `0.5.0`).
 `chat @position` and the durable Workbench journey remain owned by the new
 mainline below. The built-in engine Epic
 ([#165](https://github.com/fullstack-ai-infra/digital-employee/issues/165))

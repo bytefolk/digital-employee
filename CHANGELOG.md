@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-08-31
+
+### Changed
+
+- Documentation-integrity patch only. The published `0.6.0` npm tarballs are
+  immutable and their READMEs predate the current capability surface: the root
+  README told users to install `@0.4.0` and described the workspace,
+  organization and delegation surfaces as unpublished, and the core README
+  still described `MemoryPort` as engine-detached even though `0.6` exposes
+  explicit opt-in engine wiring. Correcting those statements in the repository
+  (#235 / PR #236) cannot reach an already-published tarball, so `0.6.1`
+  re-publishes the corrected wording under a new version. `0.6.0` is not
+  moved, deleted, rebuilt or republished.
+- Current-facing documentation now names `0.6.1` as the current release:
+  `AGENTS.md`, `INSTALL.md`, the root and Simplified-Chinese READMEs,
+  `packages/core/README.md`, and
+  `docs/{verification,strategy,strategy.zh-CN,roadmap,roadmap.zh-CN,delegation,employee-package,memory-port}.md`.
+  Dated historical evidence — what first shipped in `0.4.0`, `0.5.0` or
+  `0.6.0` — is left as originally written.
+- Adds `fixtures/qualification/snapshots/v0.6.1.json`, earned by re-running the
+  deterministic adapter-qualification corpus through the same
+  `runQualificationSuite` / `createQualificationSnapshot` path the release gate
+  uses, rather than copying the `0.6.0` snapshot forward.
+- No runtime, command, schema, permission, Host, or API behavior changes.
+
 ## [0.6.0] - 2026-08-29
 
 ### Changed

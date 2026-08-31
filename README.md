@@ -30,7 +30,7 @@ The pitch we are moving toward: the barrier to entry is low — a business owner
 does not need to write prompts or wire up an Agent Host by hand. Name a
 position, get an answer with its source, and the owner stays accountable for
 the whole organization. **The complete no-command Workbench direction remains
-planned**. The current public `0.6.0` release includes `workspace init`,
+planned**. The current public `0.6.1` release includes `workspace init`,
 `org tree`, and `org apply` as preview surfaces; `chat @position` and its
 durable Workbench integration remain planned (see the status table below).
 
@@ -42,14 +42,14 @@ durable Workbench integration remain planned (see the status table below).
 
 | Capability | Status |
 | --- | --- |
-| `init`, `doctor`, `validate`, `eval`, one-shot `run`, `setup` | **Released** in current public npm `0.6.0` (first shipped in `0.4.0`); fixture `eval` does not prove live model entitlement |
-| package-bound `deploy` | **Released** in current `0.6.0` (first shipped in `0.4.0`) within its documented fail-closed boundary (HTTP can reach `ready`; DingTalk reconciliation is externally HOLD) |
-| Employee-package / Skill / Schema / eval contracts, Agent Host Adapters | **Released** in current `0.6.0` (initial public baseline `0.4.0`); Host adapters are `preview` and `fixture-conformant`, not live-qualified |
+| `init`, `doctor`, `validate`, `eval`, one-shot `run`, `setup` | **Released** in current public npm `0.6.1` (first shipped in `0.4.0`); fixture `eval` does not prove live model entitlement |
+| package-bound `deploy` | **Released** in current `0.6.1` (first shipped in `0.4.0`) within its documented fail-closed boundary (HTTP can reach `ready`; DingTalk reconciliation is externally HOLD) |
+| Employee-package / Skill / Schema / eval contracts, Agent Host Adapters | **Released** in current `0.6.1` (initial public baseline `0.4.0`); Host adapters are `preview` and `fixture-conformant`, not live-qualified |
 | `standalone-v1` compatibility runtime | **Released** compatibility path; not the target for new mainline capabilities |
 | Old-track issues after the 2026-08-23 pivot | Disposed per the approved #164 ledger — KEEP 11 / REPURPOSE 9 / PARK 5; see the [old-track disposition ledger](docs/roadmap.md#old-track-wrap-up-and-issue-disposition) |
-| `workspace init` (oss-maintainer template) | **Released preview** in current `0.6.0` (first published in `0.5.0`, #156) |
-| `org tree` / `org apply` | **Released preview** in current `0.6.0` (first published in `0.5.0`); applied permissions fail closed |
-| Explicit owner → one direct-report delegation | **Released preview / deterministic E3** in current `0.6.0` (first published in `0.5.0`); Workbench persistence/UI and per-Host E4 remain unverified ([boundary](docs/delegation.md)) |
+| `workspace init` (oss-maintainer template) | **Released preview** in current `0.6.1` (first published in `0.5.0`, #156) |
+| `org tree` / `org apply` | **Released preview** in current `0.6.1` (first published in `0.5.0`); applied permissions fail closed |
+| Explicit owner → one direct-report delegation | **Released preview / deterministic E3** in current `0.6.1` (first published in `0.5.0`); Workbench persistence/UI and per-Host E4 remain unverified ([boundary](docs/delegation.md)) |
 | `chat @position` | **Planned** Workbench integration (Epic #155 first milestone) |
 | Opt-in Memory/Context recall and permission enforcement | **Released preview** in `0.6.0` as scope-bound engine seams; disabled by default and not a durable product loop |
 | Durable long-term Context, Workbench continuity, and context distillation | **Planned**; not shipped by the v0.6.0 recall seams |
@@ -72,7 +72,7 @@ Start with the exact public release:
 mkdir digital-employee-workspace
 cd digital-employee-workspace
 npm init -y
-npm install @fullstack-ai-infra/digital-employee@0.6.0
+npm install @fullstack-ai-infra/digital-employee@0.6.1
 npx digital-employee doctor --json
 npx digital-employee init ./my-employee \
   --recipe minimal-answer.v1 \
@@ -223,17 +223,17 @@ governance record and the outstanding evidence gap.
 
 ## Release status
 
-The tagged `0.6.0` release is public through the root and core npm packages,
+The tagged `0.6.1` release is public through the root and core npm packages,
 GHCR, and GitHub Releases:
 
 | Channel | Command or download |
 | --- | --- |
-| npm (CLI) | `npm install --global @fullstack-ai-infra/digital-employee@0.6.0` |
-| npm (core) | `npm install @fullstack-ai-infra/digital-employee-core@0.6.0` |
-| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.6.0` |
-| GitHub Release | Download the root/core packages and checksums from [`v0.6.0`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.6.0) |
+| npm (CLI) | `npm install --global @fullstack-ai-infra/digital-employee@0.6.1` |
+| npm (core) | `npm install @fullstack-ai-infra/digital-employee-core@0.6.1` |
+| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.6.1` |
+| GitHub Release | Download the root/core packages and checksums from [`v0.6.1`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.6.1) |
 
-The standalone `@fullstack-ai-infra/digital-employee-core@0.6.0` package is
+The standalone `@fullstack-ai-infra/digital-employee-core@0.6.1` package is
 public. Its one-time registry bootstrap is complete, and subsequent versions
 publish from `release.yml` through npm Trusted Publishing. The current `main`
 branch contains changes made after the tag and is not itself a published

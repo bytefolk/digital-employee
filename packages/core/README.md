@@ -16,7 +16,7 @@ runtime dependencies. It requires Node.js 20 or later and is distributed
 under the Apache License 2.0. See `LICENSE` and `NOTICE`.
 
 The public API includes the strict `MemoryPort` and the revision-pinned mem
-HTTP adapter. The current public `0.6.0` engine preview can consume a
+HTTP adapter. The current public `0.6.1` engine preview can consume a
 caller-supplied port through explicit `EngineMemoryOptions` /
 `TurnExecutorOptions.memory`; recall runs only when `enabled` is exactly
 `true` and remains disabled by default. See the

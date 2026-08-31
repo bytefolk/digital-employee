@@ -1,6 +1,6 @@
 {
   "name": "@fullstack-ai-infra/digital-employee-core",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Dependency-free package, Agent-host, and compatibility primitives for digital employees.",
   "type": "module",
   "repository": {

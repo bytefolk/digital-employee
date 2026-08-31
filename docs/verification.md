@@ -7,7 +7,7 @@ actually been exercised. A passing fixture test is not presented as a live
 provider integration.
 
 Dated counts below are historical snapshots tied to their stated date. Public
-`0.6.0` is the current tagged release and contains the package-bound deploy;
+`0.6.1` is the current tagged release and contains the package-bound deploy;
 changes merged after that tag are not themselves a published release, and
 their exact-head test counts and package sizes are deliberately not inferred
 from an earlier run.

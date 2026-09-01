@@ -23,6 +23,7 @@ import { fileURLToPath } from "node:url"
 import {
   BUDGET_LIMIT_MAX,
   buildWorkspaceOrgSchema,
+  WORKSPACE_ORG_SCHEMA_URL,
   validateOrganizationBudgets,
   validateOrganizationDocument,
   validatePositionBudget,
@@ -215,6 +216,7 @@ function renderedOrganization(): Record<string, unknown> {
 
 test("renderOrganizationFile emits a budget for every role", () => {
   const organization = renderedOrganization()
+  assert.equal(organization.$schema, WORKSPACE_ORG_SCHEMA_URL)
   const roles = organization.roles as Array<Record<string, unknown>>
   assert.equal(roles.length, 4)
   for (const role of roles) {

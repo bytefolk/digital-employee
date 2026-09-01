@@ -16,7 +16,7 @@ import path from "node:path"
 
 import type { EmployeePackageManifest } from "../../../packages/core/src/employee-package.js"
 import {
-  WORKSPACE_ORG_SCHEMA_ID,
+  WORKSPACE_ORG_SCHEMA_URL,
   WORKSPACE_ORG_SCHEMA_VERSION,
 } from "../org/budget.js"
 import type { PositionBudget } from "../org/budget.js"
@@ -198,7 +198,7 @@ function jsonFile(value: unknown): Uint8Array {
 function manifestForRole(role: WorkspaceTemplateRole): EmployeePackageManifest {
   return {
     $schema:
-      "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/employee-package.schema.json",
+      "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/employee-package.schema.json",
     schemaVersion: "employee-package.v1alpha1",
     name: role.id,
     version: WORKSPACE_POSITION_PACKAGE_VERSION,
@@ -440,7 +440,7 @@ export function renderOrganizationFile(
   updatedAt: string,
 ): WorkspaceFile {
   const organization: RenderedOrganization = {
-    $schema: WORKSPACE_ORG_SCHEMA_ID,
+    $schema: WORKSPACE_ORG_SCHEMA_URL,
     schemaVersion: WORKSPACE_ORG_SCHEMA_VERSION,
     business,
     description: template.description,
@@ -501,7 +501,7 @@ export function renderWorkspaceManifest(
 ): WorkspaceFile {
   const manifest: RenderedWorkspaceManifest = {
     $schema:
-      "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/workspace.schema.json",
+      "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/workspace.schema.json",
     schemaVersion: WORKSPACE_MANIFEST_SCHEMA_VERSION,
     name: business,
     description: template.description,

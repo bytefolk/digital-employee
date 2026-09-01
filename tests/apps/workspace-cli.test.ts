@@ -86,6 +86,10 @@ test("AC-001: workspace init materializes the oss-maintainer skeleton on a clean
 
   // Top-level skeleton layout.
   const organization = await readJson(path.join(target, "organization.v1alpha1.json"))
+  assert.equal(
+    organization.$schema,
+    "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/workspace-org.schema.json",
+  )
   assert.equal(organization.schemaVersion, "workspace-org.v1")
   assert.equal(organization.business, "oss")
   assert.equal(organization.owner, "repo-owner")
@@ -148,6 +152,10 @@ test("AC-001: workspace init materializes the oss-maintainer skeleton on a clean
   }
 
   const manifest = await readJson(path.join(target, "workspace.json"))
+  assert.equal(
+    manifest.$schema,
+    "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/workspace.schema.json",
+  )
   assert.equal(manifest.schemaVersion, "workspace.v1alpha1")
   assert.equal(manifest.template, "oss-maintainer")
   assert.equal(manifest.organization, "./organization.v1alpha1.json")
@@ -164,6 +172,10 @@ test("AC-001: workspace init materializes the oss-maintainer skeleton on a clean
       ...EXPECTED_LOCATION_SEGMENTS[position],
     )
     const manifest = await readJson(path.join(positionDirectory, "employee.json"))
+    assert.equal(
+      manifest.$schema,
+      "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/employee-package.schema.json",
+    )
     assert.equal(manifest.schemaVersion, "employee-package.v1alpha1")
     assert.equal(manifest.name, position)
     const skill = await readFile(path.join(positionDirectory, "SKILL.md"), "utf8")

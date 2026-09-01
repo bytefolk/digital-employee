@@ -6,7 +6,7 @@
   "description": "A read-only support employee that answers only from approved evidence and escalates uncertainty.",
   "license": "Apache-2.0",
   "authors": [
-    "fullstack-ai-infra"
+    "ByteFolk"
   ],
   "provenance": {
     "repository": "https://github.com/bytefolk/digital-employee"

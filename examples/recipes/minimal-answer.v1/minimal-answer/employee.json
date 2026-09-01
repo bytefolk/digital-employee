@@ -1,12 +1,12 @@
 {
-  "$schema": "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/employee-package.schema.json",
+  "$schema": "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/employee-package.schema.json",
   "schemaVersion": "employee-package.v1alpha1",
   "name": "minimal-answer",
   "version": "0.1.0",
   "description": "A portable read-only employee that answers from approved knowledge.",
   "license": "Apache-2.0",
   "authors": [
-    "fullstack-ai-infra"
+    "ByteFolk"
   ],
   "host": {
     "protocol": "agent-host.v1",

@@ -34,6 +34,7 @@ import path from "node:path"
 
 import {
   WORKSPACE_ORG_SCHEMA_ID,
+  WORKSPACE_ORG_SCHEMA_URL,
   organizationNameSchema,
   positionBudgetDefs,
   positionModeSchema,
@@ -448,7 +449,7 @@ export function buildAppliedOrganization(
     },
   )
   return {
-    $schema: WORKSPACE_ORG_SCHEMA_ID,
+    $schema: WORKSPACE_ORG_SCHEMA_URL,
     schemaVersion: current.schemaVersion,
     business: current.business,
     description: current.description,

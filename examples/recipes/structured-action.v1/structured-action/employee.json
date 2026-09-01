@@ -1,12 +1,12 @@
 {
-  "$schema": "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/employee-package.schema.json",
+  "$schema": "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/employee-package.schema.json",
   "schemaVersion": "employee-package.v1alpha1",
   "name": "structured-action",
   "version": "0.1.0",
   "description": "A read-only employee that returns a structured action proposal without executing it.",
   "license": "Apache-2.0",
   "authors": [
-    "fullstack-ai-infra"
+    "ByteFolk"
   ],
   "host": {
     "protocol": "agent-host.v1",

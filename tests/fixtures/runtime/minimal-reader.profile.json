@@ -5,7 +5,7 @@
   "description": "A minimal test-only read profile used to prove local registry extension.",
   "license": "Apache-2.0",
   "authors": [
-    "fullstack-ai-infra"
+    "ByteFolk"
   ],
   "provenance": {
     "repository": "https://github.com/bytefolk/digital-employee"

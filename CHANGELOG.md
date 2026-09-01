@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Replace former GitHub owner coordinates in shipped templates and examples
+  with ByteFolk, and align visible employee authorship while retaining frozen
+  JSON Schema identities and the existing npm compatibility namespace.
 - Prepare GitHub repository and GHCR coordinates for the ByteFolk organization
   handle cutover while retaining published JSON Schema identities and the
   existing npm compatibility namespace.

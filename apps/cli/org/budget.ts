@@ -27,7 +27,7 @@
 export const WORKSPACE_ORG_SCHEMA_VERSION = "workspace-org.v1" as const
 
 export const WORKSPACE_ORG_SCHEMA_ID =
-  "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/workspace-org.schema.json" as const
+  "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/workspace-org.schema.json" as const
 
 /** Upper bound for every budget cap (guards against overflow and typos). */
 export const BUDGET_LIMIT_MAX = 1_000_000_000 as const

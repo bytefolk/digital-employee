@@ -647,7 +647,7 @@ export function buildOrgTree(
 }
 
 export const ORG_TREE_SCHEMA_ID =
-  "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/org-tree.schema.json" as const
+  "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/org-tree.schema.json" as const
 
 /**
  * Build the org-tree.v1 JSON Schema (draft 2020-12) for the frozen minimal

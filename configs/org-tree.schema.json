@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/org-tree.schema.json",
+  "$id": "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/org-tree.schema.json",
   "title": "org-tree.v1 reporting tree (frozen minimal shape)",
   "type": "object",
   "additionalProperties": false,

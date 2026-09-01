@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Prepare GitHub repository and GHCR coordinates for the ByteFolk organization
+  handle cutover while retaining published JSON Schema identities and the
+  existing npm compatibility namespace.
+
 ## [0.6.1] - 2026-08-31
 
 ### Changed

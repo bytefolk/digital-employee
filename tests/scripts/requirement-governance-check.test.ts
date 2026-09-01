@@ -53,7 +53,7 @@ function fillPullRequestTemplate(source: string) {
   return source
     .replace(
       /- Canonical Issue URL:.*$/m,
-      "- Canonical Issue URL: https://github.com/fullstack-ai-infra/digital-employee/issues/95"
+      "- Canonical Issue URL: https://github.com/bytefolk/digital-employee/issues/95"
     )
     .replace(/- Consumed revision:.*$/m, "- Consumed revision: R1")
     .replace(
@@ -205,12 +205,12 @@ function githubEvent(body: unknown, baseSha: string, headSha: string) {
   return {
     action: "opened",
     number: 95,
-    repository: { full_name: "fullstack-ai-infra/digital-employee" },
+    repository: { full_name: "bytefolk/digital-employee" },
     pull_request: {
       body,
       base: {
         sha: baseSha,
-        repo: { full_name: "fullstack-ai-infra/digital-employee" }
+        repo: { full_name: "bytefolk/digital-employee" }
       },
       head: {
         sha: headSha,
@@ -238,13 +238,13 @@ test("automatic close detector covers colon, case, full URL, and cross-repositor
   assert.deepEqual(
     validatePullRequestTrace(await readFixture("automatic-close-full-url.md")),
     [
-      "automatic close keyword is forbidden: CLOSES: https://github.com/fullstack-ai-infra/digital-employee/issues/95"
+      "automatic close keyword is forbidden: CLOSES: https://github.com/bytefolk/digital-employee/issues/95"
     ]
   );
   assert.deepEqual(
     validatePullRequestTrace(await readFixture("automatic-close-cross-repo.md")),
     [
-      "automatic close keyword is forbidden: Resolves fullstack-ai-infra/digital-employee#95"
+      "automatic close keyword is forbidden: Resolves bytefolk/digital-employee#95"
     ]
   );
 });
@@ -285,7 +285,7 @@ test("PR trace validates every nonseparator row", async () => {
 test("PR trace rejects shorthand Issue references and invalid revisions", async () => {
   const invalid = (await readFixture("complete.md"))
     .replace(
-      "https://github.com/fullstack-ai-infra/digital-employee/issues/95",
+      "https://github.com/bytefolk/digital-employee/issues/95",
       "#95"
     )
     .replace("Consumed revision: R1", "Consumed revision: latest");
@@ -299,7 +299,7 @@ test("PR trace requires exact evidence and exact product handoff fields", async 
   const complete = await readFixture("complete.md");
   const withCheckUrl = complete.replace(
     "- Check URLs: NOT VERIFIED: this local fixture has no authoritative CI check URL",
-    "- Check URLs: https://github.com/fullstack-ai-infra/digital-employee/actions/runs/123456789"
+    "- Check URLs: https://github.com/bytefolk/digital-employee/actions/runs/123456789"
   );
   assert.deepEqual(validatePullRequestTrace(withCheckUrl), []);
 

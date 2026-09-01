@@ -74,7 +74,7 @@ Accordingly:
 - connector contributions document the retention behavior of their boundary
   (see [../connectors/README.md](../connectors/README.md));
 - the retention RFC tracked in
-  [#104](https://github.com/fullstack-ai-infra/digital-employee/issues/104)
+  [#104](https://github.com/bytefolk/digital-employee/issues/104)
   owns the runtime retention semantics. When that RFC lands, declared sources
   must not contradict it, and any retention metadata it introduces is adopted
   here rather than redefined. This bar deliberately does not pre-implement the

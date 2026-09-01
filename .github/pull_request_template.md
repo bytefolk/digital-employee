@@ -1,6 +1,6 @@
 ## Canonical requirement
 
-- Canonical Issue URL: <!-- Full URL, for example https://github.com/fullstack-ai-infra/digital-employee/issues/95 -->
+- Canonical Issue URL: <!-- Full URL, for example https://github.com/bytefolk/digital-employee/issues/95 -->
 - Consumed revision: <!-- R1, R2, ... -->
 - No automatic close keywords: <!-- After checking the PR body and commit messages, replace this comment with acknowledged. -->
 

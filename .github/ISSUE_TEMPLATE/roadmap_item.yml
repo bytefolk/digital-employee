@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Read the [product strategy](https://github.com/fullstack-ai-infra/digital-employee/blob/main/docs/strategy.md), [roadmap](https://github.com/fullstack-ai-infra/digital-employee/blob/main/docs/roadmap.md), and [requirement governance guide](https://github.com/fullstack-ai-infra/digital-employee/blob/main/docs/requirement-governance.md) first.
+        Read the [product strategy](https://github.com/bytefolk/digital-employee/blob/main/docs/strategy.md), [roadmap](https://github.com/bytefolk/digital-employee/blob/main/docs/roadmap.md), and [requirement governance guide](https://github.com/bytefolk/digital-employee/blob/main/docs/requirement-governance.md) first.
 
         This form is the canonical requirement record for roadmap, feature, and maintenance work. Replace every example value. Do not include credentials, private messages, personal identifiers, internal URLs, or unannounced product plans.
 
@@ -111,7 +111,7 @@ body:
       label: Dependencies and compatibility
       description: Use full canonical Issue URLs and exact consumed revisions. Include the parent, blockers, downstream consumers, compatibility promise, and roadmap gate.
       value: |
-        - Parent: https://github.com/fullstack-ai-infra/digital-employee/issues/NNN at R1
+        - Parent: https://github.com/bytefolk/digital-employee/issues/NNN at R1
         - Blocking: none
         - Downstream: none
         - Compatibility:

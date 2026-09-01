@@ -1,7 +1,7 @@
 # @fullstack-ai-infra/digital-employee-core
 
 Dependency-free package, Agent Host, and compatibility primitives for
-[Digital Employee](https://github.com/fullstack-ai-infra/digital-employee).
+[Digital Employee](https://github.com/bytefolk/digital-employee).
 
 ```js
 import * as digitalEmployeeCore from "@fullstack-ai-infra/digital-employee-core";
@@ -32,7 +32,7 @@ HTTP adapter. The published `0.6.0` engine preview can consume a
 caller-supplied port through explicit `EngineMemoryOptions` /
 `TurnExecutorOptions.memory`; recall runs only when `enabled` is exactly
 `true` and remains disabled by default. See the
-[MemoryPort integration boundary](https://github.com/fullstack-ai-infra/digital-employee/blob/main/docs/memory-port.md)
+[MemoryPort integration boundary](https://github.com/bytefolk/digital-employee/blob/main/docs/memory-port.md)
 before provisioning a position-scoped credential. The adapter contains no
 grant or admin path, and this opt-in seam is not a complete durable-memory
 product loop.

@@ -2,7 +2,7 @@
 
 `MemoryPort` is the strict durable-memory seam for a local digital-organization
 workspace. The first adapter speaks the public HTTP API of
-[`mem`](https://github.com/fullstack-ai-infra/mem) revision
+[`mem`](https://github.com/bytefolk/mem) revision
 `4c714aa352f79f0080a24904668210d6c445ba10`. The public `0.6.0` engine
 preview can consume this port through explicit `EngineMemoryOptions`; recall
 remains disabled unless `enabled` is exactly `true`. This checkout declares

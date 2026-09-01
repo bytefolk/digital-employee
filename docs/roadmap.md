@@ -3,9 +3,9 @@
 [简体中文](roadmap.zh-CN.md)
 
 This roadmap turns the stable [product strategy](strategy.md) into an
-executable issue graph. [Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)
+executable issue graph. [Epic #155](https://github.com/bytefolk/digital-employee/issues/155)
 (Local digital-organization workspace) is the delivery index for the new
-mainline; [Epic #25](https://github.com/fullstack-ai-infra/digital-employee/issues/25)
+mainline; [Epic #25](https://github.com/bytefolk/digital-employee/issues/25)
 stays open only as the old-track wrap-up index. Issue labels and milestones are
 the source of truth for current status; this document defines sequence,
 ownership and acceptance gates, not delivery dates or full issue
@@ -36,7 +36,7 @@ The `workspace init`, `org tree`, and `org apply` prototypes are released
 previews in public `0.6.0` (first published in `0.5.0`).
 `chat @position` and the durable Workbench journey remain owned by the new
 mainline below. The built-in engine Epic
-([#165](https://github.com/fullstack-ai-infra/digital-employee/issues/165))
+([#165](https://github.com/bytefolk/digital-employee/issues/165))
 keeps its remaining unreleased slices and acceptance gates separate.
 
 ## Delivery graph (new mainline)
@@ -79,25 +79,25 @@ flowchart LR
 The normative ordering is:
 
 - **W1 (first milestone, due 2026-09-30, marked):**
-  [#156](https://github.com/fullstack-ai-infra/digital-employee/issues/156)
-  → [#157](https://github.com/fullstack-ai-infra/digital-employee/issues/157)
-  → [#158](https://github.com/fullstack-ai-infra/digital-employee/issues/158),
-  with [#159](https://github.com/fullstack-ai-infra/digital-employee/issues/159)
-  and [#161](https://github.com/fullstack-ai-infra/digital-employee/issues/161)
+  [#156](https://github.com/bytefolk/digital-employee/issues/156)
+  → [#157](https://github.com/bytefolk/digital-employee/issues/157)
+  → [#158](https://github.com/bytefolk/digital-employee/issues/158),
+  with [#159](https://github.com/bytefolk/digital-employee/issues/159)
+  and [#161](https://github.com/bytefolk/digital-employee/issues/161)
   closing the permission and memory loop, and
-  [#163](https://github.com/fullstack-ai-infra/digital-employee/issues/163)
+  [#163](https://github.com/bytefolk/digital-employee/issues/163)
   proving the oss-maintainer showcase end to end. Engine S1
-  ([#165](https://github.com/fullstack-ai-infra/digital-employee/issues/165))
+  ([#165](https://github.com/bytefolk/digital-employee/issues/165))
   underpins chat turn execution and showcase acceptance; it aligns with
   I-01..I-07 on this milestone.
-- [#162](https://github.com/fullstack-ai-infra/digital-employee/issues/162)
+- [#162](https://github.com/bytefolk/digital-employee/issues/162)
   (context distillation) is P1 and non-gating for W1.
-- [#164](https://github.com/fullstack-ai-infra/digital-employee/issues/164)
+- [#164](https://github.com/bytefolk/digital-employee/issues/164)
   (this pivot) is parallel and does not block W1.
 - **M2–M3:** context distillation depth, `org apply` lifecycle and productive
   mem-backed recall become the next gate, together with the engine S2 harness
   layer (#165). Channel output rendering
-  ([#160](https://github.com/fullstack-ai-infra/digital-employee/issues/160))
+  ([#160](https://github.com/bytefolk/digital-employee/issues/160))
   is owned outside this pivot and is not scheduled here.
 - **M4+:** engine S3 graph layer (cross-position routing and delegation
   orchestration, #165). Planned.
@@ -111,14 +111,14 @@ reproduces the first showcase case (oss-maintainer) end to end
 
 | Story | Deliverable | Dependency | Team |
 | --- | --- | --- | --- |
-| [#156](https://github.com/fullstack-ai-infra/digital-employee/issues/156) | `workspace init` prototype with oss-maintainer template (released preview in `0.6.0`) | Epic #155 | Workspace |
-| [#157](https://github.com/fullstack-ai-infra/digital-employee/issues/157) | Organization model with `org tree` / `org apply`, directory-tree semantics and position budget governance | #156 | Org model |
-| [#158](https://github.com/fullstack-ai-infra/digital-employee/issues/158) | `chat @position` conversation bridge (turn contract) | #102, #156 | Chat bridge |
-| [#159](https://github.com/fullstack-ai-infra/digital-employee/issues/159) | Position permission boundaries (Context Scope + Authority Scope) | #156 | Governance |
-| [#161](https://github.com/fullstack-ai-infra/digital-employee/issues/161) | Long-term Context integration (mem R1-level; recall seam in W1, mem-backed recall M2) | #158, mem #68 | Memory |
-| [#163](https://github.com/fullstack-ai-infra/digital-employee/issues/163) | oss-maintainer showcase (quickstart form) | #156, #158 | Adoption |
-| [#162](https://github.com/fullstack-ai-infra/digital-employee/issues/162) | Context fact distillation integration (rule-based; P1, non-gating for W1) | #158, context | Context |
-| [#165](https://github.com/fullstack-ai-infra/digital-employee/issues/165) | Built-in engine S1 read-only core: turn execution, context assembly, loop control, structural fail-closed, per-turn evidence | #102 groundwork | Engine |
+| [#156](https://github.com/bytefolk/digital-employee/issues/156) | `workspace init` prototype with oss-maintainer template (released preview in `0.6.0`) | Epic #155 | Workspace |
+| [#157](https://github.com/bytefolk/digital-employee/issues/157) | Organization model with `org tree` / `org apply`, directory-tree semantics and position budget governance | #156 | Org model |
+| [#158](https://github.com/bytefolk/digital-employee/issues/158) | `chat @position` conversation bridge (turn contract) | #102, #156 | Chat bridge |
+| [#159](https://github.com/bytefolk/digital-employee/issues/159) | Position permission boundaries (Context Scope + Authority Scope) | #156 | Governance |
+| [#161](https://github.com/bytefolk/digital-employee/issues/161) | Long-term Context integration (mem R1-level; recall seam in W1, mem-backed recall M2) | #158, mem #68 | Memory |
+| [#163](https://github.com/bytefolk/digital-employee/issues/163) | oss-maintainer showcase (quickstart form) | #156, #158 | Adoption |
+| [#162](https://github.com/bytefolk/digital-employee/issues/162) | Context fact distillation integration (rule-based; P1, non-gating for W1) | #158, context | Context |
+| [#165](https://github.com/bytefolk/digital-employee/issues/165) | Built-in engine S1 read-only core: turn execution, context assembly, loop control, structural fail-closed, per-turn evidence | #102 groundwork | Engine |
 
 **Gate:** clean-machine `workspace init` → `org tree` → `chat @position`
 (owner and worker paths); Context slices are narrow and permission
@@ -143,10 +143,10 @@ organization, and the engine grows a harness layer above the read-only core.
 
 | Story | Deliverable | Dependency | Team |
 | --- | --- | --- | --- |
-| [#162](https://github.com/fullstack-ai-infra/digital-employee/issues/162) | Rule-based context distillation drives narrow-slice recall | #158, context | Context |
-| [#157](https://github.com/fullstack-ai-infra/digital-employee/issues/157) | `org apply` audits organizational changes | #156 | Org model |
-| [#161](https://github.com/fullstack-ai-infra/digital-employee/issues/161) | Mem-backed recall in productive use | #158, mem | Memory |
-| [#165](https://github.com/fullstack-ai-infra/digital-employee/issues/165) | Engine S2 harness layer: tool dispatch, MCP client, approval gates, sandboxing, runtime enforcement of position permission boundaries (extends the S1 zero-tool baseline, never weakens it) | S1 | Engine |
+| [#162](https://github.com/bytefolk/digital-employee/issues/162) | Rule-based context distillation drives narrow-slice recall | #158, context | Context |
+| [#157](https://github.com/bytefolk/digital-employee/issues/157) | `org apply` audits organizational changes | #156 | Org model |
+| [#161](https://github.com/bytefolk/digital-employee/issues/161) | Mem-backed recall in productive use | #158, mem | Memory |
+| [#165](https://github.com/bytefolk/digital-employee/issues/165) | Engine S2 harness layer: tool dispatch, MCP client, approval gates, sandboxing, runtime enforcement of position permission boundaries (extends the S1 zero-tool baseline, never weakens it) | S1 | Engine |
 
 **Non-goals:** channel expansion (Lark/WeCom), marketplace/transaction work,
 and full RBAC.
@@ -156,14 +156,14 @@ and full RBAC.
 
 Backlog registered per CEO directive (2026-08-25); codex is the reference
 baseline. Both items hang on the org-workbench session lifecycle delivered by
-[org-workbench#14](https://github.com/fullstack-ai-infra/org-workbench/pull/14)
-(canonical [#12](https://github.com/fullstack-ai-infra/org-workbench/issues/12)).
+[org-workbench#14](https://github.com/bytefolk/org-workbench/pull/14)
+(canonical [#12](https://github.com/bytefolk/org-workbench/issues/12)).
 Non-gating for W1 and M2–M3; no gate date until scheduled.
 
 | Item | Deliverable | Dependency | Team |
 | --- | --- | --- | --- |
-| [D5-B1 #186](https://github.com/fullstack-ai-infra/digital-employee/issues/186) | Rollout-style session resume/fork semantics (codex-rollout aligned) | org-workbench#14 | Workbench/Session |
-| [D5-B2 #187](https://github.com/fullstack-ai-infra/digital-employee/issues/187) | In-turn approval interaction product semantics (when to prompt, default policy, denial terminal state), coupled with engine `approval.*` vocabulary | #165 engine, write-approval.v1 | Product/Engine |
+| [D5-B1 #186](https://github.com/bytefolk/digital-employee/issues/186) | Rollout-style session resume/fork semantics (codex-rollout aligned) | org-workbench#14 | Workbench/Session |
+| [D5-B2 #187](https://github.com/bytefolk/digital-employee/issues/187) | In-turn approval interaction product semantics (when to prompt, default policy, denial terminal state), coupled with engine `approval.*` vocabulary | #165 engine, write-approval.v1 | Product/Engine |
 ## M4+ — Engine graph layer
 
 The engine S3 graph layer provides cross-position routing, parallelism and
@@ -175,7 +175,7 @@ at every hop (#165). Planned; scope binds only after M2–M3 closes.
 The old mainline (**Builder → Seller Runner → Trusted execution**, epic #25)
 is finished and is not extended. Every open old-track issue carries an
 explicit **KEEP / REPURPOSE / PARK** disposition per the approved
-[#164](https://github.com/fullstack-ai-infra/digital-employee/issues/164)
+[#164](https://github.com/bytefolk/digital-employee/issues/164)
 ledger (2026-08-23): **KEEP 11 / REPURPOSE 9 / PARK 5**. KEEP joins the new
 mainline; REPURPOSE is re-scoped as design input for the workspace/engine
 lines; PARK is closed as not planned with an explicit revival condition. The
@@ -187,18 +187,18 @@ silently dropped.
 
 | Issue | Title | Disposition |
 | --- | --- | --- |
-| [#155](https://github.com/fullstack-ai-infra/digital-employee/issues/155) | [Epic] Local digital-organization workspace | **KEEP** — new mainline delivery index; supersedes #25 as North Star |
-| [#156](https://github.com/fullstack-ai-infra/digital-employee/issues/156) | feat(workspace): `workspace init` prototype | **KEEP** — W1 (released preview in `0.6.0`) |
-| [#157](https://github.com/fullstack-ai-infra/digital-employee/issues/157) | feat(org): organization model, `org tree` / `org apply` | **KEEP** — W1 |
-| [#158](https://github.com/fullstack-ai-infra/digital-employee/issues/158) | feat(chat): `chat @position` conversation bridge | **KEEP** — W1 |
-| [#159](https://github.com/fullstack-ai-infra/digital-employee/issues/159) | feat(org): position permission boundaries | **KEEP** — W1 |
-| [#161](https://github.com/fullstack-ai-infra/digital-employee/issues/161) | feat(mem): long-term Context integration (R1-level) | **KEEP** — W1 recall seam; M2 mem-backed recall |
-| [#162](https://github.com/fullstack-ai-infra/digital-employee/issues/162) | feat(context): fact distillation integration (rule-based) | **KEEP** — M2–M3 (P1) |
-| [#163](https://github.com/fullstack-ai-infra/digital-employee/issues/163) | showcase: oss-maintainer case (quickstart form) | **KEEP** — W1 |
-| [#164](https://github.com/fullstack-ai-infra/digital-employee/issues/164) | docs(strategy): pivot strategy/roadmap/README | **KEEP** — this pivot; parallel, non-blocking |
-| [#165](https://github.com/fullstack-ai-infra/digital-employee/issues/165) | feat(engine): built-in execution engine Epic | **KEEP** — engine mainline; S1 aligned with W1 |
+| [#155](https://github.com/bytefolk/digital-employee/issues/155) | [Epic] Local digital-organization workspace | **KEEP** — new mainline delivery index; supersedes #25 as North Star |
+| [#156](https://github.com/bytefolk/digital-employee/issues/156) | feat(workspace): `workspace init` prototype | **KEEP** — W1 (released preview in `0.6.0`) |
+| [#157](https://github.com/bytefolk/digital-employee/issues/157) | feat(org): organization model, `org tree` / `org apply` | **KEEP** — W1 |
+| [#158](https://github.com/bytefolk/digital-employee/issues/158) | feat(chat): `chat @position` conversation bridge | **KEEP** — W1 |
+| [#159](https://github.com/bytefolk/digital-employee/issues/159) | feat(org): position permission boundaries | **KEEP** — W1 |
+| [#161](https://github.com/bytefolk/digital-employee/issues/161) | feat(mem): long-term Context integration (R1-level) | **KEEP** — W1 recall seam; M2 mem-backed recall |
+| [#162](https://github.com/bytefolk/digital-employee/issues/162) | feat(context): fact distillation integration (rule-based) | **KEEP** — M2–M3 (P1) |
+| [#163](https://github.com/bytefolk/digital-employee/issues/163) | showcase: oss-maintainer case (quickstart form) | **KEEP** — W1 |
+| [#164](https://github.com/bytefolk/digital-employee/issues/164) | docs(strategy): pivot strategy/roadmap/README | **KEEP** — this pivot; parallel, non-blocking |
+| [#165](https://github.com/bytefolk/digital-employee/issues/165) | feat(engine): built-in execution engine Epic | **KEEP** — engine mainline; S1 aligned with W1 |
 
-> Not part of this pivot: [#160](https://github.com/fullstack-ai-infra/digital-employee/issues/160)
+> Not part of this pivot: [#160](https://github.com/bytefolk/digital-employee/issues/160)
 > (UX: channel output rendering) is owned outside Epic #155 and is intentionally
 > left untouched here. It is noted only so that no open issue is silently dropped
 > from this accounting; this roadmap assigns it no disposition or milestone.
@@ -207,41 +207,41 @@ silently dropped.
 
 | Issue | Content | Rationale |
 | --- | --- | --- |
-| [#25](https://github.com/fullstack-ai-infra/digital-employee/issues/25) | Old North Star epic | Retained as the old-track wrap-up vehicle; carries the disposition ledger wording (#155) |
-| [#70](https://github.com/fullstack-ai-infra/digital-employee/issues/70) | Honest local deployment orchestration | Workspace init/deployment foundation (honest deployment + secret-safety state) |
-| [#86](https://github.com/fullstack-ai-infra/digital-employee/issues/86) | Deployment help and automation flags | CLI experience layer for the workspace command family |
-| [#90](https://github.com/fullstack-ai-infra/digital-employee/issues/90) | Deployment binding with exact employee package + explicit runtime | Built-in engine = explicit runtime binding makes this constraint more critical |
-| [#91](https://github.com/fullstack-ai-infra/digital-employee/issues/91) | [Epic] Adoption | Re-anchored: the clean-machine acceptance target becomes the #163 oss-maintainer showcase |
-| [#95](https://github.com/fullstack-ai-infra/digital-employee/issues/95) | Governance enforcement | Repository-level requirement governance; depended on by all tracks |
-| [#97](https://github.com/fullstack-ai-infra/digital-employee/issues/97) | Remove the single-reviewer bottleneck | Governance hygiene |
-| [#136](https://github.com/fullstack-ai-infra/digital-employee/issues/136) | Versioned release gate | Portability proof gate + precondition for the quickstart pinned version |
-| [#139](https://github.com/fullstack-ai-infra/digital-employee/issues/139) | External deployment experience design | Adoption-line UX |
-| [#141](https://github.com/fullstack-ai-infra/digital-employee/issues/141) | Clean-machine install notes | Adoption-line evidence |
-| [#144](https://github.com/fullstack-ai-infra/digital-employee/issues/144) | Scenario pipeline and value acceptance ownership | Product-track function retained; SKU ordering re-sequenced per ruling |
+| [#25](https://github.com/bytefolk/digital-employee/issues/25) | Old North Star epic | Retained as the old-track wrap-up vehicle; carries the disposition ledger wording (#155) |
+| [#70](https://github.com/bytefolk/digital-employee/issues/70) | Honest local deployment orchestration | Workspace init/deployment foundation (honest deployment + secret-safety state) |
+| [#86](https://github.com/bytefolk/digital-employee/issues/86) | Deployment help and automation flags | CLI experience layer for the workspace command family |
+| [#90](https://github.com/bytefolk/digital-employee/issues/90) | Deployment binding with exact employee package + explicit runtime | Built-in engine = explicit runtime binding makes this constraint more critical |
+| [#91](https://github.com/bytefolk/digital-employee/issues/91) | [Epic] Adoption | Re-anchored: the clean-machine acceptance target becomes the #163 oss-maintainer showcase |
+| [#95](https://github.com/bytefolk/digital-employee/issues/95) | Governance enforcement | Repository-level requirement governance; depended on by all tracks |
+| [#97](https://github.com/bytefolk/digital-employee/issues/97) | Remove the single-reviewer bottleneck | Governance hygiene |
+| [#136](https://github.com/bytefolk/digital-employee/issues/136) | Versioned release gate | Portability proof gate + precondition for the quickstart pinned version |
+| [#139](https://github.com/bytefolk/digital-employee/issues/139) | External deployment experience design | Adoption-line UX |
+| [#141](https://github.com/bytefolk/digital-employee/issues/141) | Clean-machine install notes | Adoption-line evidence |
+| [#144](https://github.com/bytefolk/digital-employee/issues/144) | Scenario pipeline and value acceptance ownership | Product-track function retained; SKU ordering re-sequenced per ruling |
 
 ### Old-track issues — REPURPOSE (9, disposition comment recorded, kept open)
 
 | Issue | Content | Redirected to | Disposition comment |
 | --- | --- | --- | --- |
-| [#102](https://github.com/fullstack-ai-infra/digital-employee/issues/102) | Turn contract RFC | Direct design input for engine Epic #165 S1 turn execution and the I-03 chat bridge (#158) | [comment](https://github.com/fullstack-ai-infra/digital-employee/issues/102#issuecomment-5384895954) |
-| [#104](https://github.com/fullstack-ai-infra/digital-employee/issues/104) | Audit evidence retention/recovery RFC | Merged into the engine per-turn evidence recording and long-term Context retention design (#165 evidence line + #161) | [comment](https://github.com/fullstack-ai-infra/digital-employee/issues/104#issuecomment-5384896299) |
-| [#137](https://github.com/fullstack-ai-infra/digital-employee/issues/137) | Runner security audit | Audit target re-focused: built-in engine + deployment state; owned by the engine line (#165) | [comment](https://github.com/fullstack-ai-infra/digital-employee/issues/137#issuecomment-5384896696) |
-| [#142](https://github.com/fullstack-ai-infra/digital-employee/issues/142) | Three reproducible showcases | First slot merged into #163 (oss-maintainer); later slots follow the SKU order | [comment](https://github.com/fullstack-ai-infra/digital-employee/issues/142#issuecomment-5384896959) |
-| [#34](https://github.com/fullstack-ai-infra/digital-employee/issues/34) | Codex CLI adapter re-qualification | Moved into the engine Epic "external Agent Host adapter option" workflow (after S1) | [comment](https://github.com/fullstack-ai-infra/digital-employee/issues/34#issuecomment-5384897265) |
-| [#46](https://github.com/fullstack-ai-infra/digital-employee/issues/46) | agent-host.v1 corpus | Retained as the conformance test corpus for the external adapter option | [comment](https://github.com/fullstack-ai-infra/digital-employee/issues/46#issuecomment-5384897549) |
-| [#52](https://github.com/fullstack-ai-infra/digital-employee/issues/52) | Qualification evidence authenticity | Authenticity requirements merged into the engine per-turn evidence line and the adapter qualification line | [comment](https://github.com/fullstack-ai-infra/digital-employee/issues/52#issuecomment-5384897896) |
-| [#113](https://github.com/fullstack-ai-infra/digital-employee/issues/113) | Qoder structured_output qualification | Adapter-option backlog (not on the first-milestone path) | [comment](https://github.com/fullstack-ai-infra/digital-employee/issues/113#issuecomment-5384898219) |
-| [#125](https://github.com/fullstack-ai-infra/digital-employee/issues/125) | claude-stream normalization tests | Adapter-option test asset (credential gate unchanged) | [comment](https://github.com/fullstack-ai-infra/digital-employee/issues/125#issuecomment-5384898517) |
+| [#102](https://github.com/bytefolk/digital-employee/issues/102) | Turn contract RFC | Direct design input for engine Epic #165 S1 turn execution and the I-03 chat bridge (#158) | [comment](https://github.com/bytefolk/digital-employee/issues/102#issuecomment-5384895954) |
+| [#104](https://github.com/bytefolk/digital-employee/issues/104) | Audit evidence retention/recovery RFC | Merged into the engine per-turn evidence recording and long-term Context retention design (#165 evidence line + #161) | [comment](https://github.com/bytefolk/digital-employee/issues/104#issuecomment-5384896299) |
+| [#137](https://github.com/bytefolk/digital-employee/issues/137) | Runner security audit | Audit target re-focused: built-in engine + deployment state; owned by the engine line (#165) | [comment](https://github.com/bytefolk/digital-employee/issues/137#issuecomment-5384896696) |
+| [#142](https://github.com/bytefolk/digital-employee/issues/142) | Three reproducible showcases | First slot merged into #163 (oss-maintainer); later slots follow the SKU order | [comment](https://github.com/bytefolk/digital-employee/issues/142#issuecomment-5384896959) |
+| [#34](https://github.com/bytefolk/digital-employee/issues/34) | Codex CLI adapter re-qualification | Moved into the engine Epic "external Agent Host adapter option" workflow (after S1) | [comment](https://github.com/bytefolk/digital-employee/issues/34#issuecomment-5384897265) |
+| [#46](https://github.com/bytefolk/digital-employee/issues/46) | agent-host.v1 corpus | Retained as the conformance test corpus for the external adapter option | [comment](https://github.com/bytefolk/digital-employee/issues/46#issuecomment-5384897549) |
+| [#52](https://github.com/bytefolk/digital-employee/issues/52) | Qualification evidence authenticity | Authenticity requirements merged into the engine per-turn evidence line and the adapter qualification line | [comment](https://github.com/bytefolk/digital-employee/issues/52#issuecomment-5384897896) |
+| [#113](https://github.com/bytefolk/digital-employee/issues/113) | Qoder structured_output qualification | Adapter-option backlog (not on the first-milestone path) | [comment](https://github.com/bytefolk/digital-employee/issues/113#issuecomment-5384898219) |
+| [#125](https://github.com/bytefolk/digital-employee/issues/125) | claude-stream normalization tests | Adapter-option test asset (credential gate unchanged) | [comment](https://github.com/bytefolk/digital-employee/issues/125#issuecomment-5384898517) |
 
 ### Old-track issues — PARK (5, closed as not planned)
 
 | Issue | Content | PARK rationale | Revival condition | Disposition comment |
 | --- | --- | --- | --- | --- |
-| [#19](https://github.com/fullstack-ai-infra/digital-employee/issues/19) | External control-plane adapter RFC | The new mainline is the local workspace; this milestone has no independent operator-surface requirement | Re-propose when the workspace needs an independent operator surface | [comment](https://github.com/fullstack-ai-infra/digital-employee/issues/19#issuecomment-5384891868) |
-| [#55](https://github.com/fullstack-ai-infra/digital-employee/issues/55) | Host Phase A hardening (blocked) | External Host route; not on the M1–M3 path | When the external Host route is revived | [comment](https://github.com/fullstack-ai-infra/digital-employee/issues/55#issuecomment-5384892534) |
-| [#77](https://github.com/fullstack-ai-infra/digital-employee/issues/77) | Lark channel | No channel expansion in the first milestone (consistent with the #155 non-goal) | Second-SKU kickoff or a channel-expansion milestone | [comment](https://github.com/fullstack-ai-infra/digital-employee/issues/77#issuecomment-5384893954) |
-| [#78](https://github.com/fullstack-ai-infra/digital-employee/issues/78) | WeCom channel | No channel expansion in the first milestone (consistent with the #155 non-goal) | Second-SKU kickoff or a channel-expansion milestone | [comment](https://github.com/fullstack-ai-infra/digital-employee/issues/78#issuecomment-5384894645) |
-| [#138](https://github.com/fullstack-ai-infra/digital-employee/issues/138) | Real-device and credential provisioning | All three consumers (#125/#77/#78) have left the first-milestone path | Re-evaluate when the consumers are revived (adapter-option workflow) | [comment](https://github.com/fullstack-ai-infra/digital-employee/issues/138#issuecomment-5384895373) |
+| [#19](https://github.com/bytefolk/digital-employee/issues/19) | External control-plane adapter RFC | The new mainline is the local workspace; this milestone has no independent operator-surface requirement | Re-propose when the workspace needs an independent operator surface | [comment](https://github.com/bytefolk/digital-employee/issues/19#issuecomment-5384891868) |
+| [#55](https://github.com/bytefolk/digital-employee/issues/55) | Host Phase A hardening (blocked) | External Host route; not on the M1–M3 path | When the external Host route is revived | [comment](https://github.com/bytefolk/digital-employee/issues/55#issuecomment-5384892534) |
+| [#77](https://github.com/bytefolk/digital-employee/issues/77) | Lark channel | No channel expansion in the first milestone (consistent with the #155 non-goal) | Second-SKU kickoff or a channel-expansion milestone | [comment](https://github.com/bytefolk/digital-employee/issues/77#issuecomment-5384893954) |
+| [#78](https://github.com/bytefolk/digital-employee/issues/78) | WeCom channel | No channel expansion in the first milestone (consistent with the #155 non-goal) | Second-SKU kickoff or a channel-expansion milestone | [comment](https://github.com/bytefolk/digital-employee/issues/78#issuecomment-5384894645) |
+| [#138](https://github.com/bytefolk/digital-employee/issues/138) | Real-device and credential provisioning | All three consumers (#125/#77/#78) have left the first-milestone path | Re-evaluate when the consumers are revived (adapter-option workflow) | [comment](https://github.com/bytefolk/digital-employee/issues/138#issuecomment-5384895373) |
 
 ### M1 draft dispositions (record only)
 

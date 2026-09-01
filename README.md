@@ -4,13 +4,13 @@
 
 Digital Employee is a local-first, conversation-first digital-organization
 workspace. The long-term direction (tracked in
-[Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)):
+[Epic #155](https://github.com/bytefolk/digital-employee/issues/155)):
 turn one business directory into a directly addressable AI team — a directory
 is one business, a position is one addressable digital employee, and a
 conversation is work carried out with that position's Context and permission
 boundary. Positions run on a built-in, TypeScript-native execution engine as
 the default Host
-([Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165),
+([Epic #165](https://github.com/bytefolk/digital-employee/issues/165),
 product direction). The engine/turn core is a released preview in public
 `0.6.0`; the `0.6.1` source tree keeps that runtime unchanged. The
 complete default-Host Workbench path remains in delivery, and external Agent
@@ -116,7 +116,7 @@ requires one supported Agent Host and its service credential:
 ### Run from source
 
 ```bash
-git clone https://github.com/fullstack-ai-infra/digital-employee.git
+git clone https://github.com/bytefolk/digital-employee.git
 cd digital-employee
 npm ci
 npm run build
@@ -253,8 +253,8 @@ core npm packages, GHCR, and GitHub Releases:
 | --- | --- |
 | npm (CLI) | `npm install --global @fullstack-ai-infra/digital-employee@0.6.0` |
 | npm (core) | `npm install @fullstack-ai-infra/digital-employee-core@0.6.0` |
-| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.6.0` |
-| GitHub Release | Download the root/core packages and checksums from [`v0.6.0`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.6.0) |
+| GHCR | `docker pull ghcr.io/bytefolk/digital-employee:0.6.0` |
+| GitHub Release | Download the root/core packages and checksums from [`v0.6.0`](https://github.com/bytefolk/digital-employee/releases/tag/v0.6.0) |
 
 The standalone `@fullstack-ai-infra/digital-employee-core@0.6.0` package is
 public. Its one-time registry bootstrap is complete, and subsequent versions
@@ -268,15 +268,15 @@ channels:
 | Channel | Command or download |
 | --- | --- |
 | npm | `npm install --global @fullstack-ai-infra/digital-employee@0.1.0` |
-| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.1.0` |
-| GitHub Release | Download the package and checksum from [Releases](https://github.com/fullstack-ai-infra/digital-employee/releases) |
+| GHCR | `docker pull ghcr.io/bytefolk/digital-employee:0.1.0` |
+| GitHub Release | Download the package and checksum from [Releases](https://github.com/bytefolk/digital-employee/releases) |
 
 That release contains only the historical answer runtime. Its container starts
 the old HTTP demo and does not contain Qoder or the new package commands:
 
 ```bash
 docker run --rm -p 3000:3000 \
-  ghcr.io/fullstack-ai-infra/digital-employee:0.1.0
+  ghcr.io/bytefolk/digital-employee:0.1.0
 ```
 
 The current source `Dockerfile` installs an already verified npm candidate and
@@ -331,7 +331,7 @@ company-internal transactions stay private.
 
 ## Community and support
 
-Use [GitHub Issues](https://github.com/fullstack-ai-infra/digital-employee/issues)
+Use [GitHub Issues](https://github.com/bytefolk/digital-employee/issues)
 for bugs, feature requests, and reproducible integration reports.
 
 ## Contributing

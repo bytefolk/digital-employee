@@ -17,7 +17,7 @@ function validMatrix(): Record<string, unknown> {
     components: [
       {
         name: "mem",
-        repository: "https://github.com/fullstack-ai-infra/mem",
+        repository: "https://github.com/bytefolk/mem",
         commit: MEM_COMMIT,
         contract: "durable-context.v1",
         startCommand: "make test-env-up",

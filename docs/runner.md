@@ -103,18 +103,18 @@ event 和 receipt 请求绑定到已认证的 Runner 设备主体；task/run/lea
 这些能力属于本开源仓库，全部运行在卖家机器上：
 
 - `runner init/doctor/start/status` 生命周期、本地配置和可操作诊断
-  （[#35](https://github.com/fullstack-ai-infra/digital-employee/issues/35)）；
+  （[#35](https://github.com/bytefolk/digital-employee/issues/35)）；
 - 版本/员工包/Engine 的本地部署注册表，以及只从该注册表解析本地路径；
 - 持久化 replay/outbox、崩溃恢复、断线重连、heartbeat、取消、升级和进程清理
-  （[#27](https://github.com/fullstack-ai-infra/digital-employee/issues/27)）；
+  （[#27](https://github.com/bytefolk/digital-employee/issues/27)）；
 - 设备密钥的本地安全存储与轮换客户端，以及已认证、仅出站的 transport port；具体
   HTTP/gRPC 实现必须在端口之后，执行内核不能依赖私有 API
-  （[#29](https://github.com/fullstack-ai-infra/digital-employee/issues/29)）；
+  （[#29](https://github.com/bytefolk/digital-employee/issues/29)）；
 - 供应商中立的原始 usage 证据语义，不包含 Quote/Credit 计算
-  （[#28](https://github.com/fullstack-ai-infra/digital-employee/issues/28)）；
+  （[#28](https://github.com/bytefolk/digital-employee/issues/28)）；
 - committed mock control plane 覆盖签名 claim、本机 Host、断网恢复、事件上传和签名
   receipt 的端到端验证
-  （[#37](https://github.com/fullstack-ai-infra/digital-employee/issues/37)）。
+  （[#37](https://github.com/bytefolk/digital-employee/issues/37)）。
 
 当前 `executeOneShotRunnerTask()` 只是上述长期客户端可复用的本机执行内核，不等于
 Runner daemon，也不提供生产网络 SDK。公开实现可以提供 mock/参考服务 fixture 来验证

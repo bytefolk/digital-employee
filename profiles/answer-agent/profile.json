@@ -9,7 +9,7 @@
     "fullstack-ai-infra"
   ],
   "provenance": {
-    "repository": "https://github.com/fullstack-ai-infra/digital-employee"
+    "repository": "https://github.com/bytefolk/digital-employee"
   },
   "compatibility": {
     "runtimeApi": ">=1.0.0 <2.0.0"

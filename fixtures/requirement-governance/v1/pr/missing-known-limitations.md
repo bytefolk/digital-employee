@@ -1,6 +1,6 @@
 ## Canonical requirement
 
-- Canonical Issue URL: https://github.com/fullstack-ai-infra/digital-employee/issues/95
+- Canonical Issue URL: https://github.com/bytefolk/digital-employee/issues/95
 - Consumed revision: R1
 - No automatic close keywords: acknowledged
 

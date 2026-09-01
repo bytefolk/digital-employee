@@ -103,7 +103,7 @@ Every decision comment has this envelope:
 <!-- requirement-decision:v1 -->
 ```yaml
 schemaVersion: requirement-decision.v1
-canonicalIssue: "https://github.com/fullstack-ai-infra/digital-employee/issues/95"
+canonicalIssue: "https://github.com/bytefolk/digital-employee/issues/95"
 previousRevision: R1
 resultingRevision: R2
 decisionType: additive
@@ -133,7 +133,7 @@ Add a requirement or AC without weakening an existing one.
 <!-- requirement-decision:v1 -->
 ```yaml
 schemaVersion: requirement-decision.v1
-canonicalIssue: "https://github.com/fullstack-ai-infra/digital-employee/issues/95"
+canonicalIssue: "https://github.com/bytefolk/digital-employee/issues/95"
 previousRevision: R1
 resultingRevision: R2
 decisionType: additive
@@ -155,7 +155,7 @@ Reduce scope while preserving the intended outcome.
 <!-- requirement-decision:v1 -->
 ```yaml
 schemaVersion: requirement-decision.v1
-canonicalIssue: "https://github.com/fullstack-ai-infra/digital-employee/issues/95"
+canonicalIssue: "https://github.com/bytefolk/digital-employee/issues/95"
 previousRevision: R2
 resultingRevision: R3
 decisionType: narrowing
@@ -177,7 +177,7 @@ Change a public contract or compatibility promise.
 <!-- requirement-decision:v1 -->
 ```yaml
 schemaVersion: requirement-decision.v1
-canonicalIssue: "https://github.com/fullstack-ai-infra/digital-employee/issues/95"
+canonicalIssue: "https://github.com/bytefolk/digital-employee/issues/95"
 previousRevision: R3
 resultingRevision: R4
 decisionType: breaking
@@ -199,12 +199,12 @@ Add, remove, or change a blocking or downstream dependency.
 <!-- requirement-decision:v1 -->
 ```yaml
 schemaVersion: requirement-decision.v1
-canonicalIssue: "https://github.com/fullstack-ai-infra/digital-employee/issues/95"
+canonicalIssue: "https://github.com/bytefolk/digital-employee/issues/95"
 previousRevision: R4
 resultingRevision: R5
 decisionType: dependency
 oldDecision: "dependencies=[]"
-newDecision: "dependencies=[https://github.com/fullstack-ai-infra/digital-employee/issues/89 at R1]"
+newDecision: "dependencies=[https://github.com/bytefolk/digital-employee/issues/89 at R1]"
 reason: "The governance check must run in the protected CI merge gate."
 impact: "Implementation may proceed, but product acceptance waits for dependency R1 evidence."
 approver: "@product-owner"
@@ -221,7 +221,7 @@ Changing only order or urgency is still semantic.
 <!-- requirement-decision:v1 -->
 ```yaml
 schemaVersion: requirement-decision.v1
-canonicalIssue: "https://github.com/fullstack-ai-infra/digital-employee/issues/95"
+canonicalIssue: "https://github.com/bytefolk/digital-employee/issues/95"
 previousRevision: R5
 resultingRevision: R6
 decisionType: priority
@@ -243,7 +243,7 @@ HOLD is an explicit lifecycle gate, not a synonym for blocked or cancelled.
 <!-- requirement-decision:v1 -->
 ```yaml
 schemaVersion: requirement-decision.v1
-canonicalIssue: "https://github.com/fullstack-ai-infra/digital-employee/issues/95"
+canonicalIssue: "https://github.com/bytefolk/digital-employee/issues/95"
 previousRevision: R6
 resultingRevision: R7
 decisionType: hold
@@ -265,12 +265,12 @@ Only an explicit decision releases a HOLD.
 <!-- requirement-decision:v1 -->
 ```yaml
 schemaVersion: requirement-decision.v1
-canonicalIssue: "https://github.com/fullstack-ai-infra/digital-employee/issues/95"
+canonicalIssue: "https://github.com/bytefolk/digital-employee/issues/95"
 previousRevision: R7
 resultingRevision: R8
 decisionType: release
 oldDecision: "status=HOLD; security review pending"
-newDecision: "status=in-progress; security review https://github.com/fullstack-ai-infra/digital-employee/pull/123#issuecomment-456 accepted"
+newDecision: "status=in-progress; security review https://github.com/bytefolk/digital-employee/pull/123#issuecomment-456 accepted"
 reason: "The named reviewer accepted the bounded public fixture and no-sensitive-data evidence."
 impact: "Implementation may resume; merge and product acceptance remain separate gates."
 approver: "@product-owner"
@@ -288,12 +288,12 @@ does not pretend that the duplicate itself shipped.
 <!-- requirement-decision:v1 -->
 ```yaml
 schemaVersion: requirement-decision.v1
-canonicalIssue: "https://github.com/fullstack-ai-infra/digital-employee/issues/95"
+canonicalIssue: "https://github.com/bytefolk/digital-employee/issues/95"
 previousRevision: R8
 resultingRevision: R9
 decisionType: duplicate
 oldDecision: "status=in-progress; this Issue independently owns REQ-001 and AC-001."
-newDecision: "status=product-review; dependency https://github.com/fullstack-ai-infra/digital-employee/issues/120 at R3 owns the complete requirement; disposition=duplicate."
+newDecision: "status=product-review; dependency https://github.com/bytefolk/digital-employee/issues/120 at R3 owns the complete requirement; disposition=duplicate."
 reason: "The target contains the same user outcome, REQ/AC set, dependencies, and unresolved limits."
 impact: "No implementation or acceptance is claimed here; product review may close this Issue as duplicate after the R9 body links the target."
 approver: "@product-owner"
@@ -316,7 +316,7 @@ mechanism rather than an absent macOS runner.
 <!-- requirement-decision:v1 -->
 ```yaml
 schemaVersion: requirement-decision.v1
-canonicalIssue: "https://github.com/fullstack-ai-infra/digital-employee/issues/224"
+canonicalIssue: "https://github.com/bytefolk/digital-employee/issues/224"
 previousRevision: R1
 resultingRevision: R2
 decisionType: narrowing
@@ -335,7 +335,7 @@ a named signal, keeping the Windows named limit in force until then.
 <!-- requirement-decision:v1 -->
 ```yaml
 schemaVersion: requirement-decision.v1
-canonicalIssue: "https://github.com/fullstack-ai-infra/digital-employee/issues/224"
+canonicalIssue: "https://github.com/bytefolk/digital-employee/issues/224"
 previousRevision: R2
 resultingRevision: R3
 decisionType: dependency
@@ -436,9 +436,9 @@ comment that names the prior comment URL.
 <!-- verification-ledger:v1 -->
 ```yaml
 schemaVersion: verification-ledger.v1
-canonicalIssue: "https://github.com/fullstack-ai-infra/digital-employee/issues/95"
+canonicalIssue: "https://github.com/bytefolk/digital-employee/issues/95"
 consumedRevision: R1
-pullRequest: "https://github.com/fullstack-ai-infra/digital-employee/pull/123"
+pullRequest: "https://github.com/bytefolk/digital-employee/pull/123"
 headSha: "1111111111111111111111111111111111111111"
 mergeSha: "2222222222222222222222222222222222222222"
 mergedAt: "2026-08-14T10:00:00Z"
@@ -453,7 +453,7 @@ requirements:
 commands:
   - "npm run check => PASS (exact count copied from the run)"
 checks:
-  - "https://github.com/fullstack-ai-infra/digital-employee/actions/runs/123456789"
+  - "https://github.com/bytefolk/digital-employee/actions/runs/123456789"
 artifacts:
   - name: "requirement-governance-fixtures.v1"
     sha256: "3333333333333333333333333333333333333333333333333333333333333333"
@@ -478,10 +478,10 @@ the merge ledger. The review is another append-only comment:
 <!-- product-review:v1 -->
 ```yaml
 schemaVersion: product-review.v1
-canonicalIssue: "https://github.com/fullstack-ai-infra/digital-employee/issues/95"
+canonicalIssue: "https://github.com/bytefolk/digital-employee/issues/95"
 reviewedRevision: R2
 consumedImplementationRevision: R1
-verificationLedger: "https://github.com/fullstack-ai-infra/digital-employee/issues/95#issuecomment-789"
+verificationLedger: "https://github.com/bytefolk/digital-employee/issues/95#issuecomment-789"
 decision: ACCEPT
 reason: "AC-001 through AC-004 match the approved user outcome and evidence boundary."
 remainingLimits:
@@ -503,17 +503,17 @@ and the exact artifact packet, then append this packet to the milestone Issue:
 <!-- milestone-packet:v1 -->
 ```yaml
 schemaVersion: milestone-packet.v1
-milestoneIssue: "https://github.com/fullstack-ai-infra/digital-employee/issues/25"
+milestoneIssue: "https://github.com/bytefolk/digital-employee/issues/25"
 milestoneRevision: R4
 frozenSha: "4444444444444444444444444444444444444444"
 preparedAt: "2026-08-14T12:00:00Z"
 childLedgers:
-  - "https://github.com/fullstack-ai-infra/digital-employee/issues/95#issuecomment-789"
+  - "https://github.com/bytefolk/digital-employee/issues/95#issuecomment-789"
 artifacts:
-  - url: "https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.4.0"
+  - url: "https://github.com/bytefolk/digital-employee/releases/tag/v0.4.0"
     sha256: "5555555555555555555555555555555555555555555555555555555555555555"
 checks:
-  - "https://github.com/fullstack-ai-infra/digital-employee/actions/runs/123456789"
+  - "https://github.com/bytefolk/digital-employee/actions/runs/123456789"
 knownLimits:
   - "Windows remains NOT VERIFIED under child Issue R3."
 ownerDecision: PENDING
@@ -528,9 +528,9 @@ release job, or a model does not satisfy the requirement.
 <!-- milestone-owner-decision:v1 -->
 ```yaml
 schemaVersion: milestone-owner-decision.v1
-milestoneIssue: "https://github.com/fullstack-ai-infra/digital-employee/issues/25"
+milestoneIssue: "https://github.com/bytefolk/digital-employee/issues/25"
 milestoneRevision: R4
-packet: "https://github.com/fullstack-ai-infra/digital-employee/issues/25#issuecomment-999"
+packet: "https://github.com/bytefolk/digital-employee/issues/25#issuecomment-999"
 frozenSha: "4444444444444444444444444444444444444444"
 decision: ACCEPT
 reason: "The frozen SHA, child ledgers, artifacts, checks, and known limits satisfy the milestone outcome."

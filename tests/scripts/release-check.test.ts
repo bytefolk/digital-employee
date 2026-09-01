@@ -30,7 +30,7 @@ const manifest = {
   version: "0.1.0",
   repository: {
     type: "git",
-    url: "git+https://github.com/fullstack-ai-infra/digital-employee.git"
+    url: "git+https://github.com/bytefolk/digital-employee.git"
   },
   publishConfig: { access: "public" },
   bin: { "digital-employee": "./dist/apps/cli/bin.js" },

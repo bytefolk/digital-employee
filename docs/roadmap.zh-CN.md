@@ -3,9 +3,9 @@
 [English](roadmap.md)
 
 本路线图把稳定的[产品策略](strategy.zh-CN.md)转化为可执行的 Issue 依赖图。
-[Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)
+[Epic #155](https://github.com/bytefolk/digital-employee/issues/155)
 （本地数字组织工作台）是新主线的交付索引；
-[Epic #25](https://github.com/fullstack-ai-infra/digital-employee/issues/25)
+[Epic #25](https://github.com/bytefolk/digital-employee/issues/25)
 仅作为旧轨收尾索引保留。Issue label 和 milestone 是当前状态的事实来源；本文定义
 顺序、归属和验收门槛，不承诺日期，也不复制完整 Issue 规格。
 
@@ -32,7 +32,7 @@ GitHub Release 可用；必须以 release receipt 为准。下文的公开 `0.6.
 `workspace init`、`org tree` 与 `org apply` 原型已作为预览随公开 `0.6.0`
 发布（最初随 `0.5.0` 发布）。`chat @position` 与持久化 Workbench 旅程仍由下方
 新主线推进。内建引擎 Epic
-（[#165](https://github.com/fullstack-ai-infra/digital-employee/issues/165)）
+（[#165](https://github.com/bytefolk/digital-employee/issues/165)）
 继续分别管理剩余尚未发布的切片与验收门禁。
 
 ## 交付依赖图（新主线）
@@ -75,23 +75,23 @@ flowchart LR
 规范交付顺序是：
 
 - **W1（第一里程碑，截止 2026-09-30，已标记）：**
-  [#156](https://github.com/fullstack-ai-infra/digital-employee/issues/156)
-  → [#157](https://github.com/fullstack-ai-infra/digital-employee/issues/157)
-  → [#158](https://github.com/fullstack-ai-infra/digital-employee/issues/158)，
-  由 [#159](https://github.com/fullstack-ai-infra/digital-employee/issues/159)
-  和 [#161](https://github.com/fullstack-ai-infra/digital-employee/issues/161)
+  [#156](https://github.com/bytefolk/digital-employee/issues/156)
+  → [#157](https://github.com/bytefolk/digital-employee/issues/157)
+  → [#158](https://github.com/bytefolk/digital-employee/issues/158)，
+  由 [#159](https://github.com/bytefolk/digital-employee/issues/159)
+  和 [#161](https://github.com/bytefolk/digital-employee/issues/161)
   闭合权限与记忆回路，由
-  [#163](https://github.com/fullstack-ai-infra/digital-employee/issues/163)
+  [#163](https://github.com/bytefolk/digital-employee/issues/163)
   端到端证明 oss-maintainer showcase。引擎 S1
-  （[#165](https://github.com/fullstack-ai-infra/digital-employee/issues/165)）
+  （[#165](https://github.com/bytefolk/digital-employee/issues/165)）
   支撑 chat 回合执行与 showcase 验收；与 I-01..I-07 对齐到本里程碑。
-- [#162](https://github.com/fullstack-ai-infra/digital-employee/issues/162)
+- [#162](https://github.com/bytefolk/digital-employee/issues/162)
   （context 蒸馏）为 P1，非 W1 门禁。
-- [#164](https://github.com/fullstack-ai-infra/digital-employee/issues/164)
+- [#164](https://github.com/bytefolk/digital-employee/issues/164)
   （本次 pivot）并行推进，不阻塞 W1。
 - **M2–M3：**context 蒸馏深度、`org apply` 生命周期与 mem 召回的生产使用成为下一个
   门槛，同时引擎 S2 harness 层（#165）跟进。渠道输出渲染
-  （[#160](https://github.com/fullstack-ai-infra/digital-employee/issues/160)）
+  （[#160](https://github.com/bytefolk/digital-employee/issues/160)）
   由本次 pivot 之外负责，不在这里排期。
 - **M4+：**引擎 S3 graph 层（跨岗位路由与委派编排，#165）。规划中。
 
@@ -102,14 +102,14 @@ flowchart LR
 
 | Story | 交付物 | 依赖 | 团队 |
 | --- | --- | --- | --- |
-| [#156](https://github.com/fullstack-ai-infra/digital-employee/issues/156) | oss-maintainer 模板的 `workspace init` 原型（`0.6.0` 已发布预览） | Epic #155 | 工作区 |
-| [#157](https://github.com/fullstack-ai-infra/digital-employee/issues/157) | 组织模型：`org tree` / `org apply`、目录树语义与岗位预算治理 | #156 | 组织模型 |
-| [#158](https://github.com/fullstack-ai-infra/digital-employee/issues/158) | `chat @position` 对话桥（回合契约） | #102、#156 | Chat 桥 |
-| [#159](https://github.com/fullstack-ai-infra/digital-employee/issues/159) | 岗位权限边界（Context Scope + Authority Scope） | #156 | 治理 |
-| [#161](https://github.com/fullstack-ai-infra/digital-employee/issues/161) | 长期 Context 集成（mem R1 级；W1 验收召回接缝，mem 召回属 M2） | #158、mem #68 | 记忆 |
-| [#163](https://github.com/fullstack-ai-infra/digital-employee/issues/163) | oss-maintainer showcase（quickstart 形态） | #156、#158 | Adoption |
-| [#162](https://github.com/fullstack-ai-infra/digital-employee/issues/162) | Context 事实蒸馏集成（基于规则；P1，非 W1 门禁） | #158、context | Context |
-| [#165](https://github.com/fullstack-ai-infra/digital-employee/issues/165) | 内建引擎 S1 只读核心：回合执行、Context 组装、loop 控制、结构性失败关闭、逐回合证据 | #102 地基 | 引擎 |
+| [#156](https://github.com/bytefolk/digital-employee/issues/156) | oss-maintainer 模板的 `workspace init` 原型（`0.6.0` 已发布预览） | Epic #155 | 工作区 |
+| [#157](https://github.com/bytefolk/digital-employee/issues/157) | 组织模型：`org tree` / `org apply`、目录树语义与岗位预算治理 | #156 | 组织模型 |
+| [#158](https://github.com/bytefolk/digital-employee/issues/158) | `chat @position` 对话桥（回合契约） | #102、#156 | Chat 桥 |
+| [#159](https://github.com/bytefolk/digital-employee/issues/159) | 岗位权限边界（Context Scope + Authority Scope） | #156 | 治理 |
+| [#161](https://github.com/bytefolk/digital-employee/issues/161) | 长期 Context 集成（mem R1 级；W1 验收召回接缝，mem 召回属 M2） | #158、mem #68 | 记忆 |
+| [#163](https://github.com/bytefolk/digital-employee/issues/163) | oss-maintainer showcase（quickstart 形态） | #156、#158 | Adoption |
+| [#162](https://github.com/bytefolk/digital-employee/issues/162) | Context 事实蒸馏集成（基于规则；P1，非 W1 门禁） | #158、context | Context |
+| [#165](https://github.com/bytefolk/digital-employee/issues/165) | 内建引擎 S1 只读核心：回合执行、Context 组装、loop 控制、结构性失败关闭、逐回合证据 | #102 地基 | 引擎 |
 
 **门槛：**干净机器 `workspace init` → `org tree` → `chat @position`（owner 与
 worker 路径）；Context 切片是窄的且权限边界成立；决策持久化到 `mem` 且新会话可召回；
@@ -128,10 +128,10 @@ quickstart 复现；四个 showcase 员工包在内建引擎上端到端运行�
 
 | Story | 交付物 | 依赖 | 团队 |
 | --- | --- | --- | --- |
-| [#162](https://github.com/fullstack-ai-infra/digital-employee/issues/162) | 基于规则的 context 蒸馏驱动窄切片召回 | #158、context | Context |
-| [#157](https://github.com/fullstack-ai-infra/digital-employee/issues/157) | `org apply` 审计组织变更 | #156 | 组织模型 |
-| [#161](https://github.com/fullstack-ai-infra/digital-employee/issues/161) | mem 召回进入生产使用 | #158、mem | 记忆 |
-| [#165](https://github.com/fullstack-ai-infra/digital-employee/issues/165) | 引擎 S2 harness 层：工具分发、MCP client、审批门、沙箱、岗位权限边界的运行时强制（在 S1 零工具基线之上扩展，绝不削弱） | S1 | 引擎 |
+| [#162](https://github.com/bytefolk/digital-employee/issues/162) | 基于规则的 context 蒸馏驱动窄切片召回 | #158、context | Context |
+| [#157](https://github.com/bytefolk/digital-employee/issues/157) | `org apply` 审计组织变更 | #156 | 组织模型 |
+| [#161](https://github.com/bytefolk/digital-employee/issues/161) | mem 召回进入生产使用 | #158、mem | 记忆 |
+| [#165](https://github.com/bytefolk/digital-employee/issues/165) | 引擎 S2 harness 层：工具分发、MCP client、审批门、沙箱、岗位权限边界的运行时强制（在 S1 零工具基线之上扩展，绝不削弱） | S1 | 引擎 |
 
 **非目标：**渠道扩张（Lark/WeCom）、市场/交易工作、完整 RBAC。
 
@@ -144,7 +144,7 @@ quickstart 复现；四个 showcase 员工包在内建引擎上端到端运行�
 
 旧主线（**Builder → Seller Runner → Trusted execution**，Epic #25）已收尾，不再
 扩展。每个 open 旧轨 issue 都按
-[#164](https://github.com/fullstack-ai-infra/digital-employee/issues/164)
+[#164](https://github.com/bytefolk/digital-employee/issues/164)
 批准的台账（2026-08-23）拥有明确的 **KEEP / REPURPOSE / PARK** 处置：
 **KEEP 11 / REPURPOSE 9 / PARK 5**。KEEP 加入新主线；REPURPOSE 改道为工作台/引擎线
 的设计输入；PARK 以 not planned 关闭，并保留明确的复活条件。台账已经执行完毕
@@ -155,18 +155,18 @@ issue。
 
 | Issue | 标题 | 处置 |
 | --- | --- | --- |
-| [#155](https://github.com/fullstack-ai-infra/digital-employee/issues/155) | [Epic] 本地数字组织工作台 | **KEEP** — 新主线交付索引；取代 #25 成为北极星 |
-| [#156](https://github.com/fullstack-ai-infra/digital-employee/issues/156) | feat(workspace): `workspace init` 原型 | **KEEP** — W1（`0.6.0` 已发布预览） |
-| [#157](https://github.com/fullstack-ai-infra/digital-employee/issues/157) | feat(org): 组织模型、`org tree` / `org apply` | **KEEP** — W1 |
-| [#158](https://github.com/fullstack-ai-infra/digital-employee/issues/158) | feat(chat): `chat @position` 对话桥 | **KEEP** — W1 |
-| [#159](https://github.com/fullstack-ai-infra/digital-employee/issues/159) | feat(org): 岗位权限边界 | **KEEP** — W1 |
-| [#161](https://github.com/fullstack-ai-infra/digital-employee/issues/161) | feat(mem): 长期 Context 集成（R1 级） | **KEEP** — W1 召回接缝；M2 mem 召回 |
-| [#162](https://github.com/fullstack-ai-infra/digital-employee/issues/162) | feat(context): 事实蒸馏集成（基于规则） | **KEEP** — M2–M3（P1） |
-| [#163](https://github.com/fullstack-ai-infra/digital-employee/issues/163) | showcase: oss-maintainer 案例（quickstart 形态） | **KEEP** — W1 |
-| [#164](https://github.com/fullstack-ai-infra/digital-employee/issues/164) | docs(strategy): pivot strategy/roadmap/README | **KEEP** — 本次 pivot；并行、不阻塞 |
-| [#165](https://github.com/fullstack-ai-infra/digital-employee/issues/165) | feat(engine): 内建执行引擎 Epic | **KEEP** — 引擎主线；S1 与 W1 对齐 |
+| [#155](https://github.com/bytefolk/digital-employee/issues/155) | [Epic] 本地数字组织工作台 | **KEEP** — 新主线交付索引；取代 #25 成为北极星 |
+| [#156](https://github.com/bytefolk/digital-employee/issues/156) | feat(workspace): `workspace init` 原型 | **KEEP** — W1（`0.6.0` 已发布预览） |
+| [#157](https://github.com/bytefolk/digital-employee/issues/157) | feat(org): 组织模型、`org tree` / `org apply` | **KEEP** — W1 |
+| [#158](https://github.com/bytefolk/digital-employee/issues/158) | feat(chat): `chat @position` 对话桥 | **KEEP** — W1 |
+| [#159](https://github.com/bytefolk/digital-employee/issues/159) | feat(org): 岗位权限边界 | **KEEP** — W1 |
+| [#161](https://github.com/bytefolk/digital-employee/issues/161) | feat(mem): 长期 Context 集成（R1 级） | **KEEP** — W1 召回接缝；M2 mem 召回 |
+| [#162](https://github.com/bytefolk/digital-employee/issues/162) | feat(context): 事实蒸馏集成（基于规则） | **KEEP** — M2–M3（P1） |
+| [#163](https://github.com/bytefolk/digital-employee/issues/163) | showcase: oss-maintainer 案例（quickstart 形态） | **KEEP** — W1 |
+| [#164](https://github.com/bytefolk/digital-employee/issues/164) | docs(strategy): pivot strategy/roadmap/README | **KEEP** — 本次 pivot；并行、不阻塞 |
+| [#165](https://github.com/bytefolk/digital-employee/issues/165) | feat(engine): 内建执行引擎 Epic | **KEEP** — 引擎主线；S1 与 W1 对齐 |
 
-> 不属于本次 pivot：[#160](https://github.com/fullstack-ai-infra/digital-employee/issues/160)
+> 不属于本次 pivot：[#160](https://github.com/bytefolk/digital-employee/issues/160)
 > （UX：渠道输出渲染）由 Epic #155 之外负责，这里有意保持不动。列出它只是为了不悄悄
 > 丢弃任何 open issue；本路线图不给它分配处置或里程碑。
 
@@ -174,41 +174,41 @@ issue。
 
 | Issue | 内容 | 理由 |
 | --- | --- | --- |
-| [#25](https://github.com/fullstack-ai-infra/digital-employee/issues/25) | 旧北极星 epic | 保留为旧轨收尾载体，承接处置台账（#155 正文措辞） |
-| [#70](https://github.com/fullstack-ai-infra/digital-employee/issues/70) | 诚实本地部署编排 | workspace init/部署地基（诚实部署+密钥安全状态） |
-| [#86](https://github.com/fullstack-ai-infra/digital-employee/issues/86) | 部署帮助与自动化旗标 | workspace 命令族的 CLI 体验层 |
-| [#90](https://github.com/fullstack-ai-infra/digital-employee/issues/90) | 部署绑定精确员工包+显式运行时 | 内建引擎=显式运行时绑定，约束更关键 |
-| [#91](https://github.com/fullstack-ai-infra/digital-employee/issues/91) | [Epic] Adoption | 重锚定：净机验收对象改为 #163 oss-maintainer showcase |
-| [#95](https://github.com/fullstack-ai-infra/digital-employee/issues/95) | 治理强制 | 仓库级需求治理机制，全轨依赖 |
-| [#97](https://github.com/fullstack-ai-infra/digital-employee/issues/97) | 解除单人评审瓶颈 | 治理卫生 |
-| [#136](https://github.com/fullstack-ai-infra/digital-employee/issues/136) | 版本化发布门 | portable 证明门 + quickstart 钉住版本前提 |
-| [#139](https://github.com/fullstack-ai-infra/digital-employee/issues/139) | 外人部署体验设计 | Adoption 线 UX |
-| [#141](https://github.com/fullstack-ai-infra/digital-employee/issues/141) | 净机安装笔记 | Adoption 线证据 |
-| [#144](https://github.com/fullstack-ai-infra/digital-employee/issues/144) | 场景管线与价值验收所有权 | 产品轨职能保留；SKU 次序按裁决重排 |
+| [#25](https://github.com/bytefolk/digital-employee/issues/25) | 旧北极星 epic | 保留为旧轨收尾载体，承接处置台账（#155 正文措辞） |
+| [#70](https://github.com/bytefolk/digital-employee/issues/70) | 诚实本地部署编排 | workspace init/部署地基（诚实部署+密钥安全状态） |
+| [#86](https://github.com/bytefolk/digital-employee/issues/86) | 部署帮助与自动化旗标 | workspace 命令族的 CLI 体验层 |
+| [#90](https://github.com/bytefolk/digital-employee/issues/90) | 部署绑定精确员工包+显式运行时 | 内建引擎=显式运行时绑定，约束更关键 |
+| [#91](https://github.com/bytefolk/digital-employee/issues/91) | [Epic] Adoption | 重锚定：净机验收对象改为 #163 oss-maintainer showcase |
+| [#95](https://github.com/bytefolk/digital-employee/issues/95) | 治理强制 | 仓库级需求治理机制，全轨依赖 |
+| [#97](https://github.com/bytefolk/digital-employee/issues/97) | 解除单人评审瓶颈 | 治理卫生 |
+| [#136](https://github.com/bytefolk/digital-employee/issues/136) | 版本化发布门 | portable 证明门 + quickstart 钉住版本前提 |
+| [#139](https://github.com/bytefolk/digital-employee/issues/139) | 外人部署体验设计 | Adoption 线 UX |
+| [#141](https://github.com/bytefolk/digital-employee/issues/141) | 净机安装笔记 | Adoption 线证据 |
+| [#144](https://github.com/bytefolk/digital-employee/issues/144) | 场景管线与价值验收所有权 | 产品轨职能保留；SKU 次序按裁决重排 |
 
 ### 旧轨 issue — REPURPOSE（9 条，处置评论后保持开放）
 
 | Issue | 内容 | 改道去向 | 处置评论 |
 | --- | --- | --- | --- |
-| [#102](https://github.com/fullstack-ai-infra/digital-employee/issues/102) | 回合契约 RFC | 引擎 Epic #165 S1 回合执行与 I-03 chat 桥（#158）的直接设计输入 | [评论](https://github.com/fullstack-ai-infra/digital-employee/issues/102#issuecomment-5384895954) |
-| [#104](https://github.com/fullstack-ai-infra/digital-employee/issues/104) | 审计证据留存/恢复 RFC | 并入引擎逐回合证据记录与长期 Context 留存设计（#165 证据线 + #161） | [评论](https://github.com/fullstack-ai-infra/digital-employee/issues/104#issuecomment-5384896299) |
-| [#137](https://github.com/fullstack-ai-infra/digital-employee/issues/137) | Runner 安全审计 | 审计对象重聚焦：内建引擎 + 部署状态，归引擎线（#165） | [评论](https://github.com/fullstack-ai-infra/digital-employee/issues/137#issuecomment-5384896696) |
-| [#142](https://github.com/fullstack-ai-infra/digital-employee/issues/142) | 三个可复现 showcase | 首格并入 #163（oss-maintainer）；后续格按 SKU 次序 | [评论](https://github.com/fullstack-ai-infra/digital-employee/issues/142#issuecomment-5384896959) |
-| [#34](https://github.com/fullstack-ai-infra/digital-employee/issues/34) | Codex CLI 适配器再资格 | 转入引擎 Epic “外部 Agent Host 适配器选项”工作流（S1 之后） | [评论](https://github.com/fullstack-ai-infra/digital-employee/issues/34#issuecomment-5384897265) |
-| [#46](https://github.com/fullstack-ai-infra/digital-employee/issues/46) | agent-host.v1 语料 | 保留为外部适配器选项的一致性测试语料 | [评论](https://github.com/fullstack-ai-infra/digital-employee/issues/46#issuecomment-5384897549) |
-| [#52](https://github.com/fullstack-ai-infra/digital-employee/issues/52) | 资格证据真实性 | 真实性要求并入引擎逐回合证据与适配器资格两条线 | [评论](https://github.com/fullstack-ai-infra/digital-employee/issues/52#issuecomment-5384897896) |
-| [#113](https://github.com/fullstack-ai-infra/digital-employee/issues/113) | Qoder structured_output 资格 | 适配器选项待办（非首里程碑路径） | [评论](https://github.com/fullstack-ai-infra/digital-employee/issues/113#issuecomment-5384898219) |
-| [#125](https://github.com/fullstack-ai-infra/digital-employee/issues/125) | claude-stream 规范化测试 | 适配器选项测试资产（凭据门槛不变） | [评论](https://github.com/fullstack-ai-infra/digital-employee/issues/125#issuecomment-5384898517) |
+| [#102](https://github.com/bytefolk/digital-employee/issues/102) | 回合契约 RFC | 引擎 Epic #165 S1 回合执行与 I-03 chat 桥（#158）的直接设计输入 | [评论](https://github.com/bytefolk/digital-employee/issues/102#issuecomment-5384895954) |
+| [#104](https://github.com/bytefolk/digital-employee/issues/104) | 审计证据留存/恢复 RFC | 并入引擎逐回合证据记录与长期 Context 留存设计（#165 证据线 + #161） | [评论](https://github.com/bytefolk/digital-employee/issues/104#issuecomment-5384896299) |
+| [#137](https://github.com/bytefolk/digital-employee/issues/137) | Runner 安全审计 | 审计对象重聚焦：内建引擎 + 部署状态，归引擎线（#165） | [评论](https://github.com/bytefolk/digital-employee/issues/137#issuecomment-5384896696) |
+| [#142](https://github.com/bytefolk/digital-employee/issues/142) | 三个可复现 showcase | 首格并入 #163（oss-maintainer）；后续格按 SKU 次序 | [评论](https://github.com/bytefolk/digital-employee/issues/142#issuecomment-5384896959) |
+| [#34](https://github.com/bytefolk/digital-employee/issues/34) | Codex CLI 适配器再资格 | 转入引擎 Epic “外部 Agent Host 适配器选项”工作流（S1 之后） | [评论](https://github.com/bytefolk/digital-employee/issues/34#issuecomment-5384897265) |
+| [#46](https://github.com/bytefolk/digital-employee/issues/46) | agent-host.v1 语料 | 保留为外部适配器选项的一致性测试语料 | [评论](https://github.com/bytefolk/digital-employee/issues/46#issuecomment-5384897549) |
+| [#52](https://github.com/bytefolk/digital-employee/issues/52) | 资格证据真实性 | 真实性要求并入引擎逐回合证据与适配器资格两条线 | [评论](https://github.com/bytefolk/digital-employee/issues/52#issuecomment-5384897896) |
+| [#113](https://github.com/bytefolk/digital-employee/issues/113) | Qoder structured_output 资格 | 适配器选项待办（非首里程碑路径） | [评论](https://github.com/bytefolk/digital-employee/issues/113#issuecomment-5384898219) |
+| [#125](https://github.com/bytefolk/digital-employee/issues/125) | claude-stream 规范化测试 | 适配器选项测试资产（凭据门槛不变） | [评论](https://github.com/bytefolk/digital-employee/issues/125#issuecomment-5384898517) |
 
 ### 旧轨 issue — PARK（5 条，已以 not planned 关闭）
 
 | Issue | 内容 | PARK 理由 | 复活条件 | 处置评论 |
 | --- | --- | --- | --- | --- |
-| [#19](https://github.com/fullstack-ai-infra/digital-employee/issues/19) | 外部控制面适配器 RFC | 新主线为本地工作台，本里程碑无独立操作员面需求 | 工作台需要独立操作员界面时重新提案 | [评论](https://github.com/fullstack-ai-infra/digital-employee/issues/19#issuecomment-5384891868) |
-| [#55](https://github.com/fullstack-ai-infra/digital-employee/issues/55) | Host Phase A 加固（blocked） | 外部 Host 路线，不在 M1–M3 路径 | 外部 Host 路线复活时 | [评论](https://github.com/fullstack-ai-infra/digital-employee/issues/55#issuecomment-5384892534) |
-| [#77](https://github.com/fullstack-ai-infra/digital-employee/issues/77) | Lark 渠道 | 首里程碑不做渠道扩张（与 #155 non-goal 一致） | 第二 SKU 启动或渠道扩张里程碑 | [评论](https://github.com/fullstack-ai-infra/digital-employee/issues/77#issuecomment-5384893954) |
-| [#78](https://github.com/fullstack-ai-infra/digital-employee/issues/78) | WeCom 渠道 | 首里程碑不做渠道扩张（与 #155 non-goal 一致） | 第二 SKU 启动或渠道扩张里程碑 | [评论](https://github.com/fullstack-ai-infra/digital-employee/issues/78#issuecomment-5384894645) |
-| [#138](https://github.com/fullstack-ai-infra/digital-employee/issues/138) | 实机与凭据供给 | 三个消费者（#125/#77/#78）均已离开首里程碑路径 | 消费者复活（适配器选项工作流）时重评 | [评论](https://github.com/fullstack-ai-infra/digital-employee/issues/138#issuecomment-5384895373) |
+| [#19](https://github.com/bytefolk/digital-employee/issues/19) | 外部控制面适配器 RFC | 新主线为本地工作台，本里程碑无独立操作员面需求 | 工作台需要独立操作员界面时重新提案 | [评论](https://github.com/bytefolk/digital-employee/issues/19#issuecomment-5384891868) |
+| [#55](https://github.com/bytefolk/digital-employee/issues/55) | Host Phase A 加固（blocked） | 外部 Host 路线，不在 M1–M3 路径 | 外部 Host 路线复活时 | [评论](https://github.com/bytefolk/digital-employee/issues/55#issuecomment-5384892534) |
+| [#77](https://github.com/bytefolk/digital-employee/issues/77) | Lark 渠道 | 首里程碑不做渠道扩张（与 #155 non-goal 一致） | 第二 SKU 启动或渠道扩张里程碑 | [评论](https://github.com/bytefolk/digital-employee/issues/77#issuecomment-5384893954) |
+| [#78](https://github.com/bytefolk/digital-employee/issues/78) | WeCom 渠道 | 首里程碑不做渠道扩张（与 #155 non-goal 一致） | 第二 SKU 启动或渠道扩张里程碑 | [评论](https://github.com/bytefolk/digital-employee/issues/78#issuecomment-5384894645) |
+| [#138](https://github.com/bytefolk/digital-employee/issues/138) | 实机与凭据供给 | 三个消费者（#125/#77/#78）均已离开首里程碑路径 | 消费者复活（适配器选项工作流）时重评 | [评论](https://github.com/bytefolk/digital-employee/issues/138#issuecomment-5384895373) |
 
 ### M1 草稿处置（仅记录）
 

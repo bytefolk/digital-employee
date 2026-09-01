@@ -2,7 +2,7 @@
  * Black-box tests for `digital-employee org` (#157 V2/V3, #159).
  *
  * Requirement trace:
- *   https://github.com/fullstack-ai-infra/digital-employee/issues/157 (R3)
+ *   https://github.com/bytefolk/digital-employee/issues/157 (R3)
  *   AC-002: org tree renders hierarchy/depth; --json passes org-tree.v1
  *           fixture checks.
  *   AC-003: org apply recomputes permissions (seam verified; memory recall
@@ -11,7 +11,7 @@
  *           reporting line, delete dismisses with an audit record.
  *   AC-005: budget gate — a hire without a fully allocated budget fails
  *           closed with a stable code and the org model stays unchanged.
- *   https://github.com/fullstack-ai-infra/digital-employee/issues/159 (R2)
+ *   https://github.com/bytefolk/digital-employee/issues/159 (R2)
  *   AC-001: owner vs worker authority tiers differ as specified.
  *   AC-002: worker asking owner-only/secret info is rejected with a
  *           redirect to the owner.

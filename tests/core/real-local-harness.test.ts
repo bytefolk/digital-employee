@@ -100,7 +100,7 @@ test("validatePhaseAMatrix fails when mem is missing from matrix", () => {
         components: [
           {
             name: "doc",
-            repository: "https://github.com/fullstack-ai-infra/doc",
+            repository: "https://github.com/bytefolk/doc",
             commit: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
             contract: "document-read.v1",
             startCommand: "make test-env-up",

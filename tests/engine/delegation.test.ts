@@ -2,8 +2,8 @@
  * S3-P0 explicit single-hop delegation fixtures.
  *
  * Canonical requirements:
- * - https://github.com/fullstack-ai-infra/digital-employee/issues/158 (R3)
- * - https://github.com/fullstack-ai-infra/digital-employee/issues/165 (R4, S3-P0)
+ * - https://github.com/bytefolk/digital-employee/issues/158 (R3)
+ * - https://github.com/bytefolk/digital-employee/issues/165 (R4, S3-P0)
  */
 
 import assert from "node:assert/strict"

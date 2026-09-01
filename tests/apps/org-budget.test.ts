@@ -2,7 +2,7 @@
  * Organization budget contract tests (#157 REQ-001/REQ-006, AC-001/AC-006).
  *
  * Requirement trace:
- *   https://github.com/fullstack-ai-infra/digital-employee/issues/157 (R3)
+ *   https://github.com/bytefolk/digital-employee/issues/157 (R3)
  *   AC-001: organization schema validates; malformed org (budget surface)
  *           fails closed.
  *   AC-006: a position without a budget declaration fails validation;

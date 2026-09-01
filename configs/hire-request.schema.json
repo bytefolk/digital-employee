@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/hire-request.schema.json",
+  "$id": "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/hire-request.schema.json",
   "title": "hire-request.v1alpha1 hire request reference envelope",
   "type": "object",
   "additionalProperties": false,

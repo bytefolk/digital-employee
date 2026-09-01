@@ -3,9 +3,9 @@
 This file collects honest install experience reports from clean machines.
 Each note records the machine, installed version, golden-path result, friction
 points, fault paths hit, and recovery steps. Recurring friction items feed into
-[#139](https://github.com/fullstack-ai-infra/digital-employee/issues/139) (UX
+[#139](https://github.com/bytefolk/digital-employee/issues/139) (UX
 improvements) and the [Adoption Quickstart (Epic
-#91)](https://github.com/fullstack-ai-infra/digital-employee/issues/91).
+#91)](https://github.com/bytefolk/digital-employee/issues/91).
 
 ## Privacy discipline
 
@@ -79,7 +79,7 @@ Copy the block below for each new note:
 - **Agent Hosts found:** Claude Code 2.1.235 (available, no API key)
 - **Golden-path result:** pass (all credential-free steps succeeded)
 - **Steps:**
-  1. `git clone https://github.com/fullstack-ai-infra/digital-employee.git`
+  1. `git clone https://github.com/bytefolk/digital-employee.git`
   2. `npm ci` — 45 packages added, 0 vulnerabilities, 1 `npm warn allow-scripts` notice for esbuild
   3. `npm run typecheck` — passed (both tsconfig.json and tsconfig.test.json)
   4. `npm run build` — passed (clean, compile, copy assets)
@@ -106,8 +106,8 @@ and linked to the relevant issues for resolution.
 
 | Friction | First reported | Linked issue | Status |
 | --- | --- | --- | --- |
-| `doctor` reports `"runnable": false` even when a Host binary is found — unclear to first-time users that it means "no credential configured" | 2026-08-21 | [#139](https://github.com/fullstack-ai-infra/digital-employee/issues/139) | Open |
-| `deploy` error messages state the error code but not the recovery action (e.g., "set `ANTHROPIC_API_KEY`") | 2026-08-21 | [#139](https://github.com/fullstack-ai-infra/digital-employee/issues/139) | Open |
-| `setup` command not discoverable from `--help` top-level overview | 2026-08-21 | [#139](https://github.com/fullstack-ai-infra/digital-employee/issues/139) | Open |
-| `deploy-cli.test.ts` IPC test failure observed under WSL2; hypothesis is WSL2 process-model timing difference, native Linux CI confirmation pending | 2026-08-21 | [#91](https://github.com/fullstack-ai-infra/digital-employee/issues/91) (AC-001 CI gate) | Open |
-| `npm ci` / `npm install` warn about `esbuild` `allowScripts` — harmless but noisy for first-time users | 2026-08-21 | [#139](https://github.com/fullstack-ai-infra/digital-employee/issues/139) | Open |
+| `doctor` reports `"runnable": false` even when a Host binary is found — unclear to first-time users that it means "no credential configured" | 2026-08-21 | [#139](https://github.com/bytefolk/digital-employee/issues/139) | Open |
+| `deploy` error messages state the error code but not the recovery action (e.g., "set `ANTHROPIC_API_KEY`") | 2026-08-21 | [#139](https://github.com/bytefolk/digital-employee/issues/139) | Open |
+| `setup` command not discoverable from `--help` top-level overview | 2026-08-21 | [#139](https://github.com/bytefolk/digital-employee/issues/139) | Open |
+| `deploy-cli.test.ts` IPC test failure observed under WSL2; hypothesis is WSL2 process-model timing difference, native Linux CI confirmation pending | 2026-08-21 | [#91](https://github.com/bytefolk/digital-employee/issues/91) (AC-001 CI gate) | Open |
+| `npm ci` / `npm install` warn about `esbuild` `allowScripts` — harmless but noisy for first-time users | 2026-08-21 | [#139](https://github.com/bytefolk/digital-employee/issues/139) | Open |

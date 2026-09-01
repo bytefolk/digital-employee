@@ -6,7 +6,7 @@
 > 当前 main 已转向 Agent-native CLI + 员工包 + Host Adapter，默认 `npm start`
 > 只显示帮助，旧运行时需显式使用 `legacy:*`。请以仓库首页 README 为准。
 
-> **项目已经开源：[fullstack-ai-infra/digital-employee](https://github.com/fullstack-ai-infra/digital-employee)。**
+> **项目已经开源：[bytefolk/digital-employee](https://github.com/bytefolk/digital-employee)。**
 >
 > 如果你也在群里反复回答同一批问题，可以先用仓库自带的零凭证 Demo 跑通，再换成自己的手册、代码仓库或经 DWS 授权的钉钉知识。
 
@@ -80,7 +80,7 @@ D仔第一版的链路很短：钉钉 Stream 收到问题，只读分析 DWS 仓
 
 早期 D仔真正接入运行时的，是两个白名单 DWS 开源交流群的历史问答。原始消息由 `dws chat message list` 离线读取，经过脱敏后生成本地知识库；线上回答时读取的是这份本地知识，不会每收到一个问题就实时扫描整个钉钉账号。
 
-开源版把这条路径做成了可配置的 [DWS 知识连接器](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/connectors/sources/dws/index.js#L84-L210)。在当前身份本来就有访问权限、对象也经过明确批准的前提下，下面这些内容可以成为知识来源：
+开源版把这条路径做成了可配置的 [DWS 知识连接器](https://github.com/bytefolk/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/connectors/sources/dws/index.js#L84-L210)。在当前身份本来就有访问权限、对象也经过明确批准的前提下，下面这些内容可以成为知识来源：
 
 - 钉钉文档：产品说明、SOP、制度和操作手册；
 
@@ -109,7 +109,7 @@ D仔第一版的链路很短：钉钉 Stream 收到问题，只读分析 DWS 仓
 }
 ```
 
-公开实现会对 DWS 命令和参数再次做只读门禁，拒绝写命令、账号发现、全账号聊天搜索、文件下载，以及覆盖 `--profile`、`--format` 或凭证的参数。可以直接查看 [命令白名单](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/connectors/sources/dws/policy.js#L30-L238)、[参数门禁](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/connectors/sources/dws/policy.js#L317-L424) 和 [DWS 连接器配置说明](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/docs/connectors/dws.md#L7-L177)。
+公开实现会对 DWS 命令和参数再次做只读门禁，拒绝写命令、账号发现、全账号聊天搜索、文件下载，以及覆盖 `--profile`、`--format` 或凭证的参数。可以直接查看 [命令白名单](https://github.com/bytefolk/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/connectors/sources/dws/policy.js#L30-L238)、[参数门禁](https://github.com/bytefolk/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/connectors/sources/dws/policy.js#L317-L424) 和 [DWS 连接器配置说明](https://github.com/bytefolk/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/docs/connectors/dws.md#L7-L177)。
 
 这里有三条不能跳过的边界。
 
@@ -125,9 +125,9 @@ D仔第一版的链路很短：钉钉 Stream 收到问题，只读分析 DWS 仓
 
 所以公开仓库里有两层：
 
-- [Digital Employee Core](https://github.com/fullstack-ai-infra/digital-employee/tree/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/packages/core) 是通用运行时，负责会话、排队、检索、引用、反馈和转人工判定；
+- [Digital Employee Core](https://github.com/bytefolk/digital-employee/tree/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/packages/core) 是通用运行时，负责会话、排队、检索、引用、反馈和转人工判定；
 
-- [`answer-agent`](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/profiles/answer-agent/index.js#L1-L22) 是第一套岗位配置，定义“只读答疑、必须有依据、没有把握就交给人”。
+- [`answer-agent`](https://github.com/bytefolk/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/profiles/answer-agent/index.js#L1-L22) 是第一套岗位配置，定义“只读答疑、必须有依据、没有把握就交给人”。
 
 同一套运行时还可以继续承载项目助理、运营员工等岗位，但当前 `0.1` 真正交付的只有 `answer-agent`。后续岗位要复用渠道、知识、模型和错误处理契约，而不是先复制一套机器人代码。
 
@@ -147,17 +147,17 @@ D仔第一版的链路很短：钉钉 Stream 收到问题，只读分析 DWS 仓
 
 完整代码、配置和 Issue 都在：
 
-**[https://github.com/fullstack-ai-infra/digital-employee](https://github.com/fullstack-ai-infra/digital-employee)**
+**[https://github.com/bytefolk/digital-employee](https://github.com/bytefolk/digital-employee)**
 
 ## 四、先用五分钟跑起来，再换成自己的知识
 
 ### 第一步：零凭证验证“有依据就答，没有依据就交给人”
 
-本地 Demo 只使用仓库里的 [公开配置](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/configs/demo.json#L1-L30) 和 [测试手册](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/examples/knowledge/handbook.md#L1-L24)，不需要钉钉、DWS 或模型密钥。Node.js 需要 20 或更高版本。
+本地 Demo 只使用仓库里的 [公开配置](https://github.com/bytefolk/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/configs/demo.json#L1-L30) 和 [测试手册](https://github.com/bytefolk/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/examples/knowledge/handbook.md#L1-L24)，不需要钉钉、DWS 或模型密钥。Node.js 需要 20 或更高版本。
 
 ```bash
 git clone --branch v0.1.0 --depth 1 \
-  https://github.com/fullstack-ai-infra/digital-employee.git
+  https://github.com/bytefolk/digital-employee.git
 cd digital-employee
 npm ci
 
@@ -172,7 +172,7 @@ npm run demo -- \
 
 ### 第二步：只换一份经过批准的知识
 
-复制 [Demo 配置](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/configs/demo.json#L1-L30)，把真实配置和知识放在仓库外，再把 `sources` 换成其中一种：
+复制 [Demo 配置](https://github.com/bytefolk/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/configs/demo.json#L1-L30)，把真实配置和知识放在仓库外，再把 `sources` 换成其中一种：
 
 - `filesystem`：团队手册、SOP、FAQ；
 
@@ -186,7 +186,7 @@ npm run demo -- \
 
 ### 第三步：最后再接模型和钉钉
 
-自然语言生成可以切换到 OpenAI-compatible 模型；密钥只能通过环境变量提供。钉钉入口可以直接参考 [完整配置示例](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/configs/dingtalk-dws.example.json#L1-L55)，真实配置不要提交到公开仓库。
+自然语言生成可以切换到 OpenAI-compatible 模型；密钥只能通过环境变量提供。钉钉入口可以直接参考 [完整配置示例](https://github.com/bytefolk/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/configs/dingtalk-dws.example.json#L1-L55)，真实配置不要提交到公开仓库。
 
 ```bash
 export DINGTALK_CLIENT_ID="replace-with-your-client-id"
@@ -204,19 +204,19 @@ npm start -- \
 
 文章不再展开每个类和配置字段，想深挖时可以直接跳到实现：
 
-1. **知识只能来自批准入口。** 文件、Git、DWS 都在运行时显式装配；DWS 还要经过单独的命令和参数白名单。入口在 [`createRuntime()`](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/apps/cli/runtime.js#L100-L149)。
+1. **知识只能来自批准入口。** 文件、Git、DWS 都在运行时显式装配；DWS 还要经过单独的命令和参数白名单。入口在 [`createRuntime()`](https://github.com/bytefolk/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/apps/cli/runtime.js#L100-L149)。
 
-2. **模型不能自己发明出处。** 最终引用只会从本次检索证据里的真实 ID 解析，见 [`#resolveCitations()`](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/packages/core/src/digital-employee.js#L383-L389)。
+2. **模型不能自己发明出处。** 最终引用只会从本次检索证据里的真实 ID 解析，见 [`#resolveCitations()`](https://github.com/bytefolk/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/packages/core/src/digital-employee.js#L383-L389)。
 
-3. **没把握就返回结构化转人工信号。** 置信度、证据数、有效引用、模型错误和自定义规则共同进入 [`EscalationPolicy`](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/packages/core/src/escalation-policy.js#L48-L107)。
+3. **没把握就返回结构化转人工信号。** 置信度、证据数、有效引用、模型错误和自定义规则共同进入 [`EscalationPolicy`](https://github.com/bytefolk/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/packages/core/src/escalation-policy.js#L48-L107)。
 
-4. **重复投递和多人并发分开处理。** 消息入口先做 TTL 去重，核心任务再按 `requestId` 去重；同一用户忙时拒绝，不同用户进入全局队列，见 [`message.js`](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/connectors/channels/dingtalk/message.js#L121-L172) 和 [`job-runner.js`](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/packages/core/src/job-runner.js#L151-L240)。
+4. **重复投递和多人并发分开处理。** 消息入口先做 TTL 去重，核心任务再按 `requestId` 去重；同一用户忙时拒绝，不同用户进入全局队列，见 [`message.js`](https://github.com/bytefolk/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/connectors/channels/dingtalk/message.js#L121-L172) 和 [`job-runner.js`](https://github.com/bytefolk/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/packages/core/src/job-runner.js#L151-L240)。
 
-5. **钉钉在线不只看进程。** Stream supervisor 同时观察心跳、下行活动和休眠漂移；回复端校验官方域名并对长文本安全分段，见 [`stream.js`](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/connectors/channels/dingtalk/stream.js#L65-L200) 和 [`reply.js`](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/connectors/channels/dingtalk/reply.js#L24-L231)。
+5. **钉钉在线不只看进程。** Stream supervisor 同时观察心跳、下行活动和休眠漂移；回复端校验官方域名并对长文本安全分段，见 [`stream.js`](https://github.com/bytefolk/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/connectors/channels/dingtalk/stream.js#L65-L200) 和 [`reply.js`](https://github.com/bytefolk/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/connectors/channels/dingtalk/reply.js#L24-L231)。
 
 ## 六、哪些是真的交付，哪些还不能宣传
 
-当前提交的自动化测试是 69 项通过、0 项失败；更细的自动化、容器、真实 DWS 与待在线验证范围，记录在 [verification ledger](https://github.com/fullstack-ai-infra/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/docs/verification.md#L1-L32)。
+当前提交的自动化测试是 69 项通过、0 项失败；更细的自动化、容器、真实 DWS 与待在线验证范围，记录在 [verification ledger](https://github.com/bytefolk/digital-employee/blob/871ffb8ef95bcfaaa50c5e698ddde1c43459f567/docs/verification.md#L1-L32)。
 
 已经交付的是通用运行时、只读 `answer-agent`、Console/HTTP 入口、钉钉 Stream 适配代码、文件/Git/DWS 知识源、引用与转人工判定、OpenAI-compatible 模型连接器。
 
@@ -240,7 +240,7 @@ npm start -- \
 
 Digital Employee 仓库：
 
-**[https://github.com/fullstack-ai-infra/digital-employee](https://github.com/fullstack-ai-infra/digital-employee)**
+**[https://github.com/bytefolk/digital-employee](https://github.com/bytefolk/digital-employee)**
 
 - **Star**：如果这个方向对你有用，让更多需要企业答疑机器人的人看到它；
 

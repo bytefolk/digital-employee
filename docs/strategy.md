@@ -28,7 +28,7 @@ The workspace model is the product, not a command collection:
 Digital Employee does not implement another general-purpose model. Positions
 run on a built-in, TypeScript-native execution engine that is the workspace's
 default Host
-([Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165));
+([Epic #165](https://github.com/bytefolk/digital-employee/issues/165));
 external Agent Host adapters remain an option, not a dependency. This
 repository owns the workspace, the position address book, the permission
 boundary, the long-term Context path and the built-in engine. Local create,
@@ -46,7 +46,7 @@ workspace itself.
 The workspace runs positions on a built-in, TypeScript-native execution engine
 — an independently designed clean-room implementation of a five-layer
 capability model (prompt / context / harness / loop / graph), tracked by
-[Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165).
+[Epic #165](https://github.com/bytefolk/digital-employee/issues/165).
 
 - **S1 — read-only engine core:** turn-contract execution, per-turn context
   assembly, fail-safe loop control, structural fail-closed behavior, and
@@ -106,7 +106,7 @@ remain private company-internal concerns.
 
 - the workspace command surface: `workspace init`, `org tree` / `org apply`,
   and `chat @position` (the first milestone is tracked in
-  [Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155));
+  [Epic #155](https://github.com/bytefolk/digital-employee/issues/155));
 - the organization model `organization.v1alpha1`, workspace metadata, and the
   position package references; the directory tree is the org chart — the
   workspace directory is the enterprise, each position is a subdirectory
@@ -158,11 +158,11 @@ remain private company-internal concerns.
 ## Boundary with the previous mainline (Runner / security / deploy governance)
 
 The previous public mainline was **Builder → Seller Runner → Trusted
-execution** ([Epic #25](https://github.com/fullstack-ai-infra/digital-employee/issues/25)).
+execution** ([Epic #25](https://github.com/bytefolk/digital-employee/issues/25)).
 The strategy decision of 2026-08-14 pivots the product mainline to the
-**local digital-organization workspace** ([Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)),
+**local digital-organization workspace** ([Epic #155](https://github.com/bytefolk/digital-employee/issues/155)),
 and the 2026-08-23 decision record
-[#164](https://github.com/fullstack-ai-infra/digital-employee/issues/164)
+[#164](https://github.com/bytefolk/digital-employee/issues/164)
 fixes the old-track disposition ledger.
 
 - The old track is **finished, not extended**: the released foundation
@@ -203,8 +203,8 @@ fixes the old-track disposition ledger.
 
 `chat @position`, durable Workbench persistence/UI, productive long-term
 memory and context distillation, and the complete default-Host journey remain
-planned under [Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)
-and [Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165).
+planned under [Epic #155](https://github.com/bytefolk/digital-employee/issues/155)
+and [Epic #165](https://github.com/bytefolk/digital-employee/issues/165).
 The shipped Memory/Context seams are opt-in and do not claim that full product
 loop. Consult the [verification ledger](verification.md) for exact evidence.
 

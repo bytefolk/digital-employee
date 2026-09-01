@@ -198,7 +198,7 @@ function jsonFile(value: unknown): Uint8Array {
 function manifestForRole(role: WorkspaceTemplateRole): EmployeePackageManifest {
   return {
     $schema:
-      "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/employee-package.schema.json",
+      "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/employee-package.schema.json",
     schemaVersion: "employee-package.v1alpha1",
     name: role.id,
     version: WORKSPACE_POSITION_PACKAGE_VERSION,
@@ -501,7 +501,7 @@ export function renderWorkspaceManifest(
 ): WorkspaceFile {
   const manifest: RenderedWorkspaceManifest = {
     $schema:
-      "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/workspace.schema.json",
+      "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/workspace.schema.json",
     schemaVersion: WORKSPACE_MANIFEST_SCHEMA_VERSION,
     name: business,
     description: template.description,

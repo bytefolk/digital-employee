@@ -25,7 +25,7 @@
 
 Digital Employee 不再实现另一套通用模型。岗位运行在内建的、TypeScript 原生执行
 引擎上，它是工作台的默认 Host
-（[Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165)）；
+（[Epic #165](https://github.com/bytefolk/digital-employee/issues/165)）；
 外部 Agent Host 适配器只是选项，不是依赖。本仓库拥有工作台、岗位地址簿、权限边界、
 长期 Context 通路和内建引擎。本机创建、校验和运行路径不依赖 marketplace。
 
@@ -38,7 +38,7 @@ Digital Employee 不再实现另一套通用模型。岗位运行在内建的、
 
 岗位运行在内建的、TypeScript 原生执行引擎上——独立设计的 clean-room 实现，覆盖
 五层能力模型（prompt / context / harness / loop / graph），由
-[Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165)
+[Epic #165](https://github.com/bytefolk/digital-employee/issues/165)
 跟踪。
 
 - **S1 — 只读引擎核心：**回合契约执行、逐回合 Context 组装、带安全终止的 loop
@@ -88,7 +88,7 @@ Digital Employee 不再实现另一套通用模型。岗位运行在内建的、
 
 - 工作区命令面：`workspace init`、`org tree` / `org apply`、`chat @position`
   （第一里程碑由
-  [Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)
+  [Epic #155](https://github.com/bytefolk/digital-employee/issues/155)
   跟踪）；
 - 组织模型 `organization.v1alpha1`、工作区元数据和岗位包引用；目录树就是组织结构
   图——工作区目录是企业，每个岗位是持有员工包的子目录，目录的父子关系就是汇报关系
@@ -126,11 +126,11 @@ Digital Employee 不再实现另一套通用模型。岗位运行在内建的、
 ## 与旧主线（Runner / 安全 / 部署治理）的边界
 
 此前的公开主线是 **Builder → Seller Runner → Trusted execution**
-（[Epic #25](https://github.com/fullstack-ai-infra/digital-employee/issues/25)）。
+（[Epic #25](https://github.com/bytefolk/digital-employee/issues/25)）。
 2026-08-14 的战略决策把产品主线切换到**本地数字组织工作台**
-（[Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)），
+（[Epic #155](https://github.com/bytefolk/digital-employee/issues/155)），
 2026-08-23 的决策记录
-[#164](https://github.com/fullstack-ai-infra/digital-employee/issues/164)
+[#164](https://github.com/bytefolk/digital-employee/issues/164)
 确定了旧轨处置台账。
 
 - 旧轨道**已收尾，不再扩展**：已发布的地基（`init`/`validate`/`eval`/`run`、员工包
@@ -163,8 +163,8 @@ Digital Employee 不再实现另一套通用模型。岗位运行在内建的、
 
 `chat @position`、持久化 Workbench/UI、可生产使用的长期记忆与 context 蒸馏，以及
 完整默认 Host 旅程仍由
-[Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155) 和
-[Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165)
+[Epic #155](https://github.com/bytefolk/digital-employee/issues/155) 和
+[Epic #165](https://github.com/bytefolk/digital-employee/issues/165)
 规划。已发布的 Memory/Context 接缝为可选能力，不代表完整产品闭环。精确证据以
 [验证账本](verification.md)为准。
 

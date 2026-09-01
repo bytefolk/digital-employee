@@ -4,13 +4,13 @@
   "description": "An Agent-native CLI and outer runtime for portable digital employees.",
   "type": "module",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/fullstack-ai-infra/digital-employee#readme",
+  "homepage": "https://github.com/bytefolk/digital-employee#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fullstack-ai-infra/digital-employee.git"
+    "url": "git+https://github.com/bytefolk/digital-employee.git"
   },
   "bugs": {
-    "url": "https://github.com/fullstack-ai-infra/digital-employee/issues"
+    "url": "https://github.com/bytefolk/digital-employee/issues"
   },
   "publishConfig": {
     "access": "public"

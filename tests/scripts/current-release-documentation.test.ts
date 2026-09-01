@@ -85,7 +85,7 @@ test("release documentation separates static artifacts from verified availabilit
     `npm install @fullstack-ai-infra/digital-employee-core@${sourceVersion}`
   ];
   const forbiddenArtifactMarkers = [
-    `ghcr.io/fullstack-ai-infra/digital-employee:${sourceVersion}`,
+    `ghcr.io/bytefolk/digital-employee:${sourceVersion}`,
     `releases/tag/v${sourceVersion}`,
     `current public npm version is \`${sourceVersion}\``,
     `current public npm release is \`${sourceVersion}\``,

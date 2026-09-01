@@ -9,7 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateGithubEventFile } from "./requirement-governance-check.js";
 
-const DEFAULT_REPOSITORY_NAME = "fullstack-ai-infra/digital-employee";
+const DEFAULT_REPOSITORY_NAME = "bytefolk/digital-employee";
 
 const REPAIR_GUIDANCE = [
   "Repair guidance (docs/requirement-governance.md, section 'Pull request implementation trace'):",

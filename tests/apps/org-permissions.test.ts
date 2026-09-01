@@ -2,7 +2,7 @@
  * Permission boundary derivation tests (#159, R2).
  *
  * Requirement trace:
- *   https://github.com/fullstack-ai-infra/digital-employee/issues/159
+ *   https://github.com/bytefolk/digital-employee/issues/159
  *   AC-001: allowlist derivation — owner vs worker tool sets differ as
  *           specified (context breadth + delegation).
  *   AC-002: worker asking owner-only/secret info is rejected with a

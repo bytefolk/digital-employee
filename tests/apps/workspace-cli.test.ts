@@ -2,7 +2,7 @@
  * Black-box tests for `digital-employee workspace init` (I-01, issue #156).
  *
  * Requirement trace:
- *   https://github.com/fullstack-ai-infra/digital-employee/issues/156 (R1)
+ *   https://github.com/bytefolk/digital-employee/issues/156 (R1)
  *   AC-001: oss-maintainer materializes 4 positions on a clean directory.
  *   AC-002: non-empty target fails closed with exit 1 and no partial writes.
  *   AC-003: every generated position package passes `validate`.

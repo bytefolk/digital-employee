@@ -15,7 +15,7 @@
 
 export const HIRE_REQUEST_SCHEMA_VERSION = "hire-request.v1alpha1" as const
 export const HIRE_REQUEST_SCHEMA_ID =
-  "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/hire-request.schema.json" as const
+  "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/hire-request.schema.json" as const
 
 /** Mirrors engine MAX_BUDGET_CAP (packages/engine/src/budget.ts). */
 const MAX_BUDGET_CAP = 1_000_000_000

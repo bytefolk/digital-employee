@@ -8,7 +8,7 @@ instead of implementing a second general-purpose Agent loop around it.
 > local digital-organization workspace (see the [strategy](strategy.md)).
 > Workspace positions run on a built-in, TypeScript-native execution engine as
 > the default Host
-> ([Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165);
+> ([Epic #165](https://github.com/bytefolk/digital-employee/issues/165);
 > design-stage — the S1 slice is a read-only core, not delivered yet). The
 > outer-runtime and Host-adapter ownership described in this document remains
 > valid for the shipped one-shot adapter paths and for external Agent Host

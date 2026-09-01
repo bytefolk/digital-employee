@@ -51,7 +51,7 @@ test("#197 AC: strict complete form passes the precheck with zero errors", async
     bodyFile,
     baseRef: baseSha,
     headRef: headSha,
-    repositoryName: "fullstack-ai-infra/digital-employee",
+    repositoryName: "bytefolk/digital-employee",
     repositoryRoot: root
   });
   assert.deepEqual(result.errors, []);
@@ -68,7 +68,7 @@ test("#197 AC: consumed-revision suffix form fails (three-strike regression samp
     bodyFile,
     baseRef: baseSha,
     headRef: headSha,
-    repositoryName: "fullstack-ai-infra/digital-employee",
+    repositoryName: "bytefolk/digital-employee",
     repositoryRoot: root
   });
   assert.ok(
@@ -85,7 +85,7 @@ test("#197 AC: automatic close keyword fails (three-strike regression sample)", 
     bodyFile,
     baseRef: baseSha,
     headRef: headSha,
-    repositoryName: "fullstack-ai-infra/digital-employee",
+    repositoryName: "bytefolk/digital-employee",
     repositoryRoot: root
   });
   assert.ok(
@@ -101,7 +101,7 @@ test("#197 AC: body missing required headings fails (three-strike regression sam
     bodyFile,
     baseRef: baseSha,
     headRef: headSha,
-    repositoryName: "fullstack-ai-infra/digital-employee",
+    repositoryName: "bytefolk/digital-employee",
     repositoryRoot: root
   });
   assert.ok(result.errors.length > 0);
@@ -119,7 +119,7 @@ test("#197 AC: unresolvable base ref fails closed before any event validation", 
       bodyFile,
       baseRef: "origin/main",
       headRef: headSha,
-      repositoryName: "fullstack-ai-infra/digital-employee",
+      repositoryName: "bytefolk/digital-employee",
       repositoryRoot: root
     }),
     /cannot resolve origin\/main/
@@ -144,7 +144,7 @@ test("#197 AC: CLI passes on the strict complete form against the real repositor
     "--head-sha",
     headSha,
     "--repo",
-    "fullstack-ai-infra/digital-employee"
+    "bytefolk/digital-employee"
   ]);
   assert.equal(result.status, 0, `stderr: ${result.stderr}`);
   assert.match(result.stdout, /governance-precheck: PASS/);
@@ -163,7 +163,7 @@ test("#197 AC: CLI fails closed on a malformed body and prints repair guidance",
     "--head-sha",
     headSha,
     "--repo",
-    "fullstack-ai-infra/digital-employee"
+    "bytefolk/digital-employee"
   ]);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /governance-precheck: FAIL/);

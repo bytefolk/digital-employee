@@ -32,7 +32,7 @@ function buildMatrix(): ComponentMatrix {
     components: [
       {
         name: "mem",
-        repository: "https://github.com/fullstack-ai-infra/mem",
+        repository: "https://github.com/bytefolk/mem",
         commit: MEM_COMMIT,
         contract: MEM_CONTRACT,
         startCommand: "make test-env-up",
@@ -41,7 +41,7 @@ function buildMatrix(): ComponentMatrix {
       },
       {
         name: "doc",
-        repository: "https://github.com/fullstack-ai-infra/doc",
+        repository: "https://github.com/bytefolk/doc",
         commit: DOC_COMMIT,
         contract: DOC_CONTRACT,
         startCommand: "make test-env-up",
@@ -224,7 +224,7 @@ test("MemKnowledgeSource: construction fails on wrong contract", () => {
     components: [
       {
         name: "mem",
-        repository: "https://github.com/fullstack-ai-infra/mem",
+        repository: "https://github.com/bytefolk/mem",
         commit: MEM_COMMIT,
         contract: "wrong-contract.v2",
         startCommand: "make test-env-up",
@@ -440,7 +440,7 @@ test("DocKnowledgeSource: construction fails on wrong contract", () => {
     components: [
       {
         name: "doc",
-        repository: "https://github.com/fullstack-ai-infra/doc",
+        repository: "https://github.com/bytefolk/doc",
         commit: DOC_COMMIT,
         contract: "wrong-contract.v3",
         startCommand: "make test-env-up",

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/fullstack-ai-infra/digital-employee/blob/main/configs/schema.json",
+  "$id": "https://github.com/bytefolk/digital-employee/blob/main/configs/schema.json",
   "title": "Digital Employee configuration",
   "type": "object",
   "additionalProperties": false,

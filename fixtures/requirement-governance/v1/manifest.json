@@ -28,14 +28,14 @@
       "file": "pr/automatic-close-full-url.md",
       "expectedValid": false,
       "expectedErrors": [
-        "automatic close keyword is forbidden: CLOSES: https://github.com/fullstack-ai-infra/digital-employee/issues/95"
+        "automatic close keyword is forbidden: CLOSES: https://github.com/bytefolk/digital-employee/issues/95"
       ]
     },
     {
       "file": "pr/automatic-close-cross-repo.md",
       "expectedValid": false,
       "expectedErrors": [
-        "automatic close keyword is forbidden: Resolves fullstack-ai-infra/digital-employee#95"
+        "automatic close keyword is forbidden: Resolves bytefolk/digital-employee#95"
       ]
     },
     {

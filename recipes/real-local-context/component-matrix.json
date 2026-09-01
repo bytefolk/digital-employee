@@ -3,7 +3,7 @@
   "components": [
     {
       "name": "mem",
-      "repository": "https://github.com/fullstack-ai-infra/mem",
+      "repository": "https://github.com/bytefolk/mem",
       "commit": "3335ebea211d7fb65a8ea0e5ea2285b2cbc2d0bd",
       "contract": "durable-context.v1",
       "startCommand": "make test-env-up && go run ./server/cmd/memd (see scripts/real-local-harness.mjs)",
@@ -16,7 +16,7 @@
     },
     {
       "name": "doc",
-      "repository": "https://github.com/fullstack-ai-infra/doc",
+      "repository": "https://github.com/bytefolk/doc",
       "commit": "b22ff1dfa0da194add0e2e4e7dbb794617b46404",
       "contract": "doc-api.v1",
       "startCommand": "npm run doc -- init && npm run doc -- up --build (see scripts/real-local-harness.mjs)",

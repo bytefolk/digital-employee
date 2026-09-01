@@ -5,11 +5,11 @@
 **产品方向：**[产品策略](docs/strategy.zh-CN.md) · [路线图](docs/roadmap.zh-CN.md)
 
 Digital Employee 是一个本地优先、对话优先的数字组织工作区。长期方向（由
-[Epic #155](https://github.com/fullstack-ai-infra/digital-employee/issues/155)
+[Epic #155](https://github.com/bytefolk/digital-employee/issues/155)
 跟踪）：把一个业务目录变成一支可直接点名的 AI 团队——一个目录 = 一项业务，一个岗位 =
 一个可寻址数字员工，一次对话 = 带岗位 Context 与权限边界的工作。岗位运行在内建的、TypeScript 原生
 执行引擎之上，它是默认 Host
-（[Epic #165](https://github.com/fullstack-ai-infra/digital-employee/issues/165)，
+（[Epic #165](https://github.com/bytefolk/digital-employee/issues/165)，
 产品方向）。引擎/turn 核心已在公开 `0.6.0` 发布预览；`0.6.1` 源码树不改变运行时。
 完整默认 Host Workbench 路径仍在交付中，外部 Agent Host 适配器只是选项，不是依赖。
 
@@ -104,7 +104,7 @@ Agent Host 及其服务凭证：
 ### 从源码运行
 
 ```bash
-git clone https://github.com/fullstack-ai-infra/digital-employee.git
+git clone https://github.com/bytefolk/digital-employee.git
 cd digital-employee
 npm ci
 npm run build
@@ -236,8 +236,8 @@ npm 包、GHCR 和 GitHub Releases 验证：
 | --- | --- |
 | npm（CLI） | `npm install --global @fullstack-ai-infra/digital-employee@0.6.0` |
 | npm（core） | `npm install @fullstack-ai-infra/digital-employee-core@0.6.0` |
-| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.6.0` |
-| GitHub Release | 从 [`v0.6.0`](https://github.com/fullstack-ai-infra/digital-employee/releases/tag/v0.6.0) 下载 root/core 包和校验文件 |
+| GHCR | `docker pull ghcr.io/bytefolk/digital-employee:0.6.0` |
+| GitHub Release | 从 [`v0.6.0`](https://github.com/bytefolk/digital-employee/releases/tag/v0.6.0) 下载 root/core 包和校验文件 |
 
 独立的 `@fullstack-ai-infra/digital-employee-core@0.6.0` npm 包已经公开。一次性 registry
 bootstrap 已完成，后续版本由 `release.yml` 通过 npm Trusted Publishing 发布。源码分支或
@@ -249,15 +249,15 @@ bootstrap 已完成，后续版本由 `release.yml` 通过 npm Trusted Publishin
 | 渠道 | 安装或下载方式 |
 | --- | --- |
 | npm | `npm install --global @fullstack-ai-infra/digital-employee@0.1.0` |
-| GHCR | `docker pull ghcr.io/fullstack-ai-infra/digital-employee:0.1.0` |
-| GitHub Release | 从 [Releases](https://github.com/fullstack-ai-infra/digital-employee/releases) 下载软件包和校验文件 |
+| GHCR | `docker pull ghcr.io/bytefolk/digital-employee:0.1.0` |
+| GitHub Release | 从 [Releases](https://github.com/bytefolk/digital-employee/releases) 下载软件包和校验文件 |
 
 这个版本只有历史答疑运行时；容器默认启动旧 HTTP 演示，不包含 Qoder，也没有新的员工包
 命令：
 
 ```bash
 docker run --rm -p 3000:3000 \
-  ghcr.io/fullstack-ai-infra/digital-employee:0.1.0
+  ghcr.io/bytefolk/digital-employee:0.1.0
 ```
 
 当前源码的 `Dockerfile` 只安装已经验证的 npm 候选制品，不会重新从源码树构建，默认只
@@ -301,7 +301,7 @@ Agent-native 新路径使用 `employee-package.v1alpha1`；其中 `SKILL.md` 是
 应用或 DWS 登录。
 
 ```bash
-git clone https://github.com/fullstack-ai-infra/digital-employee.git
+git clone https://github.com/bytefolk/digital-employee.git
 cd digital-employee
 npm install
 npm run legacy:demo -- --question "What should I include in an incident report?"
@@ -448,7 +448,7 @@ marketplace 上架、租赁、动态价格、可信计量、评价和分账属�
 "员工能被一致构建、校验，并在发布者机器上安全运行，最终作为一个可点名的数字组织存在"。
 平台不能导入或托管 Agent Host 执行代码。
 
-[`mem`](https://github.com/fullstack-ai-infra/mem) 是新主线上长期 Context 的底座：岗位
+[`mem`](https://github.com/bytefolk/mem) 是新主线上长期 Context 的底座：岗位
 对话产生的决策与任务状态写入记忆平面，新会话/换 Host 后可召回续接；本仓库不重复建设
 memory plane。当前严格类型边界、固定版本 HTTP 适配器、凭证与授权职责见
 [MemoryPort 接入说明](docs/memory-port.md)。公开 `0.6.0` 引擎预览可显式接入

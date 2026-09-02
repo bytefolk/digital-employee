@@ -32,6 +32,14 @@ import { turn } from "./turn/index.js";
 import { task } from "./task/index.js";
 import { hire } from "./hire.js";
 import { setup } from "./setup.js";
+import {
+  detectSystemLocale,
+  getAvailableLocales,
+  hasMessage,
+  setLocale,
+  t,
+} from "./deploy/i18n.js";
+import type { SupportedLocale } from "./deploy/i18n.js";
 
 type EmployeeResult = Awaited<ReturnType<DigitalEmployee["answer"]>>;
 
@@ -459,6 +467,32 @@ function printAgentRunOutput(output: unknown): void {
   process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
 }
 
+/** Map a failure code to a localized run-scoped recovery key (#241). */
+const RUN_RECOVERY_KEYS: Record<string, string> = {
+  qoder_service_token_not_configured:
+    "run.recovery_qoder_service_token_not_configured",
+  claude_api_key_not_configured:
+    "run.recovery_claude_service_token_not_configured",
+};
+
+/**
+ * Print localized recovery guidance for credential-view failures (#241), so a
+ * missing credential is an actionable next step rather than a dead end.
+ */
+function printRunRecovery(codes: readonly string[], locale?: string): void {
+  const locales = getAvailableLocales();
+  const chosen: SupportedLocale =
+    locale && locales.includes(locale) ? (locale as SupportedLocale) : detectSystemLocale();
+  setLocale(chosen);
+  const seen = new Set<string>();
+  for (const code of codes) {
+    const key = RUN_RECOVERY_KEYS[code];
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    if (hasMessage(key)) process.stderr.write(`recovery: ${t(key)}\n`);
+  }
+}
+
 async function run(values: CommandValues, positionals: string[]) {
   if (positionals.length > 1) throw new TypeError("run_accepts_one_directory");
   if (!values.engine) throw new TypeError("run_requires_engine");
@@ -521,9 +555,11 @@ async function run(values: CommandValues, positionals: string[]) {
     printAgentRunOutput(result.output);
   } else {
     process.stderr.write(`digital-employee: ${result.error.code}\n`);
+    const codes = [result.error.code, ...(result.issues ?? []).map((i) => i.code)];
     for (const item of result.issues ?? []) {
       process.stderr.write(`- blocked: ${item.code}\n`);
     }
+    printRunRecovery(codes, values.locale);
   }
   if (result.status === "failed") {
     process.exitCode = result.error.code.endsWith("_run_cancelled") ? 130 : 1;

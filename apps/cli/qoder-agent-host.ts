@@ -1204,6 +1204,7 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
       let initializeResponseSeen = false
       let promptSubmitted = false
       let sessionId: string | undefined
+      let initFingerprint: string | undefined
       let resultEvent: Record<string, unknown> | undefined
       let protocolCode: string | undefined
       let eventCount = 0
@@ -1298,10 +1299,6 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
         }
 
         if (event.type === "system" && event.subtype === "init") {
-          if (initSeen) {
-            protocolFailure("qoder_duplicate_init")
-            continue
-          }
           const tools = Array.isArray(event.tools)
             ? event.tools.filter((tool): tool is string => typeof tool === "string")
             : undefined
@@ -1320,26 +1317,26 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
               ? await realpath(event.cwd).catch(() => "")
               : ""
           const actualTools = tools ? [...new Set(tools)].sort() : undefined
-          if (
-            !actualTools ||
-            JSON.stringify(actualTools) !==
-              JSON.stringify([...expectedTools].sort()) ||
-            actualCwd !== (await realpath(workspace)) ||
-            (mode !== "dontAsk" && mode !== "dont_ask") ||
-            !mcpServers ||
-            mcpServers.length !== 0 ||
-            !plugins ||
-            plugins.length !== 0 ||
-            !skills ||
-            skills.length !== 0 ||
-            !announcedSessionId ||
-            !parseProtocolVersion(event.protocol_version) ||
-            !parseConformanceVersion(
+          const policyOk =
+            !!actualTools &&
+            JSON.stringify(actualTools) ===
+              JSON.stringify([...expectedTools].sort()) &&
+            actualCwd === (await realpath(workspace)) &&
+            (mode === "dontAsk" || mode === "dont_ask") &&
+            !!mcpServers &&
+            mcpServers.length === 0 &&
+            !!plugins &&
+            plugins.length === 0 &&
+            !!skills &&
+            skills.length === 0 &&
+            !!announcedSessionId &&
+            !!parseProtocolVersion(event.protocol_version) &&
+            !!parseConformanceVersion(
               typeof event.qodercli_version === "string"
                 ? event.qodercli_version
                 : undefined,
             )
-          ) {
+          if (!policyOk) {
             protocolFailure(
               announcedSessionId
                 ? "qoder_runtime_policy_mismatch"
@@ -1347,7 +1344,25 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
             )
             continue
           }
+          // Idempotent init (#241 live conformance): some conforming qodercli
+          // builds re-announce an identical system/init. Tolerate a byte-equal
+          // re-init; any divergence still fails closed.
+          const fingerprint = JSON.stringify([
+            actualTools,
+            actualCwd,
+            mode,
+            announcedSessionId,
+            event.protocol_version,
+            event.qodercli_version,
+          ])
+          if (initSeen) {
+            if (fingerprint !== initFingerprint) {
+              protocolFailure("qoder_duplicate_init")
+            }
+            continue
+          }
           initSeen = true
+          initFingerprint = fingerprint
           sessionId = announcedSessionId
           maybeSubmitPrompt()
           if (protocolCode || active.reason) continue

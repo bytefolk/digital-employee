@@ -547,6 +547,7 @@ for (const [mode, expectedCode] of [
   ["schema-extra-field", "qoder_output_schema_mismatch"],
   ["stdout-oversize", "qoder_stdout_limit_exceeded"],
   ["stderr-oversize", "qoder_stderr_limit_exceeded"],
+  ["duplicate-init-divergent", "qoder_duplicate_init"],
   ["auth-invalid", "qoder_access_token_invalid"],
   ["auth-payload-missing", "qoder_auth_payload_missing"],
   ["silent-exit", "qoder_no_response"],
@@ -570,6 +571,17 @@ for (const [mode, expectedCode] of [
     )
   })
 }
+
+test("Qoder tolerates an identical re-announced system/init (#241 live conformance)", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "qoder-dup-init-identical-"))
+  const request = await employeeRequest(parent, "run-dup-init-identical")
+  const events = await collect(
+    adapter(parent, "duplicate-init-identical").run(request),
+  )
+  const terminals = terminalEvents(events)
+  assert.equal(terminals.length, 1)
+  assert.equal(terminals[0]?.type, "run.completed")
+})
 
 test("Qoder repairs unescaped quotes inside model JSON strings", async () => {
   const parent = await mkdtemp(path.join(os.tmpdir(), "qoder-quote-repair-"))

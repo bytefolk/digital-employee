@@ -26,6 +26,10 @@ function runCli(args: string[]) {
   return spawnSync(process.execPath, ["--import", "tsx", cli, ...args], {
     cwd: root,
     encoding: "utf8",
+    // Node >=24 emits a DEP0205 module.register() deprecation warning from the
+    // tsx loader on the child's stderr; keep black-box stderr assertions stable
+    // across Node versions without changing app behavior.
+    env: { ...process.env, NODE_NO_WARNINGS: "1" },
   })
 }
 

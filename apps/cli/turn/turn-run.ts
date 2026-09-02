@@ -36,6 +36,11 @@ import {
 } from "../../../packages/engine/src/org-permissions.js"
 import { createClaudeLocalModelPort, probeLocalClaude } from "./claude-local-model-port.js"
 import { createQoderModelPort, probeQoderModelPort } from "./qoder-model-port.js"
+import {
+  operatorCredentialView,
+  QODER_SERVICE_TOKEN_ENV,
+  readServiceCredential,
+} from "../credential-view.js"
 import { executeTurn } from "../../../packages/engine/src/turn-executor.js"
 import { loadOrgModel, orgPaths } from "../org/model.js"
 import {
@@ -178,13 +183,19 @@ function resolveModelPort(env: NodeJS.ProcessEnv): ModelPort {
         `${unusable}: the Qoder CLI binary (${command}) is missing, outside the 1.1.x conformance family, or the platform is not verified`,
       )
     }
-    if (!env.QODER_PERSONAL_ACCESS_TOKEN?.trim()) {
+    // #241: the readiness decision reads the OPERATOR credential view (the same
+    // one `doctor` evaluates), never the stripped turn allowlist. The spawned
+    // host still receives no raw credential in its environment: the adapter
+    // delivers it via the 0600 auth-payload file. We therefore do NOT pass the
+    // allowlist `env` as the port environment.
+    if (!readServiceCredential(QODER_SERVICE_TOKEN_ENV)) {
+      const view = operatorCredentialView("qoder")
       throw new TurnSpawnError(
         "engine.model_unavailable",
-        "qoder_service_token_not_configured: QODER_PERSONAL_ACCESS_TOKEN is required via the environment allowlist for the qoder model port",
+        `qoder_service_token_not_configured: ${QODER_SERVICE_TOKEN_ENV} is missing from the operator environment (credential view: ${JSON.stringify(view)}). recovery: export ${QODER_SERVICE_TOKEN_ENV} in the shell that runs digital-employee, exactly as \`doctor\` reads it; the isolated run environment intentionally strips it from the child process.`,
       )
     }
-    return createQoderModelPort({ command, environment: env })
+    return createQoderModelPort({ command })
   }
   throw new TurnSpawnError(
     "engine.model_unavailable",

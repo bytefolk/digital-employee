@@ -169,5 +169,7 @@
   "org.recovery_workspace_org_context_path_invalid": "Provide a workspace-relative path without parent traversal (for example ./context/handbook.md).",
   "org.recovery_workspace_org_accepts_one_directory": "Pass at most one workspace directory positional argument.",
   "org.recovery_workspace_org_scope_accepts_one_request": "Pass either --tool or --context, not both.",
-  "org.recovery_workspace_org_write_failed": "The organization state could not be written; resolve the filesystem issue and rerun digital-employee org apply."
+  "org.recovery_workspace_org_write_failed": "The organization state could not be written; resolve the filesystem issue and rerun digital-employee org apply.",
+  "run.recovery_qoder_service_token_not_configured": "Set QODER_PERSONAL_ACCESS_TOKEN in the shell that runs digital-employee (the same operator environment `doctor` reads), then rerun the same run command. The isolated run environment intentionally strips the token from the spawned host; it is delivered via a 0600 auth-payload file, so doctor and run now agree on readiness.",
+  "run.recovery_claude_service_token_not_configured": "Set ANTHROPIC_API_KEY in the shell that runs digital-employee (the same operator environment `doctor` reads), then rerun the same run command. doctor and run now evaluate the same credential view."
 }

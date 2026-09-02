@@ -169,5 +169,7 @@
   "org.recovery_workspace_org_context_path_invalid": "请提供不含上级跳转的工作区相对路径（例如 ./context/handbook.md）。",
   "org.recovery_workspace_org_accepts_one_directory": "最多只能传入一个工作区目录位置参数。",
   "org.recovery_workspace_org_scope_accepts_one_request": "--tool 与 --context 只能传入其一。",
-  "org.recovery_workspace_org_write_failed": "组织状态写入失败；请解决文件系统问题后重新运行 digital-employee org apply。"
+  "org.recovery_workspace_org_write_failed": "组织状态写入失败；请解决文件系统问题后重新运行 digital-employee org apply。",
+  "run.recovery_qoder_service_token_not_configured": "在运行 digital-employee 的同一个 shell 里设置 QODER_PERSONAL_ACCESS_TOKEN（与 doctor 读取的操作者环境一致），然后重新运行同一 run 命令。隔离运行环境会故意从子进程剥离该 token（经 0600 auth-payload 文件传递），因此 doctor 与 run 的就绪判定现在保持一致。",
+  "run.recovery_claude_service_token_not_configured": "在运行 digital-employee 的同一个 shell 里设置 ANTHROPIC_API_KEY（与 doctor 读取的操作者环境一致），然后重新运行同一 run 命令。doctor 与 run 现在评估同一份凭证视图。"
 }

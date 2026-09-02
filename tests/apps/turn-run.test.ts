@@ -423,8 +423,13 @@ test("#185 AC-002: qoder port completes a turn through the spawn surface", async
   const workspace = await createWorkspace()
   const envelope = sealedEnvelope(workspace)
   const stub = await createZeroToolQoderStub()
-  const events: Array<Record<string, unknown>> = []
-  const diagnostics: string[] = []
+  const events: Array<Record<string, unknown>> = [];
+  const diagnostics: string[] = [];
+  // #241: the credential decision reads the OPERATOR view (process.env), the
+  // same one `doctor` evaluates — not the stripped run allowlist.
+  const saved = process.env.QODER_PERSONAL_ACCESS_TOKEN;
+  process.env.QODER_PERSONAL_ACCESS_TOKEN = "fixture-service-token";
+  try {
   const result = await runTurn({
     workspace,
     positionId: "repo-owner",
@@ -432,20 +437,23 @@ test("#185 AC-002: qoder port completes a turn through the spawn surface", async
     env: {
       DIGITAL_EMPLOYEE_ENGINE_MODEL: "qoder",
       DIGITAL_EMPLOYEE_QODER_COMMAND: stub,
-      QODER_PERSONAL_ACCESS_TOKEN: "fixture-service-token",
       PATH: process.env.PATH,
     },
     writeEvent: (line) => events.push(JSON.parse(line)),
     writeDiagnostic: (line) => diagnostics.push(line),
   })
-  assert.equal(result.exitCode, 0, diagnostics.join("\n"))
-  assert.equal(result.terminalEmitted, true)
-  const terminal = events.find((event) => event.type === "run.completed")
-  assert.ok(terminal, `expected run.completed, got: ${diagnostics.join("\n")}`)
-  assert.equal(terminal!.output, "fixture qoder answer")
+  assert.equal(result.exitCode, 0, diagnostics.join("\n"));
+  assert.equal(result.terminalEmitted, true);
+  const terminal = events.find((event) => event.type === "run.completed");
+  assert.ok(terminal, `expected run.completed, got: ${diagnostics.join("\n")}`);
+  assert.equal(terminal!.output, "fixture qoder answer");
   // Usage honesty (AC-005): the port reports no token counts, so no usage
   // event may be emitted for this turn.
-  assert.ok(!events.some((event) => event.type === "usage"))
+  assert.ok(!events.some((event) => event.type === "usage"));
+  } finally {
+    if (saved === undefined) delete process.env.QODER_PERSONAL_ACCESS_TOKEN;
+    else process.env.QODER_PERSONAL_ACCESS_TOKEN = saved;
+  }
 })
 
 test("#185 AC-003: missing service token fails closed at resolution, exit 1", async () => {

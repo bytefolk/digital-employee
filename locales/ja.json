@@ -169,5 +169,7 @@
   "org.recovery_workspace_org_context_path_invalid": "親ディレクトリへの移動を含まないワークスペース相対パスを指定してください（例：./context/handbook.md）。",
   "org.recovery_workspace_org_accepts_one_directory": "ワークスペースディレクトリの位置引数は最大 1 つまでです。",
   "org.recovery_workspace_org_scope_accepts_one_request": "--tool と --context のどちらか一方のみ指定できます。",
-  "org.recovery_workspace_org_write_failed": "組織状態を書き込めませんでした。ファイルシステムの問題を解決して digital-employee org apply を再実行してください。"
+  "org.recovery_workspace_org_write_failed": "組織状態を書き込めませんでした。ファイルシステムの問題を解決して digital-employee org apply を再実行してください。",
+  "run.recovery_qoder_service_token_not_configured": "digital-employee を実行する同じシェルで QODER_PERSONAL_ACCESS_TOKEN を設定し（doctor が読むオペレータ環境と同じ）、同じ run コマンドを再実行してください。隔離実行環境は意図的に子プロセスからトークンを除外し（0600 の auth-payload 経由で渡す）、doctor と run の準備判定は一致します。",
+  "run.recovery_claude_service_token_not_configured": "digital-employee を実行する同じシェルで ANTHROPIC_API_KEY を設定し（doctor が読むオペレータ環境と同じ）、同じ run コマンドを再実行してください。doctor と run は同じ認証情報ビューを評価します。"
 }

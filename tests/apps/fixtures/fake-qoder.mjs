@@ -411,6 +411,11 @@ for await (const line of lines) {
       continue
     }
     emit(init)
+    // #241 live conformance: a conforming qodercli may re-announce an identical
+    // system/init (tolerated, idempotent) or a divergent one (fail closed).
+    if (mode === "duplicate-init-identical") emit(init)
+    if (mode === "duplicate-init-divergent")
+      emit({ ...init, session_id: `${sessionId}-divergent` })
     initialized = true
     if (
       [

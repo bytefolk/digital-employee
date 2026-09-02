@@ -29,6 +29,7 @@ import {
   createDeterministicModelPort,
   type ModelPort,
 } from "../../../packages/engine/src/model-port.js"
+import { digestOutputValue } from "../../../packages/engine/src/turn-evidence.js"
 import type { EngineTurnRequest } from "../../../packages/engine/src/contracts.js"
 import {
   validateOrganizationPermissionsArtifact,
@@ -42,7 +43,17 @@ import {
   readServiceCredential,
 } from "../credential-view.js"
 import { executeTurn } from "../../../packages/engine/src/turn-executor.js"
+import {
+  MEMORY_WRITE_REQUEST_SCHEMA_VERSION,
+  MemoryPortError,
+  TASK_STATE_SCHEMA_VERSION,
+  derivePositionPrincipal,
+} from "../../../packages/core/src/memory-port.js"
 import { loadOrgModel, orgPaths } from "../org/model.js"
+import {
+  resolveWorkspaceMemory,
+  WorkspaceMemoryConfigError,
+} from "./memory-config.js"
 import {
   parseTurnEnvelope,
   TurnEnvelopeError,
@@ -302,6 +313,32 @@ export async function runTurn(options: TurnRunOptions): Promise<TurnRunResult> {
     throw error
   }
 
+  let memory: Awaited<ReturnType<typeof resolveWorkspaceMemory>>
+  try {
+    memory = await resolveWorkspaceMemory({
+      workspace: options.workspace,
+      positionId: options.positionId,
+      conversationRef: envelope.conversationRef,
+      turnId: envelope.turnId,
+      env,
+    })
+  } catch (error) {
+    if (error instanceof WorkspaceMemoryConfigError) {
+      return failSpawn("engine.memory_configuration_invalid", error.code)
+    }
+    return failSpawn(
+      "engine.memory_configuration_invalid",
+      "workspace memory configuration could not be resolved",
+    )
+  }
+  if (memory.status === "disabled") {
+    writeDiagnostic(`digital-employee: memory disabled (${memory.reason})`)
+  } else {
+    writeDiagnostic(
+      `digital-employee: memory enabled (adapter ${memory.adapterIdentity})`,
+    )
+  }
+
   let model: ModelPort
   try {
     model = options.model ?? resolveModelPort(env)
@@ -345,9 +382,60 @@ export async function runTurn(options: TurnRunOptions): Promise<TurnRunResult> {
       budgetLedger: createInMemoryBudgetLedger(),
       escalationSink,
       evidenceSink,
+      ...(memory.status === "enabled"
+        ? {
+            memory: {
+              port: memory.port,
+              enabled: true,
+              workspaceInstanceId: memory.workspaceInstanceId,
+              sessionId: memory.sessionId,
+              memoryScope: memory.memoryScope,
+              mode: memory.mode,
+              adapterIdentity: memory.adapterIdentity,
+              ...(memory.limit === undefined ? {} : { limit: memory.limit }),
+            },
+          }
+        : {}),
       ...(options.now !== undefined ? { now: options.now } : {}),
       ...(options.newId !== undefined ? { newId: options.newId } : {}),
     })) {
+      if (event.type === "run.completed" && memory.status === "enabled") {
+        try {
+          await memory.port.writeTaskState({
+            schemaVersion: MEMORY_WRITE_REQUEST_SCHEMA_VERSION,
+            workspaceInstanceId: memory.workspaceInstanceId,
+            sessionId: memory.sessionId,
+            turnId: envelope.turnId,
+            positionId: envelope.positionId,
+            principal: derivePositionPrincipal(envelope.positionId),
+            memoryScope: memory.memoryScope,
+            taskState: {
+              schemaVersion: TASK_STATE_SCHEMA_VERSION,
+              taskId: memory.taskId,
+              status: "completed",
+              summary: "Digital Employee turn completed.",
+              terminalOutputDigest: `sha256:${digestOutputValue(event.output)}`,
+              recordedAt: event.timestamp,
+            },
+          })
+        } catch (error) {
+          if (
+            memory.mode === "optional" &&
+            error instanceof MemoryPortError &&
+            error.code === "MEMORY_UNAVAILABLE"
+          ) {
+            writeDiagnostic(
+              "digital-employee: warning: memory write unavailable; turn result was not persisted",
+            )
+          } else {
+            const code =
+              error instanceof MemoryPortError
+                ? error.code
+                : "MEMORY_WRITE_FAILED"
+            return failSpawn("engine.memory_write_failed", code)
+          }
+        }
+      }
       writeEvent(
         JSON.stringify(
           envelope.conversationRef !== undefined

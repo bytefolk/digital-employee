@@ -12,9 +12,10 @@ boundary. Positions run on a built-in, TypeScript-native execution engine as
 the default Host
 ([Epic #165](https://github.com/bytefolk/digital-employee/issues/165),
 product direction). The engine/turn core is a released preview in public
-`0.6.0`; the `0.6.1` source tree keeps that runtime unchanged. The
-complete default-Host Workbench path remains in delivery, and external Agent
-Host adapters remain an option, not a dependency. The roadmap and strategy live in
+`0.6.0`; the `0.6.1` source tree adds a workspace-configured mem binding
+preview without claiming a new published release. The complete default-Host
+Workbench path remains in delivery, and external Agent Host adapters remain an
+option, not a dependency. The roadmap and strategy live in
 [docs/strategy.md](docs/strategy.md) and [docs/roadmap.md](docs/roadmap.md).
 
 > **Release availability boundary.** This source checkout declares package
@@ -36,9 +37,9 @@ does not need to write prompts or wire up an Agent Host by hand. Name a
 position, get an answer with its source, and the owner stays accountable for
 the whole organization. **The complete no-command Workbench direction remains
 planned**. Public `0.6.0` includes `workspace init`, `org tree`, and `org
-apply` as preview surfaces; the `0.6.1` source version changes documentation only.
-`chat @position` and its durable Workbench integration remain planned (see the
-status table below).
+apply` as preview surfaces; the `0.6.1` source tree additionally contains the
+opt-in workspace mem binding described below. `chat @position` and its durable
+Workbench integration remain planned (see the status table below).
 
 ## Capability status
 
@@ -57,7 +58,7 @@ status table below).
 | `org tree` / `org apply` | **Released preview** in public `0.6.0` (first published in `0.5.0`); applied permissions fail closed |
 | Explicit owner → one direct-report delegation | **Released preview / deterministic E3** in public `0.6.0` (first published in `0.5.0`); Workbench persistence/UI and per-Host E4 remain unverified ([boundary](docs/delegation.md)) |
 | `chat @position` | **Planned** Workbench integration (Epic #155 first milestone) |
-| Opt-in Memory/Context recall and permission enforcement | **Released preview** in `0.6.0` as scope-bound engine seams; disabled by default and not a durable product loop |
+| Opt-in Memory/Context recall and permission enforcement | **Released preview** in `0.6.0` as scope-bound engine seams; the source tree now also has a workspace-configured mem binding, disabled by default |
 | Durable long-term Context, Workbench continuity, and context distillation | **Planned**; not shipped by the v0.6.0 recall seams |
 | Built-in execution engine | **Released preview** through the installed root package's `./engine` export and `turn run`; the complete default-Host Workbench journey remains planned (Epic #165) |
 | oss-maintainer showcase (quickstart form) | **Planned** (Epic #155 M1) |
@@ -112,6 +113,16 @@ requires one supported Agent Host and its service credential:
 | `claude-code` | `ANTHROPIC_API_KEY` |
 | `qwen-code` | `OPENAI_API_KEY` and `OPENAI_MODEL` |
 | `codebuddy` | `CODEBUDDY_API_KEY` and `CODEBUDDY_MODEL` |
+
+### Enable durable task memory (source-tree preview)
+
+`workspace init` creates a disabled `memory` binding in `workspace.json`. Set
+its `enabled` field to `true`, provide the referenced `MEM_*` environment
+values, and run `turn run` with a stable `conversationRef` when conversations
+must have separate memory sessions. The CLI recalls before model consumption
+and persists only a bounded, digest-bound `task-state.v1` projection after a
+completed turn. See [MemoryPort and pinned mem adapter](docs/memory-port.md)
+for the exact configuration and credential boundary.
 
 ### Run from source
 

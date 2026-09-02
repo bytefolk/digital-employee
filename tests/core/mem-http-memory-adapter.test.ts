@@ -6,7 +6,6 @@ import test from "node:test"
 
 import {
   MEM_DURABLE_CONTEXT_CONTRACT,
-  MEM_HTTP_PINNED_REVISION,
   createMemHttpMemoryAdapter,
 } from "../../packages/core/src/mem-http-memory-adapter.js"
 import {
@@ -26,6 +25,7 @@ const MEMORY_ID = "33333333-3333-4333-8333-333333333333"
 const TOKEN_ENV = "MEM_REPO_OWNER_TOKEN"
 const TOKEN_SENTINEL = "mem_test_sentinel_never_serialize"
 const SCOPE = "/DigitalEmployees/repo-owner"
+const PINNED_REVISION = "4c714aa352f79f0080a24904668210d6c445ba10"
 
 interface SeenRequest {
   method: string
@@ -207,6 +207,7 @@ function adapter(baseUrl: string) {
     positionId: "repo-owner",
     memoryScope: SCOPE,
     tokenEnv: TOKEN_ENV,
+    pinnedRevision: PINNED_REVISION,
   })
 }
 
@@ -219,7 +220,7 @@ test.afterEach(() => {
 })
 
 test("adapter pins the public mem revision and durable-context contract", () => {
-  assert.equal(MEM_HTTP_PINNED_REVISION.length, 40)
+  assert.equal(PINNED_REVISION.length, 40)
   assert.equal(MEM_DURABLE_CONTEXT_CONTRACT, "durable-context.v1")
 })
 
@@ -234,6 +235,7 @@ test("configuration permits HTTP only on loopback and never accepts a token valu
       positionId: "repo-owner",
       memoryScope: SCOPE,
       tokenEnv: "token",
+      pinnedRevision: PINNED_REVISION,
     }),
   )
 })
@@ -259,7 +261,7 @@ test("write performs pinned preflight, exact write and matching readback", async
   await withMemServer(
     (incoming, response, body) => {
       if (incoming.url === "/v1/version") {
-        json(response, 200, { version: MEM_HTTP_PINNED_REVISION })
+        json(response, 200, { version: PINNED_REVISION })
       } else if (incoming.url === "/v1/capabilities") {
         json(response, 200, capabilitiesWire())
       } else if (incoming.method === "POST" && incoming.url === "/v1/memories") {
@@ -302,7 +304,7 @@ test("write rejects admin/root credentials before sending memory content", async
   await withMemServer(
     (incoming, response) => {
       if (incoming.url === "/v1/version") {
-        json(response, 200, { version: MEM_HTTP_PINNED_REVISION })
+        json(response, 200, { version: PINNED_REVISION })
       } else {
         json(response, 200, capabilitiesWire({
           permissions: {
@@ -328,7 +330,7 @@ test("write rejects a changed-payload conflict with a stable typed error", async
   await withMemServer(
     (incoming, response) => {
       if (incoming.url === "/v1/version") {
-        json(response, 200, { version: MEM_HTTP_PINNED_REVISION })
+        json(response, 200, { version: PINNED_REVISION })
       } else if (incoming.url === "/v1/capabilities") {
         json(response, 200, capabilitiesWire())
       } else {
@@ -353,7 +355,7 @@ test("write fails closed when readback content or scope does not match", async (
   await withMemServer(
     (incoming, response) => {
       if (incoming.url === "/v1/version") {
-        json(response, 200, { version: MEM_HTTP_PINNED_REVISION })
+        json(response, 200, { version: PINNED_REVISION })
       } else if (incoming.url === "/v1/capabilities") {
         json(response, 200, capabilitiesWire())
       } else if (incoming.method === "POST") {
@@ -382,7 +384,7 @@ test("recall uses only the approved durable-context contract and projects untrus
   await withMemServer(
     (incoming, response, body) => {
       if (incoming.url === "/v1/version") {
-        json(response, 200, { version: MEM_HTTP_PINNED_REVISION })
+        json(response, 200, { version: PINNED_REVISION })
       } else if (incoming.url === "/v1/capabilities") {
         json(response, 200, capabilitiesWire())
       } else {
@@ -444,7 +446,7 @@ test("unknown pinned-server response fields fail closed", async () => {
     (incoming, response) => {
       if (incoming.url === "/v1/version") {
         json(response, 200, {
-          version: MEM_HTTP_PINNED_REVISION,
+          version: PINNED_REVISION,
           unexpected: true,
         })
       } else {
@@ -457,6 +459,26 @@ test("unknown pinned-server response fields fail closed", async () => {
         (error: unknown) =>
           error instanceof MemoryPortError &&
           error.code === "MEMORY_CONTRACT_UNSUPPORTED",
+      )
+    },
+  )
+})
+
+test("configured revision mismatch is a distinct fail-closed error", async () => {
+  await withMemServer(
+    (incoming, response) => {
+      if (incoming.url === "/v1/version") {
+        json(response, 200, { version: "different-revision" })
+      } else {
+        json(response, 500, {})
+      }
+    },
+    async (baseUrl) => {
+      await assert.rejects(
+        adapter(baseUrl).recall(recallRequest()),
+        (error: unknown) =>
+          error instanceof MemoryPortError &&
+          error.code === "MEMORY_REVISION_MISMATCH",
       )
     },
   )

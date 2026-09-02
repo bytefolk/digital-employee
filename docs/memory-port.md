@@ -2,14 +2,17 @@
 
 `MemoryPort` is the strict durable-memory seam for a local digital-organization
 workspace. The first adapter speaks the public HTTP API of
-[`mem`](https://github.com/bytefolk/mem) revision
-`4c714aa352f79f0080a24904668210d6c445ba10`. The public `0.6.0` engine
-preview can consume this port through explicit `EngineMemoryOptions`; recall
-remains disabled unless `enabled` is exactly `true`. This checkout declares
-package version `0.6.1`; its source and packed artifacts do not establish npm,
-tag, GHCR image, or GitHub Release availability, which requires a release
-receipt. This seam does not copy conversation history, resume an Agent Host,
-extract model-authored memories, write task state automatically, or grant access.
+[`mem`](https://github.com/bytefolk/mem). The adapter accepts an exact
+`pinnedRevision` per instance; the operator supplies that value through the
+workspace environment rather than relying on a revision compiled into this
+package. Recall remains disabled unless the workspace binding sets `enabled` to
+`true`. This checkout declares package version `0.6.1`; its source and packed
+artifacts do not establish npm, tag, GHCR image, or GitHub Release availability,
+which requires a release receipt. The CLI binding writes only a bounded
+terminal task-state projection; it does not copy conversation history, resume
+an Agent Host, extract model-authored memories, or grant access. The public
+`0.6.0` engine preview can consume the underlying `MemoryPort` through explicit
+`EngineMemoryOptions`; this workspace binding is source-tree preview behavior.
 
 ## Boundary
 
@@ -83,15 +86,16 @@ const memory = createMemHttpMemoryAdapter({
   positionId: "sales-owner",
   memoryScope: "/workspaces/00000000-0000-4000-8000-000000000002/positions/sales-owner",
   tokenEnv: "MEM_SALES_OWNER_TOKEN",
+  pinnedRevision: "4c714aa352f79f0080a24904668210d6c445ba10",
 })
 ```
 
 Set the named variable in the process environment through the operator's
 secret manager. Do not render it into a workspace file or pass it on argv.
-The returned value implements `MemoryPort`. In the published `0.6.0` engine
-preview, an embedder may pass it through `TurnExecutorOptions.memory` with
-the exact workspace, session, scope, mode, and adapter identity binding.
-Omitting that option or setting `enabled: false` performs no recall.
+The returned value implements `MemoryPort`. An embedder may pass it through
+`TurnExecutorOptions.memory` with the exact workspace, session, scope, mode,
+and adapter identity binding. Omitting that option or setting `enabled: false`
+performs no recall.
 
 Recall mode is explicit:
 
@@ -101,6 +105,43 @@ Recall mode is explicit:
   model call;
 - denial, bad configuration, unsupported contracts, malformed records, and
   scope mismatches always fail closed in both modes.
+
+## First-party CLI binding
+
+`workspace init` writes a disabled `memory` block into `workspace.json` and a
+stable `workspaceInstanceId`. Enable it only after provisioning a position-
+scoped mem token and grant. The workspace file contains variable names, never
+endpoint, tenant, scope, revision, or token values:
+
+```json
+{
+  "workspaceInstanceId": "<generated UUID>",
+  "memory": {
+    "schemaVersion": "workspace-memory.v1",
+    "adapter": "mem-http.v1",
+    "enabled": true,
+    "mode": "optional",
+    "baseUrlEnv": "MEM_HTTP_BASE_URL",
+    "memWorkspaceIdEnv": "MEM_HTTP_WORKSPACE_ID",
+    "pinnedRevisionEnv": "MEM_HTTP_PINNED_REVISION",
+    "bindings": {
+      "repo-owner": {
+        "tokenEnv": "MEM_REPO_OWNER_TOKEN",
+        "memoryScopeEnv": "MEM_REPO_OWNER_SCOPE"
+      }
+    },
+    "limit": 10
+  }
+}
+```
+
+Set the referenced values in the operator environment, then pass a stable
+`conversationRef` in the sealed turn envelope when separate conversations
+need separate memory sessions. `turn run` performs recall before model
+consumption and persists a digest-bound `task-state.v1` projection after a
+completed turn. With `mode: "optional"`, a temporary mem outage leaves the
+turn result usable but reports that the task state was not persisted; contract,
+scope, credential, and revision failures remain fail-closed.
 
 ## Verification
 

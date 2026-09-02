@@ -583,7 +583,6 @@ export type {
 } from "./src/memory-port.js"
 export {
   MEM_DURABLE_CONTEXT_CONTRACT,
-  MEM_HTTP_PINNED_REVISION,
   createMemHttpMemoryAdapter,
 } from "./src/mem-http-memory-adapter.js"
 export type { MemHttpMemoryAdapterOptions } from "./src/mem-http-memory-adapter.js"

@@ -92,6 +92,8 @@ export interface TurnEvidenceMemory {
   mode: "optional" | "required"
   /** Bounded machine identity of the pinned adapter, e.g. "mem-http.v1". */
   adapterIdentity: string
+  /** Exact configured scope binding; no recalled content is included. */
+  memoryScope: string
   retrievedAt: string
   itemCount: number
   totalBytes: number

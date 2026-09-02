@@ -20,6 +20,10 @@ import {
   WORKSPACE_ORG_SCHEMA_VERSION,
 } from "../org/budget.js"
 import type { PositionBudget } from "../org/budget.js"
+import {
+  WORKSPACE_MEMORY_ADAPTER_ID,
+  WORKSPACE_MEMORY_SCHEMA_VERSION,
+} from "../turn/memory-config.js"
 
 export { WORKSPACE_ORG_SCHEMA_VERSION }
 export const WORKSPACE_MANIFEST_SCHEMA_VERSION = "workspace.v1alpha1" as const
@@ -481,6 +485,8 @@ export function renderOrganizationFile(
 export interface RenderedWorkspaceManifest {
   $schema: string
   schemaVersion: typeof WORKSPACE_MANIFEST_SCHEMA_VERSION
+  /** Stable local identity used to bind durable memory records. */
+  workspaceInstanceId: string
   name: string
   description: string
   template: string
@@ -488,6 +494,48 @@ export interface RenderedWorkspaceManifest {
   organization: string
   positions: string
   context: string
+  memory: {
+    schemaVersion: typeof WORKSPACE_MEMORY_SCHEMA_VERSION
+    adapter: typeof WORKSPACE_MEMORY_ADAPTER_ID
+    enabled: false
+    mode: "optional"
+    baseUrlEnv: "MEM_HTTP_BASE_URL"
+    memWorkspaceIdEnv: "MEM_HTTP_WORKSPACE_ID"
+    pinnedRevisionEnv: "MEM_HTTP_PINNED_REVISION"
+    bindings: Record<string, { tokenEnv: string; memoryScopeEnv: string }>
+    limit: 10
+  }
+}
+
+function memoryBindingEnvSuffix(roleId: string): string {
+  return roleId.replaceAll("-", "_").toUpperCase()
+}
+
+function defaultMemoryConfiguration(
+  template: WorkspaceTemplate,
+): RenderedWorkspaceManifest["memory"] {
+  return {
+    schemaVersion: WORKSPACE_MEMORY_SCHEMA_VERSION,
+    adapter: WORKSPACE_MEMORY_ADAPTER_ID,
+    enabled: false,
+    mode: "optional",
+    baseUrlEnv: "MEM_HTTP_BASE_URL",
+    memWorkspaceIdEnv: "MEM_HTTP_WORKSPACE_ID",
+    pinnedRevisionEnv: "MEM_HTTP_PINNED_REVISION",
+    bindings: Object.fromEntries(
+      template.roles.map((role) => {
+        const suffix = memoryBindingEnvSuffix(role.id)
+        return [
+          role.id,
+          {
+            tokenEnv: `MEM_${suffix}_TOKEN`,
+            memoryScopeEnv: `MEM_${suffix}_SCOPE`,
+          },
+        ]
+      }),
+    ),
+    limit: 10,
+  }
 }
 
 /**
@@ -498,11 +546,13 @@ export function renderWorkspaceManifest(
   template: WorkspaceTemplate,
   business: string,
   createdAt: string,
+  workspaceInstanceId: string,
 ): WorkspaceFile {
   const manifest: RenderedWorkspaceManifest = {
     $schema:
       "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/workspace.schema.json",
     schemaVersion: WORKSPACE_MANIFEST_SCHEMA_VERSION,
+    workspaceInstanceId,
     name: business,
     description: template.description,
     template: template.id,
@@ -510,6 +560,7 @@ export function renderWorkspaceManifest(
     organization: "./organization.v1alpha1.json",
     positions: "./positions",
     context: "./context",
+    memory: defaultMemoryConfiguration(template),
   }
   return {
     portablePath: "./workspace.json",
@@ -526,11 +577,14 @@ export function renderSkeletonFiles(
   template: WorkspaceTemplate,
   business: string,
   createdAt: string,
+  workspaceInstanceId: string,
 ): WorkspaceFile[] {
   const files: WorkspaceFile[] = [contextSkeleton(business)]
   for (const role of template.roles) {
     files.push(...renderPositionPackageFiles(template, role))
   }
-  files.push(renderWorkspaceManifest(template, business, createdAt))
+  files.push(
+    renderWorkspaceManifest(template, business, createdAt, workspaceInstanceId),
+  )
   return files
 }

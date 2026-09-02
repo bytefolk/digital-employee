@@ -10,8 +10,9 @@ Digital Employee 是一个本地优先、对话优先的数字组织工作区。
 一个可寻址数字员工，一次对话 = 带岗位 Context 与权限边界的工作。岗位运行在内建的、TypeScript 原生
 执行引擎之上，它是默认 Host
 （[Epic #165](https://github.com/bytefolk/digital-employee/issues/165)，
-产品方向）。引擎/turn 核心已在公开 `0.6.0` 发布预览；`0.6.1` 源码树不改变运行时。
-完整默认 Host Workbench 路径仍在交付中，外部 Agent Host 适配器只是选项，不是依赖。
+产品方向）。引擎/turn 核心已在公开 `0.6.0` 发布预览；`0.6.1` 源码树新增了工作区
+mem 配置预览，但不代表新的公开发布版本。完整默认 Host Workbench 路径仍在交付中，
+外部 Agent Host 适配器只是选项，不是依赖。
 
 > **发布可用性边界：**当前源码 checkout 的包版本为 `0.6.1`。其 manifest、PR 或打包
 > 制品都不能证明 npm、标签、GHCR 或 GitHub Release 可用；release receipt 才是唯一的
@@ -27,8 +28,8 @@ Agent 框架（Claude Code、Qoder、Qwen Code、CodeBuddy、Codex……）回�
 我们正在靠拢的卖点：**门槛很低、不用敲命令**——业务负责人不需要写 prompt 模板、不需要
 手动配置 Agent Host；说一句话、喊一个岗位名，就能拿到带出处的结果，整个组织仍由负责人
 兜底。**完整的无命令 Workbench 方向仍在规划中**。公开 `0.6.0` 已把
-`workspace init`、`org tree` 与 `org apply` 作为预览能力发布；`0.6.1` 源码版本只修正文档。
-`chat @岗位` 与持久化 Workbench 集成仍在规划中（见下方状态表）。
+`workspace init`、`org tree` 与 `org apply` 作为预览能力发布；`0.6.1` 源码树另含下文所述
+的可选工作区 mem 接入。`chat @岗位` 与持久化 Workbench 集成仍在规划中（见下方状态表）。
 
 ## 能力状态
 
@@ -46,9 +47,9 @@ Agent 框架（Claude Code、Qoder、Qwen Code、CodeBuddy、Codex……）回�
 | `org tree` / `org apply` | 公开 `0.6.0` 的**已发布预览**（最初随 `0.5.0` 发布）；应用权限失败关闭 |
 | 负责人 → 一个直接下属的显式委派 | 公开 `0.6.0` 的**已发布预览** / deterministic E3（最初随 `0.5.0` 发布）；Workbench 持久化/UI 与逐 Host E4 尚未验证（见[边界](docs/delegation.md)） |
 | `chat @岗位` | **规划中**的 Workbench 集成（Epic #155 第一里程碑） |
-| 可选 Memory/Context 召回与权限强制 | `0.6.0` **已发布预览**：绑定 scope 的引擎接缝，默认关闭，不代表持久化产品闭环 |
+| 可选 Memory/Context 召回与权限强制 | `0.6.0` **已发布预览**：绑定 scope 的引擎接缝，源码树另有默认关闭的工作区 mem 接入，不代表持久化产品闭环 |
 | 持久长期 Context、Workbench 连续性与 context 蒸馏 | **规划中**；未随 v0.6.0 召回接缝发布 |
-| 内建执行引擎 | 已通过安装后 root 包的 `./engine` 导出与 `turn run` **发布预览**；完整默认 Host Workbench 旅程仍在规划中（Epic #165） |
+| 内建执行引擎 | 已通过安装后 root 包的 `./engine` 导出与 `turn run` **发布预览**；源码树另有默认关闭的工作区 mem 配置接入；完整默认 Host Workbench 旅程仍在规划中（Epic #165） |
 | oss-maintainer 展示案例（quickstart 形态） | **规划中**（Epic #155 M1） |
 | 渠道扩展（飞书/企微） | **规划中更后期**；不属于首个里程碑 |
 
@@ -100,6 +101,14 @@ Agent Host 及其服务凭证：
 | `claude-code` | `ANTHROPIC_API_KEY` |
 | `qwen-code` | `OPENAI_API_KEY`、`OPENAI_MODEL` |
 | `codebuddy` | `CODEBUDDY_API_KEY`、`CODEBUDDY_MODEL` |
+
+### 开启持久任务记忆（源码预览）
+
+`workspace init` 会在 `workspace.json` 生成默认关闭的 `memory` 配置。将
+`enabled` 改为 `true`，按配置中的变量名提供 `MEM_*` 环境变量，再用稳定的
+`conversationRef` 调用 `turn run`，即可让不同回合使用同一个记忆会话。CLI 会在模型调用前召回，
+并在成功回合后只持久化有界、绑定摘要的 `task-state.v1` 投影。精确配置与凭证边界见
+[MemoryPort 接入说明](docs/memory-port.md)。
 
 ### 从源码运行
 

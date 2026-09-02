@@ -200,6 +200,7 @@ test("optional happy path: recall feeds context, evidence is digest-only", async
   assert.ok(record.memory)
   assert.equal(record.memory!.mode, "optional")
   assert.equal(record.memory!.adapterIdentity, "mem-http.v1")
+  assert.equal(record.memory!.memoryScope, SCOPE)
   assert.equal(record.memory!.itemCount, 2)
   assert.equal(record.memory!.items.length, 2)
   assert.equal(record.memory!.items[0]!.stateVersion, 1)

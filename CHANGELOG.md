@@ -13,6 +13,14 @@ All notable changes to this project will be documented in this file.
   handle cutover while retaining published JSON Schema identities and the
   existing npm compatibility namespace.
 
+### Added
+
+- Add a workspace-level `workspace-memory.v1` configuration entry for the
+  first-party mem adapter. `turn run` can now resolve a position-scoped,
+  revision-pinned MemoryPort from environment-variable names, recall before
+  model consumption, and persist a bounded terminal task-state projection
+  without placing credentials in workspace files.
+
 ## [0.6.1] - 2026-08-31
 
 ### Changed

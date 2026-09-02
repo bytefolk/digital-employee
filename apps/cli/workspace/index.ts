@@ -22,7 +22,7 @@ import {
   unlink,
   writeFile,
 } from "node:fs/promises"
-import { randomBytes } from "node:crypto"
+import { randomBytes, randomUUID } from "node:crypto"
 
 import {
   computeEmployeePackageDirectoryDigest,
@@ -473,7 +473,13 @@ async function workspaceInit(options: WorkspaceInitOptions): Promise<void> {
   }
 
   const createdAt = new Date().toISOString()
-  const skeletonFiles = renderSkeletonFiles(template, business, createdAt)
+  const workspaceInstanceId = randomUUID()
+  const skeletonFiles = renderSkeletonFiles(
+    template,
+    business,
+    createdAt,
+    workspaceInstanceId,
+  )
 
   // Stage the entire skeleton in a sibling temp directory so the target only
   // receives fully verified content.
@@ -555,6 +561,7 @@ async function workspaceInit(options: WorkspaceInitOptions): Promise<void> {
           directory: resolvedDirectory,
           business,
           template: template.id,
+          workspaceInstanceId,
           positions: template.roles.map((role) => role.id),
           organization: "./organization.v1alpha1.json",
           workspace: "./workspace.json",

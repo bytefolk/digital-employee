@@ -10,7 +10,7 @@
 
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
-import { mkdtemp, rm } from "node:fs/promises"
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import test from "node:test"
@@ -87,19 +87,35 @@ function runCli(
 test("doctor and run agree when the qoder token is absent (AC-001/AC-002)", async (t) => {
   const home = await mkdtemp(path.join(os.tmpdir(), "credview-"))
   t.after(() => rm(home, { recursive: true, force: true }))
-  const env = { ...process.env, HOME: home } as NodeJS.ProcessEnv
-  delete env[QODER_SERVICE_TOKEN_ENV]
+
+  // Decouple from the host machine: expose the conformant fake-qoder fixture as
+  // `qodercli` on a controlled PATH (binary-present branch), and use an empty PATH
+  // dir for the binary-absent branch. Never assume the default environment.
+  const qoderBinDir = await makeControlledQoderBin()
+  t.after(() => rm(qoderBinDir, { recursive: true, force: true }))
+  const emptyBinDir = await mkdtemp(path.join(os.tmpdir(), "credview-nobin-"))
+  t.after(() => rm(emptyBinDir, { recursive: true, force: true }))
+
+  const withBinary = { ...process.env, HOME: home } as NodeJS.ProcessEnv
+  withBinary.PATH = qoderBinDir + path.delimiter + (process.env.PATH ?? "")
+  delete withBinary[QODER_SERVICE_TOKEN_ENV]
+
+  const withoutBinary = { ...process.env, HOME: home } as NodeJS.ProcessEnv
+  withoutBinary.PATH = emptyBinDir
+  delete withoutBinary[QODER_SERVICE_TOKEN_ENV]
 
   // Scaffold a credential-free employee so run reaches host preflight.
   const pkg = path.join(home, "emp")
   const init = runCli(
     ["init", pkg, "--recipe", "minimal-answer.v1", "--author", "t"],
-    env,
+    withBinary,
     home,
   )
   assert.equal(init.status, 0, init.stderr)
 
-  const doctor = runCli(["doctor", "--engine", "qoder", "--json"], env, home)
+  // Binary present + token absent: the decision reaches the credential view and
+  // reports not_ready / not_configured, deterministically on any host.
+  const doctor = runCli(["doctor", "--engine", "qoder", "--json"], withBinary, home)
   const doctorJson = JSON.parse(doctor.stdout)
   const qoderHost = doctorJson.hosts.find((h: { hostId: string }) => h.hostId === "qoder")
   assert.equal(qoderHost.status, "not_ready")
@@ -108,9 +124,29 @@ test("doctor and run agree when the qoder token is absent (AC-001/AC-002)", asyn
     "doctor must report not_configured when token absent",
   )
 
-  const run = runCli(["run", pkg, "--engine", "qoder", "--question", "hi"], env, home)
+  const run = runCli(["run", pkg, "--engine", "qoder", "--question", "hi"], withBinary, home)
   assert.equal(run.status, 1)
   assert.match(run.stderr, /qoder_service_token_not_configured/)
   // AC-002: actionable recovery guidance, not a dead end.
   assert.match(run.stderr, /recovery:/)
+
+  // Binary absent: both commands agree on not_found, independent of the host.
+  const doctorNoBin = runCli(["doctor", "--engine", "qoder", "--json"], withoutBinary, home)
+  const noBinJson = JSON.parse(doctorNoBin.stdout)
+  const noBinHost = noBinJson.hosts.find((h: { hostId: string }) => h.hostId === "qoder")
+  assert.equal(noBinHost.status, "not_found")
 })
+
+/** Expose the conformant fake-qoder fixture as an executable `qodercli`. */
+async function makeControlledQoderBin(): Promise<string> {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "credview-bin-"))
+  const fixture = path.join(root, "tests", "apps", "fixtures", "fake-qoder.mjs")
+  const wrapper = path.join(dir, process.platform === "win32" ? "qodercli.cmd" : "qodercli")
+  const body =
+    process.platform === "win32"
+      ? `@echo off\n"${process.execPath}" "${fixture}" %*\n`
+      : `#!/bin/sh\nexec "${process.execPath}" "${fixture}" "$@"\n`
+  await writeFile(wrapper, body, { mode: 0o755 })
+  await chmod(wrapper, 0o755)
+  return dir
+}

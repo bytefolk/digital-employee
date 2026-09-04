@@ -36,7 +36,7 @@ import type { SafeValue } from "../../packages/core/src/contracts.js"
 import {
   executeVersionCommand,
 } from "./agent-hosts.js"
-import type { VersionCommandExecutor } from "./agent-hosts.js"
+import type { VersionCommandExecutor, VersionCommandResult } from "./agent-hosts.js"
 import {
   signalAgentHostProcessTree,
   waitForAgentHostProcessTreeExit,
@@ -48,6 +48,33 @@ const QODER_DISPLAY_NAME = "Qoder CLI"
 const CONFORMANCE_MAJOR = 1
 const CONFORMANCE_MINOR = 1
 const QODER_PROTOCOL_MAJOR = 1
+
+/**
+ * Override env var, mirrored from `turn/envelope.ts` so probing and running
+ * agree on the binary. Named as a constant here rather than imported from the
+ * turn envelope module because that module pulls in engine+core spawn-side
+ * dependencies this low-level adapter must not depend on.
+ *
+ * Kept in sync with `apps/cli/turn/envelope.ts` `TURN_ENGINE_QODER_COMMAND_ENV`.
+ */
+export const QODER_COMMAND_ENV = "DIGITAL_EMPLOYEE_QODER_COMMAND" as const
+
+/**
+ * Default Qoder CLI command name (international edition).
+ */
+export const QODER_DEFAULT_COMMAND = "qodercli" as const
+
+/**
+ * Fallback command names, checked in order after the override / default has
+ * been tried. Covers the China edition of the Qoder CLI (Refs #253), which
+ * installs under `qoderclicn` / `qodercn` and keeps its own config root but
+ * accepts the same flag surface the adapter relies on. `qodercli` stays first
+ * so machines with both editions installed keep the international default.
+ */
+export const QODER_FALLBACK_COMMANDS: readonly string[] = Object.freeze([
+  "qoderclicn",
+  "qodercn",
+])
 // Qoder's TypeScript SDK 1.0.17 currently announces this process-transport
 // compatibility version when it enables SDK mode in qodercli 1.1.x.
 const QODER_SDK_TRANSPORT_VERSION = "1.0.16"
@@ -757,7 +784,13 @@ function projectionIdentityMatches(
 
 export class QoderAgentHostAdapter implements AgentHostAdapter {
   readonly hostId = QODER_HOST_ID
-  private readonly command: string
+  /**
+   * Explicit command override, only set when the embedder or a test passes
+   * `options.command`. Real deployments rely on `resolveCommandCandidates`,
+   * which reads the same env override `turn run` reads and falls through to
+   * the CN fallback names.
+   */
+  private readonly explicitCommand: string | undefined
   private readonly commandPrefixArgs: string[]
   private readonly environment: NodeJS.ProcessEnv
   private readonly versionExecutor: VersionCommandExecutor
@@ -772,7 +805,7 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
   private readonly activeRuns = new Map<string, ActiveRun>()
 
   constructor(options: QoderAgentHostAdapterOptions = {}) {
-    this.command = options.command ?? "qodercli"
+    this.explicitCommand = options.command
     this.commandPrefixArgs = [...(options.commandPrefixArgs ?? [])]
     this.environment = { ...(options.environment ?? process.env) }
     this.versionExecutor = options.versionExecutor ?? executeVersionCommand
@@ -792,11 +825,93 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
       ((directory) => rm(directory, { recursive: true, force: true }))
   }
 
+  /**
+   * The ordered list of command names this adapter will consult. When the
+   * caller passed an explicit command, it is the only candidate (matches
+   * pre-#253 behaviour for tests and any embedder that already resolved the
+   * binary path themselves). Otherwise:
+   *   1. `DIGITAL_EMPLOYEE_QODER_COMMAND` from the injected environment, if
+   *      set to a non-empty trimmed value.
+   *   2. `qodercli` -- the international default.
+   *   3. `qoderclicn`, `qodercn` -- CN edition fallbacks.
+   * Duplicates are dropped while preserving the first occurrence so a caller
+   * pointing the override at `qodercli` does not re-check the default entry.
+   */
+  private resolveCommandCandidates(): readonly string[] {
+    if (this.explicitCommand !== undefined) return [this.explicitCommand]
+    const override = this.environment[QODER_COMMAND_ENV]?.trim()
+    const seen = new Set<string>()
+    const candidates: string[] = []
+    const push = (value: string | undefined) => {
+      if (!value || seen.has(value)) return
+      seen.add(value)
+      candidates.push(value)
+    }
+    push(override && override.length > 0 ? override : undefined)
+    push(QODER_DEFAULT_COMMAND)
+    for (const fallback of QODER_FALLBACK_COMMANDS) push(fallback)
+    return candidates
+  }
+
+  /**
+   * The command name in force for the current run. Recomputed for each
+   * spawn/probe so a change to the injected environment between calls is
+   * respected without reconstructing the adapter, and so a CN-only host
+   * discovered during the probe is what a subsequent `run` also spawns.
+   */
+  private get command(): string {
+    // When no explicit command was supplied, prefer whichever candidate
+    // `probeCommandCandidates` last confirmed as spawnable. Falling back to
+    // the first candidate keeps behaviour deterministic when no probe has
+    // run yet (for example, `run` invoked before `probe`), and matches the
+    // pre-#253 default of `qodercli` when the env override is absent.
+    if (this.lastSpawnableCommand !== undefined) return this.lastSpawnableCommand
+    const candidates = this.resolveCommandCandidates()
+    return candidates[0] ?? QODER_DEFAULT_COMMAND
+  }
+
+  private lastSpawnableCommand: string | undefined
+
+  /**
+   * Runs the version probe against each candidate in order until one reports
+   * `installed`, or every candidate has been tried. Returns the executor
+   * result plus the command that produced it, so callers can echo it in the
+   * probe payload and pin subsequent spawns to the same binary.
+   *
+   * `not_found` alone is not a hard failure while candidates remain; on a
+   * host with only the CN edition, the international name legitimately does
+   * not exist. Any other failure (`not_spawnable`, `probe_failed`) is
+   * returned for the first candidate that produced it, because those signal
+   * an installed-but-broken binary the operator should see rather than a
+   * missing edition to fall through past.
+   */
+  private async probeCommandCandidates(
+    signal: AbortSignal | undefined,
+  ): Promise<{ command: string; result: VersionCommandResult }> {
+    const candidates = this.resolveCommandCandidates()
+    let firstResult: { command: string; result: VersionCommandResult } | undefined
+    for (const candidate of candidates) {
+      const result = await this.versionExecutor(
+        candidate,
+        [...this.commandPrefixArgs, "--version"],
+        { signal },
+      )
+      if (result.status === "installed") {
+        this.lastSpawnableCommand = candidate
+        return { command: candidate, result }
+      }
+      if (firstResult === undefined) firstResult = { command: candidate, result }
+      // Only `not_found` warrants trying the next candidate; other statuses
+      // point at a real problem on the resolved binary.
+      if (result.status !== "not_found") {
+        return { command: candidate, result }
+      }
+    }
+    return firstResult ?? { command: candidates[0] ?? QODER_DEFAULT_COMMAND, result: { status: "not_found" } }
+  }
+
   async probe(signal?: AbortSignal): Promise<AgentHostProbeResult> {
-    const result = await this.versionExecutor(this.command, [
-      ...this.commandPrefixArgs,
-      "--version",
-    ], { signal })
+    const { command: resolvedCommand, result } = await this.probeCommandCandidates(signal)
     const issues: AgentHostIssue[] = []
     const available = result.status === "installed"
     let status: AgentHostProbeResult["status"] = result.status
@@ -805,21 +920,21 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
       issues.push(
         issue(
           "host_executable_not_found",
-          `${QODER_DISPLAY_NAME} executable was not found on PATH`,
+          `${QODER_DISPLAY_NAME} executable was not found on PATH (looked for: ${this.resolveCommandCandidates().join(", ")})`,
         ),
       )
     } else if (result.status === "not_spawnable") {
       issues.push(
         issue(
           "host_executable_not_spawnable",
-          `${QODER_DISPLAY_NAME} executable was resolved on PATH but could not be spawned`,
+          `${QODER_DISPLAY_NAME} executable was resolved on PATH but could not be spawned (${resolvedCommand})`,
         ),
       )
     } else if (result.status === "probe_failed") {
       issues.push(
         issue(
           "host_version_probe_failed",
-          `${QODER_DISPLAY_NAME} did not complete its version probe`,
+          `${QODER_DISPLAY_NAME} did not complete its version probe (${resolvedCommand})`,
         ),
       )
     } else if (!parseConformanceVersion(result.output)) {
@@ -864,6 +979,7 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
       available,
       adapterStatus: "runnable",
       ...(result.output ? { version: result.output } : {}),
+      resolvedCommand,
       capabilities: capabilities(),
       capabilitySource: "conformance_test",
       issues,

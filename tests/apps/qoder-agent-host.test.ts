@@ -17,6 +17,9 @@ import { fileURLToPath } from "node:url"
 
 import {
   createQoderAgentHostAdapter,
+  QODER_COMMAND_ENV,
+  QODER_DEFAULT_COMMAND,
+  QODER_FALLBACK_COMMANDS,
 } from "../../apps/cli/qoder-agent-host.js"
 import type {
   QoderAgentHostAdapterOptions,
@@ -1028,4 +1031,153 @@ test("Qoder cleanup failure replaces success with an explicit failed terminal", 
     "qoder_cleanup_failed",
   )
   await rm(parent, { recursive: true, force: true })
+})
+
+// #253 regression: probing must agree with `turn run`, and the CN edition of
+// the Qoder CLI (qoderclicn / qodercn) must be reachable without a PATH shim.
+
+test("Qoder probe honours DIGITAL_EMPLOYEE_QODER_COMMAND like turn run", async () => {
+  // The same env var `turn/turn-run.ts` reads (`DIGITAL_EMPLOYEE_QODER_COMMAND`)
+  // now steers the built-in probe as well. Without this, setup/doctor readiness
+  // reports "unavailable" on a machine where a turn would actually run.
+  const versionCalls: Array<{ command: string; args: string[] }> = []
+  const host = createQoderAgentHostAdapter({
+    environment: {
+      PATH: process.env.PATH,
+      QODER_PERSONAL_ACCESS_TOKEN: "fixture-service-token",
+      [QODER_COMMAND_ENV]: "qoderclicn",
+    },
+    versionExecutor: async (command, args) => {
+      versionCalls.push({ command, args })
+      return { status: "installed", output: "1.1.41" }
+    },
+  })
+  const probe = await host.probe()
+  assert.deepEqual(versionCalls, [
+    { command: "qoderclicn", args: ["--version"] },
+  ])
+  assert.equal(probe.resolvedCommand, "qoderclicn")
+  assert.equal(probe.status, "ready")
+})
+
+test("Qoder probe falls through to CN command names when the default is absent", async () => {
+  // Machine has only the CN edition installed. Pre-#253 this reported the host
+  // as unavailable even though a turn with DIGITAL_EMPLOYEE_QODER_COMMAND set
+  // would run fine. Now the adapter walks qodercli → qoderclicn → qodercn on
+  // its own, matching the fallback contract this fix ships.
+  const versionCalls: Array<{ command: string; args: string[] }> = []
+  const host = createQoderAgentHostAdapter({
+    environment: {
+      PATH: process.env.PATH,
+      QODER_PERSONAL_ACCESS_TOKEN: "fixture-service-token",
+    },
+    versionExecutor: async (command, args) => {
+      versionCalls.push({ command, args })
+      if (command === QODER_DEFAULT_COMMAND) return { status: "not_found" }
+      if (command === "qoderclicn") {
+        return { status: "installed", output: "1.1.41" }
+      }
+      return { status: "not_found" }
+    },
+  })
+  const probe = await host.probe()
+  assert.deepEqual(
+    versionCalls.map((call) => call.command),
+    [QODER_DEFAULT_COMMAND, "qoderclicn"],
+  )
+  assert.equal(probe.resolvedCommand, "qoderclicn")
+  assert.equal(probe.status, "ready")
+  // qodercn is the second CN fallback and must not be probed once qoderclicn
+  // has answered `installed`; otherwise a host with both installed would run
+  // the probe twice against the same edition.
+  assert.equal(
+    versionCalls.some((call) => call.command === "qodercn"),
+    false,
+  )
+})
+
+test("Qoder probe stops at not_spawnable rather than skipping past a broken binary", async () => {
+  // A resolved-but-not-spawnable executable points at a real problem the
+  // operator must see. Falling through to the next candidate would silently
+  // paper over it and pretend the CN edition is what got picked up.
+  const versionCalls: Array<{ command: string; args: string[] }> = []
+  const host = createQoderAgentHostAdapter({
+    environment: {
+      PATH: process.env.PATH,
+      QODER_PERSONAL_ACCESS_TOKEN: "fixture-service-token",
+    },
+    versionExecutor: async (command) => {
+      versionCalls.push({ command, args: ["--version"] })
+      if (command === QODER_DEFAULT_COMMAND) return { status: "not_spawnable" }
+      return { status: "installed", output: "1.1.41" }
+    },
+  })
+  const probe = await host.probe()
+  assert.deepEqual(
+    versionCalls.map((call) => call.command),
+    [QODER_DEFAULT_COMMAND],
+  )
+  assert.equal(probe.status, "not_spawnable")
+  assert.equal(probe.available, false)
+  assert.equal(probe.resolvedCommand, QODER_DEFAULT_COMMAND)
+  assert.equal(
+    probe.issues.some((entry) => entry.code === "host_executable_not_spawnable"),
+    true,
+  )
+})
+
+test("Qoder probe names every candidate when nothing is on PATH", async () => {
+  // The not_found message enumerates the tried names so an operator can see
+  // that qoderclicn / qodercn were both consulted before the host was declared
+  // unavailable. Empty output would send them back to the source to check.
+  const host = createQoderAgentHostAdapter({
+    environment: {
+      PATH: process.env.PATH,
+      QODER_PERSONAL_ACCESS_TOKEN: "fixture-service-token",
+    },
+    versionExecutor: async () => ({ status: "not_found" }),
+  })
+  const probe = await host.probe()
+  assert.equal(probe.status, "not_found")
+  assert.equal(probe.available, false)
+  assert.equal(probe.resolvedCommand, QODER_DEFAULT_COMMAND)
+  const notFound = probe.issues.find(
+    (entry) => entry.code === "host_executable_not_found",
+  )
+  assert.equal(typeof notFound?.message, "string")
+  for (const candidate of [
+    QODER_DEFAULT_COMMAND,
+    ...QODER_FALLBACK_COMMANDS,
+  ]) {
+    assert.equal(
+      notFound?.message.includes(candidate),
+      true,
+      `expected not_found message to name ${candidate}`,
+    )
+  }
+})
+
+test("Qoder adapter honours an explicit options.command without walking the fallback chain", async () => {
+  // The existing test contract (and any embedder that already resolved the
+  // Qoder binary path themselves) must keep working. Passing `command`
+  // deterministically fixes the executable; the env override and CN
+  // fallbacks are consulted only when the caller left it unset.
+  const versionCalls: Array<{ command: string; args: string[] }> = []
+  const host = createQoderAgentHostAdapter({
+    command: "/custom/qoder",
+    environment: {
+      PATH: process.env.PATH,
+      QODER_PERSONAL_ACCESS_TOKEN: "fixture-service-token",
+      [QODER_COMMAND_ENV]: "qoderclicn",
+    },
+    versionExecutor: async (command, args) => {
+      versionCalls.push({ command, args })
+      return { status: "installed", output: "1.1.41" }
+    },
+  })
+  const probe = await host.probe()
+  assert.deepEqual(versionCalls, [
+    { command: "/custom/qoder", args: ["--version"] },
+  ])
+  assert.equal(probe.resolvedCommand, "/custom/qoder")
 })

@@ -69,6 +69,14 @@ export interface AgentHostProbeResult {
   available: boolean
   adapterStatus: "probe_only" | "runnable"
   version?: string
+  /**
+   * The command name that was actually looked up on PATH for this probe, when
+   * the adapter can meaningfully name one. Present so an edition mismatch --
+   * for example, a machine that only has the China Qoder CLI (`qoderclicn`)
+   * installed while the built-in registry probes `qodercli` -- is diagnosable
+   * from the probe output rather than by reading the source.
+   */
+  resolvedCommand?: string
   capabilities: AgentHostCapabilities
   capabilitySource: "adapter_declaration" | "conformance_test"
   issues: AgentHostIssue[]

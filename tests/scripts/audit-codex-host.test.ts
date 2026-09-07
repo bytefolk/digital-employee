@@ -8,6 +8,7 @@ import {
   MAX_LOOPBACK_REQUEST_BYTES,
   auditCodex,
   buildRecord,
+  parseArgs,
   toolName
 } from "../../scripts/audit-codex-host.js";
 
@@ -216,6 +217,71 @@ test("the loopback fixture stops buffering a chunked body past 4 MiB", async () 
     );
     await chmod(binary, 0o755);
     await assert.rejects(auditCodex(binary), /loopback request body exceeds 4 MiB/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("argument parsing requires --codex-bin and reports both flags in usage", () => {
+  assert.throws(() => parseArgs([]), /--codex-bin <path> \[--expect-version <semver>\]/);
+  assert.throws(() => parseArgs(["--codex-bin"]), /--codex-bin <path>/);
+});
+
+test("audited version is the default expectation when --expect-version is absent", () => {
+  const parsed = parseArgs(["--codex-bin", "/usr/bin/codex"]);
+  assert.equal(parsed.expectVersion, AUDITED_CODEX_VERSION);
+  assert.equal(parsed.codexBin, path.resolve("/usr/bin/codex"));
+});
+
+test("--expect-version overrides the pinned version, including prereleases", () => {
+  assert.equal(
+    parseArgs(["--codex-bin", "/usr/bin/codex", "--expect-version", "0.153.4"]).expectVersion,
+    "0.153.4"
+  );
+  assert.equal(
+    parseArgs(["--codex-bin", "/usr/bin/codex", "--expect-version", "0.154.0-alpha.3"])
+      .expectVersion,
+    "0.154.0-alpha.3"
+  );
+});
+
+test("--expect-version rejects a missing or non-semver value rather than auditing blind", () => {
+  for (const argv of [
+    ["--codex-bin", "/usr/bin/codex", "--expect-version"],
+    ["--codex-bin", "/usr/bin/codex", "--expect-version", "nonsense"],
+    ["--codex-bin", "/usr/bin/codex", "--expect-version", "0.153"],
+    ["--codex-bin", "/usr/bin/codex", "--expect-version", "latest"]
+  ]) {
+    assert.throws(() => parseArgs(argv), /--expect-version requires a semver value/);
+  }
+});
+
+test("a version mismatch names both the expected and the found build", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "codex-audit-expect-mismatch-"));
+  const binary = path.join(directory, "fake-codex");
+  try {
+    await writeFile(binary, fakeCodexSource("0.999.0"), { mode: 0o755 });
+    await chmod(binary, 0o755);
+    await assert.rejects(
+      auditCodex(binary, "0.153.4"),
+      /expected codex-cli 0\.153\.4, found 0\.999\.0/
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("an explicit expectation admits a build the pinned default would reject", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "codex-audit-expect-accept-"));
+  const binary = path.join(directory, "fake-codex");
+  try {
+    await writeFile(binary, fakeCodexSource("0.153.4"), { mode: 0o755 });
+    await chmod(binary, 0o755);
+    // The pinned default must still refuse it, so the flag is doing the work.
+    await assert.rejects(auditCodex(binary), /expected codex-cli 0\.148\.0/);
+    const record = await auditCodex(binary, "0.153.4");
+    assert.equal(record.auditedVersion, "0.153.4");
+    assert.equal(record.verdict, "NO_GO");
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

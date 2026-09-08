@@ -286,3 +286,33 @@ test("an explicit expectation admits a build the pinned default would reject", a
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("a prerelease build is audited under its full version, not its release prefix", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "codex-audit-prerelease-"));
+  const binary = path.join(directory, "fake-codex");
+  try {
+    await writeFile(binary, fakeCodexSource("0.154.0-alpha.3"), { mode: 0o755 });
+    await chmod(binary, 0o755);
+    const record = await auditCodex(binary, "0.154.0-alpha.3");
+    assert.equal(record.auditedVersion, "0.154.0-alpha.3");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("a prerelease build is refused when only its release prefix is expected", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "codex-audit-prerelease-mislabel-"));
+  const binary = path.join(directory, "fake-codex");
+  try {
+    await writeFile(binary, fakeCodexSource("0.154.0-alpha.3"), { mode: 0o755 });
+    await chmod(binary, 0o755);
+    // Accepting this would file the alpha under the stable version and break the
+    // invariant that a record names the build it actually audited.
+    await assert.rejects(
+      auditCodex(binary, "0.154.0"),
+      /expected codex-cli 0\.154\.0, found 0\.154\.0-alpha\.3/
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

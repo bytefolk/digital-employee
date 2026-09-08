@@ -258,7 +258,13 @@ export async function auditCodex(codexBin, expectVersion = AUDITED_CODEX_VERSION
     if (!address || typeof address === "string") throw new Error("loopback bind failed");
     const versionResult = await runProcess(codexBin, ["--version"], { env, cwd: root });
     requireSuccessfulProcess(versionResult, "Codex version probe");
-    const versionMatch = /codex-cli (\d+\.\d+\.\d+)/.exec(versionResult.stdout);
+    // Must capture any prerelease suffix too. Capturing only the release
+    // prefix made a prerelease build unauditable under its real version and,
+    // worse, let it pass as the stable release and be recorded under that
+    // name — breaking the invariant that a record names the build it audited.
+    const versionMatch = /codex-cli (\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/.exec(
+      versionResult.stdout,
+    );
     const version = versionMatch?.[1];
     if (version !== expectVersion) {
       throw new Error(`expected codex-cli ${expectVersion}, found ${version ?? "unknown"}`);

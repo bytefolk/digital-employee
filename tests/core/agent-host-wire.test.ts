@@ -67,6 +67,22 @@ test("probe wire accepts a valid probe", () => {
   assert.equal(parsed.hostId, "fixture")
 })
 
+test("probe wire round-trips optional resolvedCommand and rejects malformed values", () => {
+  for (const resolvedCommand of [undefined, "qoderclicn", "/opt/qoder cli/bin/qoder", "x".repeat(1024)]) {
+    const value = { ...readyProbe(), ...(resolvedCommand === undefined ? {} : { resolvedCommand }) }
+    const parsed = validateAgentHostProbeWire(JSON.parse(JSON.stringify(value)), "fixture")
+    assert.deepEqual(parsed, value)
+  }
+  for (const resolvedCommand of [null, 42, {}, [], "", "x".repeat(1025), "qoder\u0000cli", "qoder\ncli", "qoder\tcli"]) {
+    assert.throws(
+      () => validateAgentHostProbeWire({ ...readyProbe(), resolvedCommand }, "fixture"),
+      (error) => error instanceof CoreError && error.code === AGENT_HOST_VECTOR_CODES.probeInvalid,
+    )
+  }
+  assert.throws(() => validateAgentHostProbeWire({ ...readyProbe(), resolvedCommand: "qoder", command: "untrusted" }, "fixture"))
+  assert.throws(() => validateAgentHostRunRequestWire(minimalRunRequest({ resolvedCommand: "untrusted" })))
+})
+
 test("probe wire rejects unknown fields fail-closed", () => {
   const probe = { ...readyProbe(), extraField: true }
   assert.throws(

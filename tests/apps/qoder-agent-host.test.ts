@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import {
   access,
   lstat,
+  mkdir,
   mkdtemp,
   readFile,
   realpath,
@@ -1060,6 +1061,26 @@ test("Qoder probe honours DIGITAL_EMPLOYEE_QODER_COMMAND like turn run", async (
   assert.equal(probe.status, "ready")
 })
 
+test("Qoder command overrides fail closed without silently selecting a fallback", async () => {
+  for (const status of ["not_found", "not_spawnable", "probe_failed"] as const) {
+    const calls: string[] = []
+    const host = createQoderAgentHostAdapter({
+      environment: { [QODER_COMMAND_ENV]: "  missing-override  " },
+      versionExecutor: async (command) => {
+        calls.push(command)
+        return command === "missing-override"
+          ? { status }
+          : { status: "installed", output: "1.1.41" }
+      },
+    })
+    const result = await host.probe()
+    assert.deepEqual(calls, ["missing-override"])
+    assert.equal(result.resolvedCommand, "missing-override")
+    assert.equal(result.available, false)
+    assert.equal(result.status, status)
+  }
+})
+
 test("Qoder probe falls through to CN command names when the default is absent", async () => {
   // Machine has only the CN edition installed. Pre-#253 this reported the host
   // as unavailable even though a turn with DIGITAL_EMPLOYEE_QODER_COMMAND set
@@ -1094,6 +1115,48 @@ test("Qoder probe falls through to CN command names when the default is absent",
     versionCalls.some((call) => call.command === "qodercn"),
     false,
   )
+})
+
+test("Qoder run pins its preflight command across a concurrent probe", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "qoder-command-pinning-"))
+  const bin = path.join(parent, "bin")
+  await mkdir(bin, { recursive: true })
+  const cnShim = path.join(bin, "qoderclicn")
+  await writeFile(
+    cnShim,
+    `#!${process.execPath}\nimport { spawnSync } from "node:child_process"\nconst result = spawnSync(process.execPath, [${JSON.stringify(fixture)}, ...process.argv.slice(2)], { stdio: "inherit" })\nprocess.exitCode = result.status ?? 1\n`,
+    { mode: 0o755 },
+  )
+
+  let cnProbeCount = 0
+  let host!: ReturnType<typeof createQoderAgentHostAdapter>
+  host = createQoderAgentHostAdapter({
+    commandPrefixArgs: [],
+    environment: {
+      PATH: bin,
+      QODER_PERSONAL_ACCESS_TOKEN: "fixture-service-token",
+    },
+    temporaryRoot: parent,
+    versionExecutor: async (command) => {
+      if (command === QODER_DEFAULT_COMMAND) return { status: "not_found" }
+      if (command === "qoderclicn") {
+        cnProbeCount += 1
+        return cnProbeCount === 1
+          ? { status: "installed", output: "1.1.12" }
+          : { status: "not_found" }
+      }
+      return { status: "not_found" }
+    },
+    beforeSpawn: async () => {
+      const concurrentProbe = await host.probe()
+      assert.equal(concurrentProbe.status, "not_found")
+    },
+  })
+  const request = await employeeRequest(parent, "run-command-pinning")
+  const events = await collect(host.run(request))
+
+  assert.equal(events.at(-1)?.type, "run.completed")
+  await rm(parent, { recursive: true, force: true })
 })
 
 test("Qoder probe stops at not_spawnable rather than skipping past a broken binary", async () => {

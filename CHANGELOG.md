@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Validate and preserve the optional `resolvedCommand` probe diagnostic in the
+  core registry and wire boundary, restoring Qoder/Codex probes and Qoder
+  employee runs while retaining strict rejection of unknown request fields.
+- Use the shared Qoder command probe for `turn run`, including CN-only PATH
+  discovery. Explicit command overrides now fail closed; only an absent
+  default command permits fallback to the next supported command name (#253).
+
 ### Changed
 
 - Replace former GitHub owner coordinates in shipped templates and examples

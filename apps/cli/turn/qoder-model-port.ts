@@ -60,7 +60,7 @@ const ZERO_TOOL_POLICY: AgentHostPolicy = {
 }
 
 export interface QoderModelPortOptions {
-  /** Binary to spawn; defaults to `qodercli` resolved from PATH. */
+  /** Binary to spawn; otherwise uses the shared Qoder override/CN resolver. */
   command?: string
   /** Arguments prepended before the adapter's pinned flag set. Test seam. */
   commandPrefixArgs?: readonly string[]

@@ -65,8 +65,8 @@ export const QODER_COMMAND_ENV = "DIGITAL_EMPLOYEE_QODER_COMMAND" as const
 export const QODER_DEFAULT_COMMAND = "qodercli" as const
 
 /**
- * Fallback command names, checked in order after the override / default has
- * been tried. Covers the China edition of the Qoder CLI (Refs #253), which
+ * Fallback command names, checked only when no override is configured and the
+ * default is absent. Covers the China edition of the Qoder CLI (Refs #253), which
  * installs under `qoderclicn` / `qodercn` and keeps its own config root but
  * accepts the same flag surface the adapter relies on. `qodercli` stays first
  * so machines with both editions installed keep the international default.
@@ -828,49 +828,16 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
   /**
    * The ordered list of command names this adapter will consult. When the
    * caller passed an explicit command, it is the only candidate (matches
-   * pre-#253 behaviour for tests and any embedder that already resolved the
-   * binary path themselves). Otherwise:
-   *   1. `DIGITAL_EMPLOYEE_QODER_COMMAND` from the injected environment, if
-   *      set to a non-empty trimmed value.
-   *   2. `qodercli` -- the international default.
-   *   3. `qoderclicn`, `qodercn` -- CN edition fallbacks.
-   * Duplicates are dropped while preserving the first occurrence so a caller
-   * pointing the override at `qodercli` does not re-check the default entry.
+   * pre-#253 behaviour for embedders). A nonblank environment override is also
+   * authoritative: any failure is surfaced without silently changing editions.
+   * Only unconfigured discovery walks qodercli, qoderclicn, then qodercn.
    */
   private resolveCommandCandidates(): readonly string[] {
     if (this.explicitCommand !== undefined) return [this.explicitCommand]
     const override = this.environment[QODER_COMMAND_ENV]?.trim()
-    const seen = new Set<string>()
-    const candidates: string[] = []
-    const push = (value: string | undefined) => {
-      if (!value || seen.has(value)) return
-      seen.add(value)
-      candidates.push(value)
-    }
-    push(override && override.length > 0 ? override : undefined)
-    push(QODER_DEFAULT_COMMAND)
-    for (const fallback of QODER_FALLBACK_COMMANDS) push(fallback)
-    return candidates
+    if (override) return [override]
+    return [QODER_DEFAULT_COMMAND, ...QODER_FALLBACK_COMMANDS]
   }
-
-  /**
-   * The command name in force for the current run. Recomputed for each
-   * spawn/probe so a change to the injected environment between calls is
-   * respected without reconstructing the adapter, and so a CN-only host
-   * discovered during the probe is what a subsequent `run` also spawns.
-   */
-  private get command(): string {
-    // When no explicit command was supplied, prefer whichever candidate
-    // `probeCommandCandidates` last confirmed as spawnable. Falling back to
-    // the first candidate keeps behaviour deterministic when no probe has
-    // run yet (for example, `run` invoked before `probe`), and matches the
-    // pre-#253 default of `qodercli` when the env override is absent.
-    if (this.lastSpawnableCommand !== undefined) return this.lastSpawnableCommand
-    const candidates = this.resolveCommandCandidates()
-    return candidates[0] ?? QODER_DEFAULT_COMMAND
-  }
-
-  private lastSpawnableCommand: string | undefined
 
   /**
    * Runs the version probe against each candidate in order until one reports
@@ -897,7 +864,6 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
         { signal },
       )
       if (result.status === "installed") {
-        this.lastSpawnableCommand = candidate
         return { command: candidate, result }
       }
       if (firstResult === undefined) firstResult = { command: candidate, result }
@@ -1094,6 +1060,13 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
           "qoder_preflight_failed"
         throw new QoderAdapterError(code)
       }
+      // Keep the command selected by this run's own preflight. A concurrent
+      // probe must not be able to overwrite another run's executable choice
+      // (especially on hosts where only the CN command is installed).
+      const resolvedCommand =
+        preflight.resolvedCommand ??
+        this.resolveCommandCandidates()[0] ??
+        QODER_DEFAULT_COMMAND
 
       const outputSchema = validateRequestShape(request)
       const projection = await inspectProjectionFiles(request)
@@ -1270,8 +1243,8 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
       await this.beforeSpawn?.()
       const beforeSpawnError = stoppedRunError(active)
       if (beforeSpawnError) throw beforeSpawnError
-      const winExec = resolveWindowsExecutable(this.command)
-      const child = spawn(winExec?.command ?? this.command, args, {
+      const winExec = resolveWindowsExecutable(resolvedCommand)
+      const child = spawn(winExec?.command ?? resolvedCommand, args, {
         cwd: workspace,
         shell: winExec?.needsShell === true,
         windowsHide: true,

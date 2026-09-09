@@ -35,7 +35,8 @@ import {
   type OrganizationPermissions,
 } from "../../../packages/engine/src/org-permissions.js"
 import { createClaudeLocalModelPort, probeLocalClaude } from "./claude-local-model-port.js"
-import { createQoderModelPort, probeQoderModelPort } from "./qoder-model-port.js"
+import { createQoderModelPort } from "./qoder-model-port.js"
+import { createQoderAgentHostAdapter } from "../qoder-agent-host.js"
 import {
   operatorCredentialView,
   QODER_SERVICE_TOKEN_ENV,
@@ -113,7 +114,7 @@ async function loadPermissionsArtifact(
   }
 }
 
-function resolveModelPort(env: NodeJS.ProcessEnv): ModelPort {
+async function resolveModelPort(env: NodeJS.ProcessEnv): Promise<ModelPort> {
   const engine = env[TURN_ENGINE_MODEL_ENV]
   if (engine === undefined || engine.trim().length === 0) {
     throw new TurnSpawnError(
@@ -175,8 +176,20 @@ function resolveModelPort(env: NodeJS.ProcessEnv): ModelPort {
     // version or missing token are environment faults: surface them here so
     // they map to exit 1, instead of letting the engine model them as a
     // failed turn and report exit 0.
-    const command = env[TURN_ENGINE_QODER_COMMAND_ENV]?.trim() || "qodercli"
-    const unusable = probeQoderModelPort(command)
+    // Share the doctor/setup/employee-run resolver, then pin the selected
+    // command for execution. An absent override permits CN-only discovery.
+    const override = env[TURN_ENGINE_QODER_COMMAND_ENV]?.trim()
+    const probe = await createQoderAgentHostAdapter({
+      ...(override ? { command: override } : {}),
+    }).probe()
+    const command = probe.resolvedCommand!
+    const unusable = process.platform === "win32"
+      ? "host_platform_not_conformance_verified"
+      : !probe.available
+      ? "qoder_binary_unavailable"
+      : probe.issues.some((issue) => issue.code === "qoder_version_not_conformance_verified")
+      ? "qoder_version_not_conformance_verified"
+      : undefined
     if (unusable !== undefined) {
       throw new TurnSpawnError(
         "engine.model_unavailable",
@@ -304,7 +317,7 @@ export async function runTurn(options: TurnRunOptions): Promise<TurnRunResult> {
 
   let model: ModelPort
   try {
-    model = options.model ?? resolveModelPort(env)
+    model = options.model ?? await resolveModelPort(env)
   } catch (error) {
     if (error instanceof TurnSpawnError) {
       return failSpawn(error.code, error.message)

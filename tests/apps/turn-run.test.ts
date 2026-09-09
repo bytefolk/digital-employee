@@ -6,13 +6,15 @@
  */
 
 import assert from "node:assert/strict"
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { spawnSync } from "node:child_process"
 import os from "node:os"
 import path from "node:path"
 import test from "node:test"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
 import { runTurn } from "../../apps/cli/turn/turn-run.js"
+import { createEmployeePackage } from "../../apps/cli/employee-package.js"
 import {
   computeEnvelopeDigest,
   TURN_ENVELOPE_V1_VERSION,
@@ -454,6 +456,69 @@ test("#185 AC-002: qoder port completes a turn through the spawn surface", async
     if (saved === undefined) delete process.env.QODER_PERSONAL_ACCESS_TOKEN;
     else process.env.QODER_PERSONAL_ACCESS_TOKEN = saved;
   }
+})
+
+test("CN-only PATH completes doctor, setup, employee run and turn run in CLI processes", async (t) => {
+  if (process.platform === "win32") return t.skip("fixture executable is POSIX-only")
+  const workspace = await createWorkspace()
+  t.after(() => rm(workspace, { recursive: true, force: true }))
+  const bin = path.join(workspace, "bin")
+  const employee = path.join(workspace, "employee")
+  const capture = path.join(workspace, "capture.json")
+  await mkdir(bin)
+  await createEmployeePackage(employee)
+  // Only the CN name exists on PATH. An absolute interpreter prevents the
+  // fixture from finding any installed Qoder binary or using a real account.
+  await writeFile(path.join(bin, "qoderclicn"), [
+    `#!${process.execPath}`,
+    `const toolsIndex = process.argv.indexOf("--tools")`,
+    `if (toolsIndex >= 0 && process.argv[toolsIndex + 1] === "") process.argv.push("--fixture-mode", "zero-tool")`,
+    `process.argv.push("--capture", ${JSON.stringify(capture)})`,
+    `import(${JSON.stringify(pathToFileURL(QODER_FIXTURE).href)})`,
+    "",
+  ].join("\n"), { mode: 0o755 })
+  const environment = {
+    PATH: bin,
+    HOME: workspace,
+    DIGITAL_EMPLOYEE_ENGINE_MODEL: "qoder",
+    QODER_PERSONAL_ACCESS_TOKEN: "fixture-service-token",
+  }
+  const cli = (args: string[], input?: string, override?: string) => spawnSync(
+    process.execPath,
+    ["--import", "tsx", path.join(repoRoot, "apps/cli/bin.ts"), ...args],
+    {
+      cwd: repoRoot,
+      env: { ...environment, ...(override === undefined ? {} : { DIGITAL_EMPLOYEE_QODER_COMMAND: override }) },
+      encoding: "utf8",
+      timeout: 30_000,
+      input,
+    },
+  )
+  // Exercise turn first so the baseline independently exposes its hardcoded
+  // international command before the separate probe validators fail.
+  const turn = cli(["turn", "run", workspace, "--position", "repo-owner", "--stdin"], JSON.stringify(sealedEnvelope(workspace)))
+  assert.equal(turn.status, 0, turn.stderr)
+  const events = turn.stdout.trim().split("\n").map((line) => JSON.parse(line))
+  assert.equal(events.filter((event) => event.type === "run.completed").length, 1)
+  assert.equal(events.find((event) => event.type === "run.completed")?.output, "fixture qoder answer")
+  const doctor = cli(["doctor", "--engine", "qoder", "--json"])
+  assert.equal(doctor.status, 0, doctor.stderr)
+  assert.equal(JSON.parse(doctor.stdout).hosts[0].resolvedCommand, "qoderclicn")
+  const setup = cli(["setup", employee, "--json"])
+  assert.equal(setup.status, 0, setup.stderr)
+  assert.equal(JSON.parse(setup.stdout).hosts.find((host: { id: string }) => host.id === "qoder").available, true)
+  const run = cli(["run", employee, "--engine", "qoder", "--stdin", "--json"], '{"message":"fixture question"}\n')
+  assert.equal(run.status, 0, run.stderr)
+  assert.equal(JSON.parse(run.stdout).output.answer, "fixture answer")
+  const captured = JSON.parse(await readFile(capture, "utf8"))
+  assert.equal(captured.authPayloadMetadata.mode, 0o600)
+  assert.equal(captured.environmentKeys.includes("QODER_PERSONAL_ACCESS_TOKEN"), false)
+  assert.equal(captured.args.includes(environment.QODER_PERSONAL_ACCESS_TOKEN), false)
+  const missing = cli(["turn", "run", workspace, "--position", "repo-owner", "--stdin"], JSON.stringify(sealedEnvelope(workspace)), "missing-override")
+  assert.equal(missing.status, 1)
+  assert.equal(missing.stdout, "")
+  assert.match(missing.stderr, /qoder_binary_unavailable/)
+  assert.match(missing.stderr, /missing-override/)
 })
 
 test("#185 AC-003: missing service token fails closed at resolution, exit 1", async () => {

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Run the required OpenSSF Scorecard analysis on pull requests targeting main
+  with read-only permissions and a local report artifact, preserving the
+  separate default-branch reporting workflow (#262).
+
 ### Changed
 
 - Replace former GitHub owner coordinates in shipped templates and examples

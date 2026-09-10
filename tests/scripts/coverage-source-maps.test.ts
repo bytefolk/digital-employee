@@ -14,15 +14,21 @@ test("coverage maps the built CLI exercised by subprocess tests back to TypeScri
 }, async () => {
   const manifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"))
   const includes = [...manifest.scripts["test:coverage"].matchAll(/--test-coverage-include='([^']+)'/g)]
-    .map((match) => `--test-coverage-include=${match[1]}`)
+    .map((match) => match[1] as string)
   assert.ok(includes.length > 0, "coverage must keep an explicit source boundary")
+  // Exercise the real CLI, but report only this command's source/build pair.
+  // Intersect with the configured globs so removing a built include still
+  // breaks this regression without mapping every unrelated imported module.
+  const focusedIncludes = ["apps/cli/hire.ts", "dist/apps/cli/hire.js"]
+    .filter((file) => includes.some((glob) => path.matchesGlob(file, glob)))
+    .map((file) => `--test-coverage-include=${file}`)
   const env = { ...process.env }
   // This is a separate test-runner invocation, not a worker of this runner.
   delete env.NODE_TEST_CONTEXT
   delete env.NODE_V8_COVERAGE
   const result = spawnSync(process.execPath, [
     "--enable-source-maps", "--import", "tsx", "--test",
-    "--experimental-test-coverage", "--test-reporter=tap", ...includes,
+    "--experimental-test-coverage", "--test-reporter=tap", ...focusedIncludes,
     "tests/apps/hire-cli.test.ts",
   ], { cwd: root, env, encoding: "utf8", timeout: 60_000, maxBuffer: 4 * 1024 * 1024 })
   assert.equal(result.status, 0, result.stderr)

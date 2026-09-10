@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Restore the frozen `agent-host.v1` probe keys for older strict consumers.
+  Keep Qoder command selection local to each run and report it through bounded,
+  scrubbed `issues[]` messages; probe and preflight results no longer expose
+  `resolvedCommand`. Registry and wire validators reject that extra field.
+- Reject Qoder turns on Windows before spawning any command-resolution probe.
+- Use the shared Qoder command probe for `turn run`, including CN-only PATH
+  discovery. Explicit command overrides now fail closed; only an absent
+  default command permits fallback to the next supported command name (#253).
+
 ### Changed
 
 - Replace former GitHub owner coordinates in shipped templates and examples

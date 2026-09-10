@@ -36,7 +36,7 @@ import type { SafeValue } from "../../packages/core/src/contracts.js"
 import {
   executeVersionCommand,
 } from "./agent-hosts.js"
-import type { VersionCommandExecutor } from "./agent-hosts.js"
+import type { VersionCommandExecutor, VersionCommandResult } from "./agent-hosts.js"
 import {
   signalAgentHostProcessTree,
   waitForAgentHostProcessTreeExit,
@@ -48,6 +48,33 @@ const QODER_DISPLAY_NAME = "Qoder CLI"
 const CONFORMANCE_MAJOR = 1
 const CONFORMANCE_MINOR = 1
 const QODER_PROTOCOL_MAJOR = 1
+
+/**
+ * Override env var, mirrored from `turn/envelope.ts` so probing and running
+ * agree on the binary. Named as a constant here rather than imported from the
+ * turn envelope module because that module pulls in engine+core spawn-side
+ * dependencies this low-level adapter must not depend on.
+ *
+ * Kept in sync with `apps/cli/turn/envelope.ts` `TURN_ENGINE_QODER_COMMAND_ENV`.
+ */
+export const QODER_COMMAND_ENV = "DIGITAL_EMPLOYEE_QODER_COMMAND" as const
+
+/**
+ * Default Qoder CLI command name (international edition).
+ */
+export const QODER_DEFAULT_COMMAND = "qodercli" as const
+
+/**
+ * Fallback command names, checked only when no override is configured and the
+ * default is absent. Covers the China edition of the Qoder CLI (Refs #253), which
+ * installs under `qoderclicn` / `qodercn` and keeps its own config root but
+ * accepts the same flag surface the adapter relies on. `qodercli` stays first
+ * so machines with both editions installed keep the international default.
+ */
+export const QODER_FALLBACK_COMMANDS: readonly string[] = Object.freeze([
+  "qoderclicn",
+  "qodercn",
+])
 // Qoder's TypeScript SDK 1.0.17 currently announces this process-transport
 // compatibility version when it enables SDK mode in qodercli 1.1.x.
 const QODER_SDK_TRANSPORT_VERSION = "1.0.16"
@@ -757,7 +784,13 @@ function projectionIdentityMatches(
 
 export class QoderAgentHostAdapter implements AgentHostAdapter {
   readonly hostId = QODER_HOST_ID
-  private readonly command: string
+  /**
+   * Explicit command override, only set when the embedder or a test passes
+   * `options.command`. Real deployments rely on `resolveCommandCandidates`,
+   * which reads the same env override `turn run` reads and falls through to
+   * the CN fallback names.
+   */
+  private readonly explicitCommand: string | undefined
   private readonly commandPrefixArgs: string[]
   private readonly environment: NodeJS.ProcessEnv
   private readonly versionExecutor: VersionCommandExecutor
@@ -772,7 +805,7 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
   private readonly activeRuns = new Map<string, ActiveRun>()
 
   constructor(options: QoderAgentHostAdapterOptions = {}) {
-    this.command = options.command ?? "qodercli"
+    this.explicitCommand = options.command
     this.commandPrefixArgs = [...(options.commandPrefixArgs ?? [])]
     this.environment = { ...(options.environment ?? process.env) }
     this.versionExecutor = options.versionExecutor ?? executeVersionCommand
@@ -792,11 +825,71 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
       ((directory) => rm(directory, { recursive: true, force: true }))
   }
 
+  /**
+   * The ordered list of command names this adapter will consult. When the
+   * caller passed an explicit command, it is the only candidate (matches
+   * pre-#253 behaviour for embedders). A nonblank environment override is also
+   * authoritative: any failure is surfaced without silently changing editions.
+   * Only unconfigured discovery walks qodercli, qoderclicn, then qodercn.
+   */
+  private resolveCommandCandidates(): readonly string[] {
+    if (this.explicitCommand !== undefined) return [this.explicitCommand]
+    const override = this.environment[QODER_COMMAND_ENV]?.trim()
+    if (override) return [override]
+    return [QODER_DEFAULT_COMMAND, ...QODER_FALLBACK_COMMANDS]
+  }
+
+  /**
+   * Runs the version probe against each candidate in order until one reports
+   * `installed`, or every candidate has been tried. Returns the executor
+   * result plus the command that produced it, so local callers can pin
+   * subsequent spawns without adding execution state to the frozen probe.
+   *
+   * `not_found` alone is not a hard failure while candidates remain; on a
+   * host with only the CN edition, the international name legitimately does
+   * not exist. Any other failure (`not_spawnable`, `probe_failed`) is
+   * returned for the first candidate that produced it, because those signal
+   * an installed-but-broken binary the operator should see rather than a
+   * missing edition to fall through past.
+   */
+  private async probeCommandCandidates(
+    signal: AbortSignal | undefined,
+  ): Promise<{ command: string; result: VersionCommandResult }> {
+    const candidates = this.resolveCommandCandidates()
+    let firstResult: { command: string; result: VersionCommandResult } | undefined
+    for (const candidate of candidates) {
+      const result = await this.versionExecutor(
+        candidate,
+        [...this.commandPrefixArgs, "--version"],
+        { signal },
+      )
+      if (result.status === "installed") {
+        return { command: candidate, result }
+      }
+      if (firstResult === undefined) firstResult = { command: candidate, result }
+      // Only `not_found` warrants trying the next candidate; other statuses
+      // point at a real problem on the resolved binary.
+      if (result.status !== "not_found") {
+        return { command: candidate, result }
+      }
+    }
+    return firstResult ?? { command: candidates[0] ?? QODER_DEFAULT_COMMAND, result: { status: "not_found" } }
+  }
+
   async probe(signal?: AbortSignal): Promise<AgentHostProbeResult> {
-    const result = await this.versionExecutor(this.command, [
-      ...this.commandPrefixArgs,
-      "--version",
-    ], { signal })
+    return (await this.probeWithCommand(signal)).probe
+  }
+
+  /** Local execution state; only `probe` crosses the agent-host.v1 boundary. */
+  async probeWithCommand(signal?: AbortSignal): Promise<{
+    command: string
+    probe: AgentHostProbeResult
+  }> {
+    const { command: resolvedCommand, result } = await this.probeCommandCandidates(signal)
+    const diagnostic = (value: string) => scrubSecret(
+      value, this.environment.QODER_PERSONAL_ACCESS_TOKEN?.trim() ?? "",
+    ).replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 1024)
+    const commandDiagnostic = diagnostic(resolvedCommand)
     const issues: AgentHostIssue[] = []
     const available = result.status === "installed"
     let status: AgentHostProbeResult["status"] = result.status
@@ -805,21 +898,21 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
       issues.push(
         issue(
           "host_executable_not_found",
-          `${QODER_DISPLAY_NAME} executable was not found on PATH`,
+          `${QODER_DISPLAY_NAME} executable was not found on PATH (looked for: ${diagnostic(this.resolveCommandCandidates().join(", "))})`,
         ),
       )
     } else if (result.status === "not_spawnable") {
       issues.push(
         issue(
           "host_executable_not_spawnable",
-          `${QODER_DISPLAY_NAME} executable was resolved on PATH but could not be spawned`,
+          `${QODER_DISPLAY_NAME} executable was resolved on PATH but could not be spawned (${commandDiagnostic})`,
         ),
       )
     } else if (result.status === "probe_failed") {
       issues.push(
         issue(
           "host_version_probe_failed",
-          `${QODER_DISPLAY_NAME} did not complete its version probe`,
+          `${QODER_DISPLAY_NAME} did not complete its version probe (${commandDiagnostic})`,
         ),
       )
     } else if (!parseConformanceVersion(result.output)) {
@@ -856,7 +949,10 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
       )
     }
 
-    return {
+    if (available) {
+      issues.push(issue("qoder_command_selected", `Qoder command: ${commandDiagnostic}`, false))
+    }
+    const probe: AgentHostProbeResult = {
       protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
       hostId: QODER_HOST_ID,
       displayName: QODER_DISPLAY_NAME,
@@ -868,9 +964,17 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
       capabilitySource: "conformance_test",
       issues,
     }
+    return { command: resolvedCommand, probe }
   }
 
   async preflight(request: AgentHostRunRequest): Promise<AgentHostProbeResult> {
+    return (await this.preflightWithCommand(request)).probe
+  }
+
+  private async preflightWithCommand(request: AgentHostRunRequest): Promise<{
+    command?: string
+    probe: AgentHostProbeResult
+  }> {
     try {
       prepareOutputSchema(request.outputSchema)
     } catch (error) {
@@ -879,24 +983,26 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
           ? error.code
           : "qoder_policy_projection_failed"
       return {
-        protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
-        hostId: QODER_HOST_ID,
-        displayName: QODER_DISPLAY_NAME,
-        status: "not_ready",
-        available: false,
-        adapterStatus: "runnable",
-        capabilities: capabilities(),
-        capabilitySource: "conformance_test",
-        issues: [
-          issue(
-            code,
-            "Qoder cannot safely validate this output Schema",
-          ),
-        ],
+        probe: {
+          protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
+          hostId: QODER_HOST_ID,
+          displayName: QODER_DISPLAY_NAME,
+          status: "not_ready",
+          available: false,
+          adapterStatus: "runnable",
+          capabilities: capabilities(),
+          capabilitySource: "conformance_test",
+          issues: [
+            issue(
+              code,
+              "Qoder cannot safely validate this output Schema",
+            ),
+          ],
+        },
       }
     }
 
-    const probe = await this.probe(request.signal)
+    const { command, probe } = await this.probeWithCommand(request.signal)
     const issues = [...probe.issues]
     try {
       validateRequestShape(request)
@@ -914,9 +1020,12 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
       )
     }
     return {
-      ...probe,
-      status: issues.some((entry) => entry.blocking) ? "not_ready" : "ready",
-      issues,
+      command,
+      probe: {
+        ...probe,
+        status: issues.some((entry) => entry.blocking) ? "not_ready" : "ready",
+        issues,
+      },
     }
   }
 
@@ -966,10 +1075,12 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
 
       const beforePreflightError = stoppedRunError(active)
       if (beforePreflightError) throw beforePreflightError
-      const preflight = await this.preflight(request)
+      // Keep this run's command local across concurrent probes and runs.
+      const { command: resolvedCommand, probe: preflight } = await this.preflightWithCommand(request)
       const afterPreflightError = stoppedRunError(active)
       if (afterPreflightError) throw afterPreflightError
       if (
+        resolvedCommand === undefined ||
         preflight.status !== "ready" ||
         preflight.issues.some((entry) => entry.blocking)
       ) {
@@ -978,7 +1089,6 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
           "qoder_preflight_failed"
         throw new QoderAdapterError(code)
       }
-
       const outputSchema = validateRequestShape(request)
       const projection = await inspectProjectionFiles(request)
       const afterProjectionError = stoppedRunError(active)
@@ -1154,8 +1264,8 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
       await this.beforeSpawn?.()
       const beforeSpawnError = stoppedRunError(active)
       if (beforeSpawnError) throw beforeSpawnError
-      const winExec = resolveWindowsExecutable(this.command)
-      const child = spawn(winExec?.command ?? this.command, args, {
+      const winExec = resolveWindowsExecutable(resolvedCommand)
+      const child = spawn(winExec?.command ?? resolvedCommand, args, {
         cwd: workspace,
         shell: winExec?.needsShell === true,
         windowsHide: true,

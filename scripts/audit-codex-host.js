@@ -12,7 +12,12 @@ export const AUDITED_CODEX_VERSION = "0.148.0";
 export const AUDIT_SCHEMA = "codex-host-research-record.v1";
 export const MAX_LOOPBACK_REQUEST_BYTES = 4 * 1024 * 1024;
 
-export const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+// Keep argument validation and `codex --version` extraction on the same version
+// grammar. A mismatch between the two can silently file an audit under a
+// different build than the executable that actually ran.
+export const SEMVER_SOURCE = String.raw`\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?`;
+export const SEMVER_PATTERN = new RegExp(`^${SEMVER_SOURCE}$`);
+const CODEX_VERSION_PATTERN = new RegExp(`codex-cli (${SEMVER_SOURCE})(?:\\s|$)`);
 
 export function parseArgs(argv) {
   const binIndex = argv.indexOf("--codex-bin");
@@ -258,13 +263,9 @@ export async function auditCodex(codexBin, expectVersion = AUDITED_CODEX_VERSION
     if (!address || typeof address === "string") throw new Error("loopback bind failed");
     const versionResult = await runProcess(codexBin, ["--version"], { env, cwd: root });
     requireSuccessfulProcess(versionResult, "Codex version probe");
-    // Must capture any prerelease suffix too. Capturing only the release
-    // prefix made a prerelease build unauditable under its real version and,
-    // worse, let it pass as the stable release and be recorded under that
-    // name — breaking the invariant that a record names the build it audited.
-    const versionMatch = /codex-cli (\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/.exec(
-      versionResult.stdout,
-    );
+    // Capture the complete version, including prerelease and build metadata,
+    // so the record names exactly the build that produced the evidence.
+    const versionMatch = CODEX_VERSION_PATTERN.exec(versionResult.stdout);
     const version = versionMatch?.[1];
     if (version !== expectVersion) {
       throw new Error(`expected codex-cli ${expectVersion}, found ${version ?? "unknown"}`);

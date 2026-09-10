@@ -233,7 +233,7 @@ test("audited version is the default expectation when --expect-version is absent
   assert.equal(parsed.codexBin, path.resolve("/usr/bin/codex"));
 });
 
-test("--expect-version overrides the pinned version, including prereleases", () => {
+test("--expect-version overrides the pinned version, including semver suffixes", () => {
   assert.equal(
     parseArgs(["--codex-bin", "/usr/bin/codex", "--expect-version", "0.153.4"]).expectVersion,
     "0.153.4"
@@ -242,6 +242,11 @@ test("--expect-version overrides the pinned version, including prereleases", () 
     parseArgs(["--codex-bin", "/usr/bin/codex", "--expect-version", "0.154.0-alpha.3"])
       .expectVersion,
     "0.154.0-alpha.3"
+  );
+  assert.equal(
+    parseArgs(["--codex-bin", "/usr/bin/codex", "--expect-version", "0.154.0+build.7"])
+      .expectVersion,
+    "0.154.0+build.7"
   );
 });
 
@@ -311,6 +316,34 @@ test("a prerelease build is refused when only its release prefix is expected", a
     await assert.rejects(
       auditCodex(binary, "0.154.0"),
       /expected codex-cli 0\.154\.0, found 0\.154\.0-alpha\.3/
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("a build-metadata version is audited under its complete version", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "codex-audit-build-metadata-"));
+  const binary = path.join(directory, "fake-codex");
+  try {
+    await writeFile(binary, fakeCodexSource("0.154.0-alpha.3+build.7"), { mode: 0o755 });
+    await chmod(binary, 0o755);
+    const record = await auditCodex(binary, "0.154.0-alpha.3+build.7");
+    assert.equal(record.auditedVersion, "0.154.0-alpha.3+build.7");
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("a build-metadata version is refused when only its prefix is expected", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "codex-audit-build-mislabel-"));
+  const binary = path.join(directory, "fake-codex");
+  try {
+    await writeFile(binary, fakeCodexSource("0.154.0+build.7"), { mode: 0o755 });
+    await chmod(binary, 0o755);
+    await assert.rejects(
+      auditCodex(binary, "0.154.0"),
+      /expected codex-cli 0\.154\.0, found 0\.154\.0\+build\.7/
     );
   } finally {
     await rm(directory, { recursive: true, force: true });

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Check deployment-lock watchdog signals per helper attempt/PID, with real
+  two-watchdog retry and strict signal/cleanup regressions (#267).
+
 ### Changed
 
 - Replace former GitHub owner coordinates in shipped templates and examples

@@ -45,6 +45,13 @@ const orgTreeFixture = path.join(
   "fixtures",
   "org-tree-oss-maintainer.json",
 )
+const orgTreeZhFixture = path.join(
+  root,
+  "tests",
+  "apps",
+  "fixtures",
+  "org-tree-oss-maintainer-zh.json",
+)
 
 function cliEnvironment(home: string, extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = { ...process.env }
@@ -87,10 +94,11 @@ async function initWorkspace(
   t: test.TestContext,
   home: string,
   env: NodeJS.ProcessEnv,
+  template = "oss-maintainer",
 ): Promise<string> {
   const target = path.join(home, "oss")
   const result = runCli(
-    ["workspace", "init", target, "--template", "oss-maintainer"],
+    ["workspace", "init", target, "--template", template],
     env,
     home,
   )
@@ -567,6 +575,34 @@ test("AC-002: org tree renders hierarchy and depth; --json passes the org-tree.v
   assert.deepEqual(parsed, fixture)
 
   // org tree is read-only: it never materializes organization state.
+  await assert.rejects(stat(path.join(target, ".digital-employee")))
+})
+
+test("AC-002: org tree renders the oss-maintainer-zh hierarchy; --json passes the zh fixture", async (t) => {
+  const home = await freshHome(t)
+  const env = cliEnvironment(home)
+  const target = await initWorkspace(t, home, env, "oss-maintainer-zh")
+
+  const text = runCli(["org", "tree", target], env, home)
+  assert.equal(text.status, 0, text.stderr)
+  assert.match(text.stdout, /oss \(owner: repo-owner\)/)
+  assert.match(text.stdout, /^repo-owner \[owner\]$/m)
+  assert.match(text.stdout, /├── community-operator/)
+  assert.match(text.stdout, /├── issue-researcher/)
+  assert.match(text.stdout, /└── release-engineer/)
+  assert.match(text.stdout, /positions: 4 · depth: 2/)
+
+  const json = runCli(["org", "tree", target, "--json"], env, home)
+  assert.equal(json.status, 0, json.stderr)
+  const parsed = JSON.parse(json.stdout) as Record<string, unknown>
+  const fixture = (await readJson(orgTreeZhFixture)) as Record<string, unknown>
+  assert.match(
+    String(parsed.updatedAt),
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/,
+  )
+  parsed.updatedAt = fixture.updatedAt
+  assert.deepEqual(parsed, fixture)
+
   await assert.rejects(stat(path.join(target, ".digital-employee")))
 })
 

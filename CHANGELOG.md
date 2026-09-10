@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Use pinned development-only c8 coverage accounting to merge mixed TSX and
+  compiled subprocess source maps without order-dependent loss of executed
+  source lines. Retain the production domains and 85/65/80 coverage gates;
+  reject empty reports and test real mixed captures and uncovered controls.
 - Replace former GitHub owner coordinates in shipped templates and examples
   with ByteFolk, and align visible employee authorship while retaining frozen
   JSON Schema identities and the existing npm compatibility namespace.

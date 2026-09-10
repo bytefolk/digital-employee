@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promis
 import os from "node:os"
 import path from "node:path"
 import test from "node:test"
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 
@@ -33,6 +33,8 @@ function environment(): NodeJS.ProcessEnv {
   // Nested instrumentation is independent of the enclosing application suite.
   delete env.NODE_TEST_CONTEXT
   delete env.NODE_V8_COVERAGE
+  delete env.COVERAGE_IMPORT_QUERY
+  delete env.COVERAGE_IMPORT_TSX
   return env
 }
 
@@ -42,13 +44,15 @@ function run(args: string[], env = environment()) {
   })
 }
 
-async function capture(directory: string, files: string[], count: number) {
+async function capture(directory: string, files: string[], count: number, overrides: NodeJS.ProcessEnv = {}) {
   await mkdir(directory, { recursive: true })
   const result = run([
     "--enable-source-maps", "--import", "tsx", "--test", "--test-concurrency=1", "--test-reporter=tap", ...files,
-  ], { ...environment(), NODE_V8_COVERAGE: directory })
+  ], { ...environment(), ...overrides, NODE_V8_COVERAGE: directory, TMPDIR: directory })
   assert.equal(result.status, 0, result.stderr || result.stdout)
   assert.match(result.stdout, new RegExp(`# pass ${count}\\b`))
+  assert.match(result.stdout, /# fail 0\b/)
+  assert.match(result.stdout, /# skipped 0\b/)
   return Promise.all((await readdir(directory)).filter(file => file.endsWith(".json"))
     .map(file => readFile(path.join(directory, file), "utf8")))
 }
@@ -168,41 +172,98 @@ test("empty, missing or nonfinite coverage fails closed instead of passing numer
 })
 
 test("mixed source/build captures are order-invariant without erasing hits or accepting uncovered code", async t => {
-  const temp = await mkdtemp(path.join(os.tmpdir(), "coverage-guard-"))
+  const temp = await mkdtemp(path.join(os.tmpdir(), "coverage-runners-"))
   t.after(() => rm(temp, { recursive: true, force: true }))
-  // Nine existing application tests are unchanged. The additional import
-  // executes no claim: it must not erase their hits or pad application coverage.
-  const snapshots = await capture(path.join(temp, "capture"), [
-    "tests/core/runner-replay-guard.test.ts",
-    "tests/scripts/fixtures/coverage-compiled-import.test.mjs",
-  ], 10)
-  const source = snapshots.find(bytes => JSON.parse(bytes).result.some(
-    (entry: { url: string }) => entry.url.endsWith("/packages/core/src/runner-replay-guard.ts"),
-  ))
-  const built = snapshots.find(bytes => JSON.parse(bytes).result.some(
-    (entry: { url: string }) => entry.url.endsWith("/dist/packages/core/src/runner-replay-guard.js"),
-  ))
-  assert.ok(source && built, "both independently generated coverage shapes must be captured")
-  const pair = ["packages/core/src/runner-replay-guard.ts", "dist/packages/core/src/runner-replay-guard.js"]
-  const alone = await report(path.join(temp, "alone"), [source], pair)
-  const forward = await report(path.join(temp, "forward"), [source, built], pair)
-  const reverse = await report(path.join(temp, "reverse"), [built, source], pair)
-  for (const current of [alone, forward, reverse]) assert.equal(current.result.status, 0, current.result.stderr)
-  assert.deepEqual(forward.summary, reverse.summary, "all metrics must be independent of snapshot order")
-  assert.deepEqual(forward.summary.total.lines, alone.summary.total.lines, "an unused import cannot erase line hits")
-  assert.ok(forward.summary.total.lines.pct >= 90, "nine existing guard tests must retain their real hits")
-  assert.equal(Object.keys(forward.coverage).length, 1, "do not count the built file again")
-  const original = Object.values(alone.coverage)[0]!
-  for (const current of [forward, reverse]) {
-    const covered = coveredLocations(Object.values(current.coverage)[0]!)
-    for (const location of coveredLocations(original)) {
-      assert.ok(covered.has(location), `an executed source location was erased: ${location}`)
-    }
+  const sources = [
+    "apps/cli/runner-executor.ts",
+    "packages/core/src/runner-lease.ts",
+    "packages/core/src/runner-replay-guard.ts",
+  ]
+  const builtFiles = sources.map(file => `dist/${file.replace(/\.ts$/, ".js")}`)
+  const includes = [...sources, ...builtFiles]
+  const expectedKeys = sources.map(file => path.join(root, file)).sort()
+  const variants = [
+    { name: "plain-node", query: "", tsx: "0" },
+    { name: "plain-tsx", query: "", tsx: "1" },
+    // Match host-runtime-exports.test.ts's cache-busting query shape without
+    // making the experiment depend on a wall clock or coincident timestamps.
+    { name: "query-a-tsx", query: "?test=1", tsx: "1" },
+    { name: "query-b-tsx", query: "?test=2", tsx: "1" },
+  ]
+  const urls = (bytes: string): string[] => JSON.parse(bytes).result.map((entry: { url: string }) => entry.url)
+  const select = (snapshots: string[], files: string[]) => {
+    const expected = files.map(file => pathToFileURL(path.join(root, file)).href)
+    for (const url of expected) assert.ok(snapshots.some(bytes => urls(bytes).includes(url)), `missing capture: ${url}`)
+    return snapshots.filter(bytes => urls(bytes).some(url => expected.includes(url)))
   }
-  const uncovered = await report(path.join(temp, "uncovered"), [built], pair, true)
-  assert.notEqual(uncovered.result.status, 0, "mere import must not pass the real coverage gates")
-  for (const [metric, threshold] of [["lines", 85], ["branches", 65], ["functions", 80]] as const) {
-    assert.match(uncovered.result.stderr, new RegExp(`Coverage for ${metric} .*threshold \\(${threshold}%\\)`))
-    assert.ok(uncovered.summary.total[metric].pct < threshold)
+  const normalize = (current: Awaited<ReturnType<typeof report>>) => ({
+    summary: current.summary,
+    // Raw V8 hit counts and generated counter IDs are not source identities.
+    locations: expectedKeys.map(file => [file, [...coveredLocations(current.coverage[file]!)].sort()]),
+  })
+  let reference: ReturnType<typeof normalize> | undefined
+  // Recapture actual execution twice; replaying one capture twice cannot prove
+  // repeatability of the collection step. No existing application test changes.
+  for (let round = 1; round <= 2; round++) {
+    const directory = path.join(temp, `round-${round}`)
+    const source = select(await capture(path.join(directory, "source"), [
+      "tests/apps/runner-executor.test.ts",
+      "tests/core/runner-lease.test.ts",
+      "tests/core/runner-replay-guard.test.ts",
+    ], 22), sources)
+    const alone = await report(path.join(directory, "alone"), source, includes)
+    assert.equal(alone.result.status, 0, alone.result.stderr)
+    assert.deepEqual(Object.keys(alone.coverage).sort(), expectedKeys)
+    for (const variant of variants) {
+      await t.test(`capture ${round}: ${variant.name}, all three runner files`, async subtest => {
+        const currentDirectory = path.join(directory, variant.name)
+        const built = select(await capture(path.join(currentDirectory, "capture"), [
+          "tests/scripts/fixtures/coverage-compiled-import.test.mjs",
+        ], 1, { COVERAGE_IMPORT_QUERY: variant.query, COVERAGE_IMPORT_TSX: variant.tsx }), builtFiles)
+        const barrelUrl = pathToFileURL(path.join(root, "dist/apps/cli/host-runtime.js")).href + variant.query
+        assert.ok(built.some(bytes => urls(bytes).includes(barrelUrl)), "the requested import URL must reach V8 coverage")
+        const mixed = [...source, ...built]
+        const orders = [mixed, [...mixed].reverse(), [...built, ...source]]
+        for (const [index, snapshots] of orders.entries()) {
+          const current = await report(path.join(currentDirectory, `order-${index}`), snapshots, includes)
+          assert.equal(current.result.status, 0, current.result.stderr)
+          assert.deepEqual(Object.keys(current.coverage).sort(), expectedKeys, "measure each original source exactly once")
+          for (const file of expectedKeys) {
+            const covered = coveredLocations(current.coverage[file]!)
+            for (const location of coveredLocations(alone.coverage[file]!)) {
+              assert.ok(covered.has(location), `${file}: an executed source location was erased: ${location}`)
+            }
+            assert.deepEqual(current.summary[file].lines, alone.summary[file].lines, `${file}: an unused import cannot erase line hits`)
+          }
+          const guard = path.join(root, sources[2]!)
+          assert.ok(current.summary[guard].lines.pct >= 90, "existing guard tests must retain their real hits")
+          const normalized = normalize(current)
+          reference ??= normalized
+          assert.deepEqual(normalized, reference, "metrics and positive source locations must match across capture rounds, orders and import URLs")
+        }
+        // Each affected file must independently reject an import-only capture;
+        // an aggregate failure must not conceal an incorrectly passing file.
+        for (const [index, file] of sources.entries()) {
+          const uncovered = await report(path.join(currentDirectory, `uncovered-${index}`), built,
+            [file, builtFiles[index]!], true)
+          assert.deepEqual(Object.keys(uncovered.coverage), [path.join(root, file)])
+          assert.notEqual(uncovered.result.status, 0, `${file}: mere import must not pass the real coverage gates`)
+          assert.equal(uncovered.summary.total.functions.covered, 0, `${file}: import must execute no runner function`)
+          for (const [metric, threshold] of [["lines", 85], ["branches", 65], ["functions", 80]] as const) {
+            if (file === sources[0] && metric === "branches") {
+              // V8 emits no block ranges for the uncalled executor functions.
+              // c8 reports an empty branch denominator as 100%, not a failed
+              // branch gate. Lines/functions must still reject this file;
+              // lease and replay guard must still fail all three real gates.
+              assert.deepEqual(uncovered.summary.total.branches, { total: 0, covered: 0, skipped: 0, pct: 100 })
+              continue
+            }
+            assert.match(uncovered.result.stderr, new RegExp(`Coverage for ${metric} .*threshold \\(${threshold}%\\)`))
+            assert.ok(uncovered.summary.total[metric].pct < threshold, `${file}: negative ${metric} control`)
+          }
+        }
+        subtest.diagnostic("3 capture orders agree; 3 per-file import-only controls fail unchanged gates; executor has 0 measured branches")
+      })
+    }
   }
 })

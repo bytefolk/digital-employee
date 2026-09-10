@@ -8,7 +8,7 @@
   "tree": [
     {
       "id": "repo-owner",
-      "name": "Repo Owner",
+      "name": "仓库负责人",
       "reportTo": null,
       "mode": "read_only",
       "budget": {
@@ -18,7 +18,7 @@
       "children": [
         {
           "id": "community-operator",
-          "name": "Community Operator",
+          "name": "社区运营",
           "reportTo": "repo-owner",
           "mode": "read_only",
           "budget": {
@@ -29,7 +29,7 @@
         },
         {
           "id": "issue-researcher",
-          "name": "Issue Researcher",
+          "name": "问题研究员",
           "reportTo": "repo-owner",
           "mode": "read_only",
           "budget": {
@@ -40,7 +40,7 @@
         },
         {
           "id": "release-engineer",
-          "name": "Release Engineer",
+          "name": "发布工程师",
           "reportTo": "repo-owner",
           "mode": "read_only",
           "budget": {

@@ -14,6 +14,7 @@ import test from "node:test"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
 import { runTurn } from "../../apps/cli/turn/turn-run.js"
+import { QoderAgentHostAdapter } from "../../apps/cli/qoder-agent-host.js"
 import { createEmployeePackage } from "../../apps/cli/employee-package.js"
 import {
   computeEnvelopeDigest,
@@ -421,6 +422,48 @@ test("workspaceRef mismatch fails closed", async () => {
   assert.equal(events.length, 0)
 })
 
+test("win32 Qoder turn rejects before any candidate version spawn", async (t) => {
+  const workspace = await createWorkspace()
+  t.after(() => rm(workspace, { recursive: true, force: true }))
+  let candidateSpawns = 0
+  // Count the executor seam used by the real candidate resolver, preventing
+  // any real executable from being launched even when the gate regresses.
+  const resolver = QoderAgentHostAdapter.prototype as unknown as {
+    probeCommandCandidates(signal?: AbortSignal): Promise<unknown>
+  }
+  const originalResolve = resolver.probeCommandCandidates
+  t.mock.method(resolver, "probeCommandCandidates", async () => {
+    return originalResolve.call(new QoderAgentHostAdapter({
+      environment: {},
+      versionExecutor: async () => {
+        candidateSpawns += 1
+        return { status: "not_found" }
+      },
+    }))
+  })
+  const platform = Object.getOwnPropertyDescriptor(process, "platform")
+  assert.ok(platform)
+  Object.defineProperty(process, "platform", { value: "win32" })
+  const diagnostics: string[] = []
+  const events: string[] = []
+  try {
+    const result = await runTurn({
+      workspace,
+      positionId: "repo-owner",
+      envelopeText: JSON.stringify(sealedEnvelope(workspace)),
+      env: { DIGITAL_EMPLOYEE_ENGINE_MODEL: "qoder" },
+      writeEvent: (line) => events.push(line),
+      writeDiagnostic: (line) => diagnostics.push(line),
+    })
+    assert.deepEqual(result, { exitCode: 1, terminalEmitted: false })
+    assert.deepEqual(events, [])
+    assert.match(diagnostics.join("\n"), /host_platform_not_conformance_verified/)
+    assert.equal(candidateSpawns, 0)
+  } finally {
+    Object.defineProperty(process, "platform", platform)
+  }
+})
+
 test("#185 AC-002: qoder port completes a turn through the spawn surface", async () => {
   const workspace = await createWorkspace()
   const envelope = sealedEnvelope(workspace)
@@ -503,7 +546,9 @@ test("CN-only PATH completes doctor, setup, employee run and turn run in CLI pro
   assert.equal(events.find((event) => event.type === "run.completed")?.output, "fixture qoder answer")
   const doctor = cli(["doctor", "--engine", "qoder", "--json"])
   assert.equal(doctor.status, 0, doctor.stderr)
-  assert.equal(JSON.parse(doctor.stdout).hosts[0].resolvedCommand, "qoderclicn")
+  const doctorProbe = JSON.parse(doctor.stdout).hosts[0]
+  assert.equal(Object.hasOwn(doctorProbe, "resolvedCommand"), false)
+  assert.equal(doctorProbe.issues.find((issue: { code: string }) => issue.code === "qoder_command_selected")?.message, "Qoder command: qoderclicn")
   const setup = cli(["setup", employee, "--json"])
   assert.equal(setup.status, 0, setup.stderr)
   assert.equal(JSON.parse(setup.stdout).hosts.find((host: { id: string }) => host.id === "qoder").available, true)
@@ -547,6 +592,7 @@ test("#185 AC-003: missing service token fails closed at resolution, exit 1", as
     ),
     "the diagnostic must name the missing-token fault",
   )
+  assert.ok(diagnostics.some((line) => line.includes(`Qoder command: ${stub}`)))
 })
 
 test("#185 AC-003: an out-of-family qodercli version fails closed", async () => {

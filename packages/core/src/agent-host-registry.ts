@@ -149,7 +149,6 @@ const PROBE_RESULT_KEYS = [
   "available",
   "adapterStatus",
   "version",
-  "resolvedCommand",
   "capabilities",
   "capabilitySource",
   "issues",
@@ -198,9 +197,6 @@ export function validateAgentHostProbeResult(
         typeof value.available === "boolean" &&
         ADAPTER_STATUSES.has(value.adapterStatus as string) &&
         (value.version === undefined || boundedString(value.version, 256)) &&
-        (value.resolvedCommand === undefined ||
-          (boundedString(value.resolvedCommand, 1024) &&
-            !/[\u0000-\u001f\u007f]/.test(value.resolvedCommand))) &&
         plainRecord(capabilities) &&
         Object.keys(capabilities).every((key) =>
           (AGENT_HOST_CAPABILITIES as readonly string[]).includes(key),

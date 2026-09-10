@@ -232,11 +232,17 @@ Workbench Bridge 不得：
 `turn run` 将探针选中的命令传给执行 Adapter；受支持的 POSIX 路径不通过 shell 解析命令。
 选中 CN 命令不会复用个人登录，也不证明模型权益或真实服务可用。
 
-Probe 的可选 `resolvedCommand` 诊断字段保留在 registry 和 wire 结果中，必须是
-1–1024 个字符且不含 ASCII 控制字符的字符串；未提供该字段的旧 probe 仍被接受。
-它不是员工包或 wire run request 的命令输入，未知字段仍被拒绝。
-较旧的严格消费者会拒绝携带该字段的结果，升级生产者时须同步升级消费者；
-不能将这次修复称为对所有旧消费者透明兼容。该字段记录所选命令名或显式路径，
-不证明解析后的文件身份。
+命令选择保存在 Qoder Adapter 的本地执行状态中。`probeWithCommand()` 返回
+分离的 `{ command, probe }`，供进程内 turn 调用方固定执行命令；它不属于
+`AgentHostAdapter` 或 `agent-host.v1` wire。公开 `probe()`、`preflight()`、
+registry 和 wire 结果维持冻结的 v1 顶层 key，不包含 `resolvedCommand` 或
+`command`，严格消费者继续拒绝额外字段。
+
+所选命令通过现有 `issues[]` 中非阻断的 `qoder_command_selected` 消息诊断；
+查找失败的消息列出尝试的命令。命令文本先脱敏、移除 ASCII 控制字符，再截断至
+1024 字符，不参与执行选择，也不证明解析后的文件身份。缺少服务令牌的 turn
+错误也包含该诊断。每个 run 保持自己的命令选择，并发 probe 或 run 不会覆盖它。
+Windows turn 在启动任何候选版本探针前以 `host_platform_not_conformance_verified`
+拒绝执行；这不代表 Windows 已通过宿主认证。
 
 **未达成的部分**：该 port 是 spawn 面上的模型口，不等于 host qualification——Qoder live E4 qualification 归 #177/#113，需真实令牌授权后现场验证，CI 以 conformance fixture（E3）覆盖。

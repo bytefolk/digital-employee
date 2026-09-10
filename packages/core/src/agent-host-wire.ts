@@ -78,7 +78,6 @@ export const AGENT_HOST_PROBE_WIRE_KEYS = Object.freeze([
   "available",
   "adapterStatus",
   "version",
-  "resolvedCommand",
   "capabilities",
   "capabilitySource",
   "issues",
@@ -132,8 +131,8 @@ function stringArray(value: unknown, maximum: number): boolean {
 
 /**
  * Strict agent-host.v1 probe wire validation. Unknown fields fail closed:
- * only the explicitly enumerated probe diagnostics are accepted. The optional
- * resolvedCommand diagnostic does not authorize command selection in requests.
+ * security-relevant or not, v1 adds fields only through a new protocol
+ * version, never in place.
  */
 export function validateAgentHostProbeWire(
   value: unknown,
@@ -156,9 +155,6 @@ export function validateAgentHostProbeWire(
     typeof value.available === "boolean" &&
     ADAPTER_STATUSES.has(value.adapterStatus as string) &&
     (value.version === undefined || boundedString(value.version, 256)) &&
-    (value.resolvedCommand === undefined ||
-      (boundedString(value.resolvedCommand, 1024) &&
-        !/[\u0000-\u001f\u007f]/.test(value.resolvedCommand))) &&
     plainRecord(capabilities) &&
     exactKeys(capabilities, AGENT_HOST_CAPABILITIES as unknown as readonly string[]) &&
     AGENT_HOST_CAPABILITIES.every((capability) =>

@@ -170,6 +170,13 @@ async function resolveModelPort(env: NodeJS.ProcessEnv): Promise<ModelPort> {
     return createClaudeLocalModelPort({ command, environment: env })
   }
   if (engine === "qoder") {
+    // The unsupported platform must not launch even a version candidate.
+    if (process.platform === "win32") {
+      throw new TurnSpawnError(
+        "engine.model_unavailable",
+        "host_platform_not_conformance_verified: the Qoder CLI platform is not verified",
+      )
+    }
     // Isolated service-token port (#185): wraps the conformance-verified
     // Qoder adapter in zero-tool mode. The token flows only through the
     // environment allowlist, never argv. Missing binary, out-of-family
@@ -179,13 +186,10 @@ async function resolveModelPort(env: NodeJS.ProcessEnv): Promise<ModelPort> {
     // Share the doctor/setup/employee-run resolver, then pin the selected
     // command for execution. An absent override permits CN-only discovery.
     const override = env[TURN_ENGINE_QODER_COMMAND_ENV]?.trim()
-    const probe = await createQoderAgentHostAdapter({
+    const { command, probe } = await createQoderAgentHostAdapter({
       ...(override ? { command: override } : {}),
-    }).probe()
-    const command = probe.resolvedCommand!
-    const unusable = process.platform === "win32"
-      ? "host_platform_not_conformance_verified"
-      : !probe.available
+    }).probeWithCommand()
+    const unusable = !probe.available
       ? "qoder_binary_unavailable"
       : probe.issues.some((issue) => issue.code === "qoder_version_not_conformance_verified")
       ? "qoder_version_not_conformance_verified"
@@ -193,7 +197,7 @@ async function resolveModelPort(env: NodeJS.ProcessEnv): Promise<ModelPort> {
     if (unusable !== undefined) {
       throw new TurnSpawnError(
         "engine.model_unavailable",
-        `${unusable}: the Qoder CLI binary (${command}) is missing, outside the 1.1.x conformance family, or the platform is not verified`,
+        `${unusable}: ${probe.issues.map((issue) => issue.message).join("; ")}`,
       )
     }
     // #241: the readiness decision reads the OPERATOR credential view (the same
@@ -205,7 +209,7 @@ async function resolveModelPort(env: NodeJS.ProcessEnv): Promise<ModelPort> {
       const view = operatorCredentialView("qoder")
       throw new TurnSpawnError(
         "engine.model_unavailable",
-        `qoder_service_token_not_configured: ${QODER_SERVICE_TOKEN_ENV} is missing from the operator environment (credential view: ${JSON.stringify(view)}). recovery: export ${QODER_SERVICE_TOKEN_ENV} in the shell that runs digital-employee, exactly as \`doctor\` reads it; the isolated run environment intentionally strips it from the child process.`,
+        `qoder_service_token_not_configured: ${QODER_SERVICE_TOKEN_ENV} is missing from the operator environment (credential view: ${JSON.stringify(view)}). ${probe.issues.find((issue) => issue.code === "qoder_command_selected")?.message ?? ""} recovery: export ${QODER_SERVICE_TOKEN_ENV} in the shell that runs digital-employee, exactly as \`doctor\` reads it; the isolated run environment intentionally strips it from the child process.`,
       )
     }
     return createQoderModelPort({ command })

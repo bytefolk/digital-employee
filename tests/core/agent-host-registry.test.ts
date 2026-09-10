@@ -317,13 +317,10 @@ test("registration validates callbacks before changing registry state", () => {
   assert.deepEqual(registry.list(), [])
 })
 
-test("probe registry preserves optional resolvedCommand and rejects malformed values", () => {
+test("frozen probe registry rejects resolvedCommand even when optional or well-formed", () => {
   const valid = probe("test-host")
-  for (const resolvedCommand of [undefined, "qoderclicn", "/opt/qoder cli/bin/qoder", "x".repeat(1024)]) {
-    const value = { ...valid, ...(resolvedCommand === undefined ? {} : { resolvedCommand }) }
-    assert.deepEqual(validateAgentHostProbeResult(value, "test-host"), value)
-  }
-  for (const resolvedCommand of [null, 42, {}, [], "", "x".repeat(1025), "qoder\u0000cli", "qoder\ncli", "qoder\tcli"]) {
+  assert.deepEqual(validateAgentHostProbeResult(valid, "test-host"), valid)
+  for (const resolvedCommand of [undefined, "qoderclicn", "/opt/qoder cli/bin/qoder", "x".repeat(1024), null, 42, {}, [], "", "x".repeat(1025), "qoder\u0000cli", "qoder\ncli", "qoder\tcli"]) {
     assert.throws(
       () => validateAgentHostProbeResult({ ...valid, resolvedCommand }, "test-host"),
       isCoreError({ code: "AGENT_HOST_PROBE_INVALID", status: 500 }),

@@ -30,6 +30,8 @@ import {
   inspectEmployeePackage,
 } from "../../apps/cli/employee-package.js"
 import { deriveEffectiveAgentHostPolicy } from "../../packages/core/index.js"
+import { validateAgentHostProbeResult } from "../../packages/core/src/agent-host-registry.js"
+import { validateAgentHostProbeWire } from "../../packages/core/src/agent-host-wire.js"
 import type {
   AgentHostEvent,
   AgentHostRunRequest,
@@ -1037,6 +1039,51 @@ test("Qoder cleanup failure replaces success with an explicit failed terminal", 
 // #253 regression: probing must agree with `turn run`, and the CN edition of
 // the Qoder CLI (qoderclicn / qodercn) must be reachable without a PATH shim.
 
+test("Qoder public preflight keeps command state outside the frozen v1 result", async (t) => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "qoder-probe-contract-"))
+  t.after(() => rm(parent, { recursive: true, force: true }))
+  const request = await employeeRequest(parent)
+  const host = createQoderAgentHostAdapter({
+    command: "qoderclicn",
+    environment: { QODER_PERSONAL_ACCESS_TOKEN: "fixture-service-token" },
+    versionExecutor: async () => ({ status: "installed", output: "1.1.41" }),
+  })
+  for (const input of [request, { ...request, outputSchema: { $ref: "https://example.com/schema" } }]) {
+    const result = await host.preflight(input)
+    assert.equal(Object.hasOwn(result, "resolvedCommand"), false)
+    assert.equal(Object.hasOwn(result, "command"), false)
+    assert.deepEqual(validateAgentHostProbeResult(result, "qoder"), result)
+    assert.deepEqual(validateAgentHostProbeWire(JSON.parse(JSON.stringify(result)), "qoder"), result)
+    assert.equal(result.status, input === request ? "ready" : "not_ready")
+  }
+})
+
+test("Qoder command diagnostics are bounded and scrubbed without changing local command state", async () => {
+  const token = "fixture-service-token"
+  const command = `qoder\n${"x".repeat(1000)}${token}`
+  for (const status of ["installed", "not_found", "not_spawnable", "probe_failed"] as const) {
+    const host = createQoderAgentHostAdapter({
+      command,
+      environment: { QODER_PERSONAL_ACCESS_TOKEN: token },
+      versionExecutor: async (selected) => {
+        assert.equal(selected, command)
+        return { status, output: status === "installed" ? "1.1.41" : undefined }
+      },
+    })
+    const resolved = await host.probeWithCommand()
+    assert.equal(resolved.command, command)
+    const text = JSON.stringify(resolved.probe)
+    assert.equal(text.includes(token), false)
+    assert.equal(text.includes(token.slice(0, 10)), false)
+    assert.equal(Object.hasOwn(resolved.probe, "resolvedCommand"), false)
+    for (const issue of resolved.probe.issues) {
+      assert.ok(issue.message.length <= 2000)
+      assert.doesNotMatch(issue.message, /[\u0000-\u001f\u007f]/)
+    }
+    if (status !== "not_spawnable") validateAgentHostProbeWire(resolved.probe, "qoder")
+  }
+})
+
 test("Qoder probe honours DIGITAL_EMPLOYEE_QODER_COMMAND like turn run", async () => {
   // The same env var `turn/turn-run.ts` reads (`DIGITAL_EMPLOYEE_QODER_COMMAND`)
   // now steers the built-in probe as well. Without this, setup/doctor readiness
@@ -1057,7 +1104,7 @@ test("Qoder probe honours DIGITAL_EMPLOYEE_QODER_COMMAND like turn run", async (
   assert.deepEqual(versionCalls, [
     { command: "qoderclicn", args: ["--version"] },
   ])
-  assert.equal(probe.resolvedCommand, "qoderclicn")
+  assert.equal(probe.issues.find((issue) => issue.code === "qoder_command_selected")?.message, "Qoder command: qoderclicn")
   assert.equal(probe.status, "ready")
 })
 
@@ -1075,7 +1122,7 @@ test("Qoder command overrides fail closed without silently selecting a fallback"
     })
     const result = await host.probe()
     assert.deepEqual(calls, ["missing-override"])
-    assert.equal(result.resolvedCommand, "missing-override")
+    assert.ok(result.issues.some((issue) => issue.message.includes("missing-override")))
     assert.equal(result.available, false)
     assert.equal(result.status, status)
   }
@@ -1106,7 +1153,7 @@ test("Qoder probe falls through to CN command names when the default is absent",
     versionCalls.map((call) => call.command),
     [QODER_DEFAULT_COMMAND, "qoderclicn"],
   )
-  assert.equal(probe.resolvedCommand, "qoderclicn")
+  assert.equal(probe.issues.find((issue) => issue.code === "qoder_command_selected")?.message, "Qoder command: qoderclicn")
   assert.equal(probe.status, "ready")
   // qodercn is the second CN fallback and must not be probed once qoderclicn
   // has answered `installed`; otherwise a host with both installed would run
@@ -1159,6 +1206,58 @@ test("Qoder run pins its preflight command across a concurrent probe", async () 
   await rm(parent, { recursive: true, force: true })
 })
 
+test("Qoder concurrent runs keep separate CN commands while an aborted probe fails", async (t) => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "qoder-concurrent-commands-"))
+  t.after(() => rm(parent, { recursive: true, force: true }))
+  const bin = path.join(parent, "bin")
+  const capture = path.join(parent, "commands.txt")
+  await mkdir(bin)
+  for (const command of ["qoderclicn", "qodercn"]) {
+    await writeFile(path.join(bin, command), [
+      `#!${process.execPath}`,
+      `import { appendFileSync } from "node:fs"`,
+      `appendFileSync(${JSON.stringify(capture)}, ${JSON.stringify(`${command}\n`)})`,
+      `import(${JSON.stringify(new URL("./fixtures/fake-qoder.mjs", import.meta.url).href)})`,
+      "",
+    ].join("\n"), { mode: 0o755 })
+  }
+  const firstSignal = new AbortController().signal
+  const secondSignal = new AbortController().signal
+  const aborted = new AbortController()
+  aborted.abort()
+  let staged = 0
+  let release: () => void = () => {}
+  const bothStaged = new Promise<void>((resolve) => { release = resolve })
+  const host = createQoderAgentHostAdapter({
+    environment: { PATH: bin, QODER_PERSONAL_ACCESS_TOKEN: "fixture-service-token" },
+    temporaryRoot: parent,
+    timeoutMs: 10_000,
+    versionExecutor: async (command, _args, options) => {
+      if (options?.signal?.aborted) return { status: "probe_failed" }
+      const selected = options?.signal === firstSignal ? "qoderclicn" : "qodercn"
+      return command === selected
+        ? { status: "installed", output: "1.1.12" }
+        : { status: "not_found" }
+    },
+    beforeSpawn: async () => {
+      if (++staged === 2) release()
+      await bothStaged
+      assert.equal((await host.probe(aborted.signal)).status, "probe_failed")
+    },
+  })
+  const request = await employeeRequest(parent)
+  const streams = await Promise.all([
+    collect(host.run({ ...request, runId: "run-cn-first", signal: firstSignal })),
+    collect(host.run({ ...request, runId: "run-cn-second", signal: secondSignal })),
+  ])
+  for (const [index, events] of streams.entries()) {
+    assert.equal(events.filter((event) => event.type === "run.completed").length, 1)
+    assert.equal(events.some((event) => event.type === "run.failed"), false)
+    assert.ok(events.every((event) => event.runId === (index === 0 ? "run-cn-first" : "run-cn-second")))
+  }
+  assert.deepEqual((await readFile(capture, "utf8")).trim().split("\n").sort(), ["qoderclicn", "qodercn"].sort())
+})
+
 test("Qoder probe stops at not_spawnable rather than skipping past a broken binary", async () => {
   // A resolved-but-not-spawnable executable points at a real problem the
   // operator must see. Falling through to the next candidate would silently
@@ -1182,7 +1281,7 @@ test("Qoder probe stops at not_spawnable rather than skipping past a broken bina
   )
   assert.equal(probe.status, "not_spawnable")
   assert.equal(probe.available, false)
-  assert.equal(probe.resolvedCommand, QODER_DEFAULT_COMMAND)
+  assert.ok(probe.issues.some((issue) => issue.message.includes(QODER_DEFAULT_COMMAND)))
   assert.equal(
     probe.issues.some((entry) => entry.code === "host_executable_not_spawnable"),
     true,
@@ -1203,7 +1302,7 @@ test("Qoder probe names every candidate when nothing is on PATH", async () => {
   const probe = await host.probe()
   assert.equal(probe.status, "not_found")
   assert.equal(probe.available, false)
-  assert.equal(probe.resolvedCommand, QODER_DEFAULT_COMMAND)
+  assert.equal(Object.hasOwn(probe, "resolvedCommand"), false)
   const notFound = probe.issues.find(
     (entry) => entry.code === "host_executable_not_found",
   )
@@ -1242,5 +1341,5 @@ test("Qoder adapter honours an explicit options.command without walking the fall
   assert.deepEqual(versionCalls, [
     { command: "/custom/qoder", args: ["--version"] },
   ])
-  assert.equal(probe.resolvedCommand, "/custom/qoder")
+  assert.equal(probe.issues.find((issue) => issue.code === "qoder_command_selected")?.message, "Qoder command: /custom/qoder")
 })

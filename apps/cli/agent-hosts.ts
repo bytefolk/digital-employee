@@ -361,7 +361,6 @@ export async function probeCliAgentHost(
     available: result.status === "installed",
     adapterStatus: "probe_only",
     ...(result.output ? { version: result.output } : {}),
-    resolvedCommand: definition.command,
     capabilities: { ...definition.capabilities },
     capabilitySource: "adapter_declaration",
     issues,

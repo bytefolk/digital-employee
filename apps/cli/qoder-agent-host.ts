@@ -38,6 +38,11 @@ import {
 } from "./agent-hosts.js"
 import type { VersionCommandExecutor } from "./agent-hosts.js"
 import {
+  qoderCommandCandidates,
+  selectQoderCommand,
+  QoderCommandError,
+} from "./qoder-command.js"
+import {
   signalAgentHostProcessTree,
   waitForAgentHostProcessTreeExit,
 } from "./agent-host-process-tree.js"
@@ -757,7 +762,9 @@ function projectionIdentityMatches(
 
 export class QoderAgentHostAdapter implements AgentHostAdapter {
   readonly hostId = QODER_HOST_ID
-  private readonly command: string
+  private command: string
+  private readonly explicitCommand?: string
+  private readonly commandResolutionError?: QoderCommandError
   private readonly commandPrefixArgs: string[]
   private readonly environment: NodeJS.ProcessEnv
   private readonly versionExecutor: VersionCommandExecutor
@@ -772,9 +779,25 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
   private readonly activeRuns = new Map<string, ActiveRun>()
 
   constructor(options: QoderAgentHostAdapterOptions = {}) {
-    this.command = options.command ?? "qodercli"
+    const environment = { ...(options.environment ?? process.env) }
+    if (options.command !== undefined) {
+      // An explicit adapter option is a trusted embedding/test seam. It is
+      // intentionally separate from the environment-based built-in resolver.
+      this.explicitCommand = options.command
+      this.command = options.command
+    } else {
+      try {
+        this.command = qoderCommandCandidates(environment)[0] ?? "qodercli"
+      } catch (error) {
+        this.commandResolutionError =
+          error instanceof QoderCommandError
+            ? error
+            : new QoderCommandError()
+        this.command = "qodercli"
+      }
+    }
     this.commandPrefixArgs = [...(options.commandPrefixArgs ?? [])]
-    this.environment = { ...(options.environment ?? process.env) }
+    this.environment = environment
     this.versionExecutor = options.versionExecutor ?? executeVersionCommand
     this.temporaryRoot = options.temporaryRoot
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
@@ -793,10 +816,45 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
   }
 
   async probe(signal?: AbortSignal): Promise<AgentHostProbeResult> {
-    const result = await this.versionExecutor(this.command, [
-      ...this.commandPrefixArgs,
-      "--version",
-    ], { signal })
+    if (this.commandResolutionError) {
+      return {
+        protocolVersion: AGENT_HOST_PROTOCOL_VERSION,
+        hostId: QODER_HOST_ID,
+        displayName: QODER_DISPLAY_NAME,
+        status: "not_ready",
+        available: false,
+        adapterStatus: "runnable",
+        capabilities: capabilities(),
+        capabilitySource: "conformance_test",
+        issues: [
+          issue(this.commandResolutionError.code, "Qoder CLI command override is invalid"),
+        ],
+      }
+    }
+    const selection =
+      this.explicitCommand !== undefined
+        ? {
+            command: this.explicitCommand,
+            result: await this.versionExecutor(
+              this.explicitCommand,
+              [...this.commandPrefixArgs, "--version"],
+              { signal, environment: this.environment },
+            ),
+            attemptedCommands: [this.explicitCommand],
+            source: "override" as const,
+          }
+        : await selectQoderCommand(
+            this.environment,
+            (command) =>
+              this.versionExecutor(
+                command,
+                [...this.commandPrefixArgs, "--version"],
+                { signal, environment: this.environment },
+              ),
+            (result) => result.status === "installed",
+          )
+    this.command = selection.command
+    const result = selection.result
     const issues: AgentHostIssue[] = []
     const available = result.status === "installed"
     let status: AgentHostProbeResult["status"] = result.status

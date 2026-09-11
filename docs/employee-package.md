@@ -417,6 +417,15 @@ The same Qoder adapter is also reachable through the existing one-shot
 above is the built-in-engine spawn surface with turn budgets and sealed
 envelopes.
 
+For a workspace created from the `oss-maintainer` template, `turn run` also
+resolves the selected position from the applied organization model, verifies
+the package digest, and projects that package's `SKILL.md` plus declared
+`knowledge/` assets into the engine's `position_instructions` slot. Each
+successful or modeled-stop turn persists one digest-only evidence record at
+`.digital-employee/evidence/<positionId>/<turnId>.json` with private file
+permissions. The record contains hashes, bounded counters, permissions and
+terminal state—not the prompt, completion, chain-of-thought or credentials.
+
 **Fail-closed diagnostics.** Environment faults fail at port resolution with
 exit 1, each with a distinct code; they are never modeled as a failed turn:
 

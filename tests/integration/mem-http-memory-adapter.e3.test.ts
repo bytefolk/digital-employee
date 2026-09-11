@@ -19,6 +19,7 @@ const baseUrl = process.env.MEMORY_E3_BASE_URL ?? ""
 const tokenEnv = "MEM_E3_REPO_OWNER_TOKEN"
 const scope = "/DigitalEmployees/repo-owner"
 const principal = "position.repo-owner"
+const pinnedRevision = process.env.MEM_HTTP_PINNED_REVISION ?? "4c714aa352f79f0080a24904668210d6c445ba10"
 
 interface HttpResult {
   status: number
@@ -186,6 +187,7 @@ test(
       positionId: "repo-owner",
       memoryScope: scope,
       tokenEnv,
+      pinnedRevision,
     })
     const firstRequest = request(
       workspaceInstanceId,

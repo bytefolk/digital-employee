@@ -425,11 +425,9 @@ test("#185 AC-002: qoder port completes a turn through the spawn surface", async
   const stub = await createZeroToolQoderStub()
   const events: Array<Record<string, unknown>> = [];
   const diagnostics: string[] = [];
-  // #241: the credential decision reads the OPERATOR view (process.env), the
-  // same one `doctor` evaluates — not the stripped run allowlist.
-  const saved = process.env.QODER_PERSONAL_ACCESS_TOKEN;
-  process.env.QODER_PERSONAL_ACCESS_TOKEN = "fixture-service-token";
-  try {
+  // #241: the credential decision and adapter receive the same operator
+  // environment object that doctor/run use; only the spawned child is
+  // credential-stripped.
   const result = await runTurn({
     workspace,
     positionId: "repo-owner",
@@ -437,6 +435,7 @@ test("#185 AC-002: qoder port completes a turn through the spawn surface", async
     env: {
       DIGITAL_EMPLOYEE_ENGINE_MODEL: "qoder",
       DIGITAL_EMPLOYEE_QODER_COMMAND: stub,
+      QODER_PERSONAL_ACCESS_TOKEN: "fixture-service-token",
       PATH: process.env.PATH,
     },
     writeEvent: (line) => events.push(JSON.parse(line)),
@@ -450,10 +449,6 @@ test("#185 AC-002: qoder port completes a turn through the spawn surface", async
   // Usage honesty (AC-005): the port reports no token counts, so no usage
   // event may be emitted for this turn.
   assert.ok(!events.some((event) => event.type === "usage"));
-  } finally {
-    if (saved === undefined) delete process.env.QODER_PERSONAL_ACCESS_TOKEN;
-    else process.env.QODER_PERSONAL_ACCESS_TOKEN = saved;
-  }
 })
 
 test("#185 AC-003: missing service token fails closed at resolution, exit 1", async () => {

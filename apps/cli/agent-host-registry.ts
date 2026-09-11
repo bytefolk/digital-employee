@@ -15,6 +15,11 @@ import { createCodeBuddyAgentHostAdapter } from "./codebuddy-agent-host.js"
 import { createQoderAgentHostAdapter } from "./qoder-agent-host.js"
 import { createQwenAgentHostAdapter } from "./qwen-agent-host.js"
 
+export interface BuiltInAgentHostRegistryOptions {
+  /** Explicit environment seam for embedders and deterministic tests. */
+  environment?: NodeJS.ProcessEnv
+}
+
 const BUILT_IN_ALIASES: Readonly<
   Partial<Record<BuiltInAgentHostId, readonly string[]>>
 > = {
@@ -39,18 +44,32 @@ const BUILT_IN_ADAPTER_FACTORIES: Readonly<
  * employee package, PATH, node_modules, or the current directory. Embedders may
  * explicitly register additional trusted adapters on the returned registry.
  */
-export function createBuiltInAgentHostRegistry(): AgentHostRegistry {
+export function createBuiltInAgentHostRegistry(
+  options: BuiltInAgentHostRegistryOptions = {},
+): AgentHostRegistry {
   const registry = new AgentHostRegistry()
   for (const hostId of BUILT_IN_AGENT_HOST_IDS) {
     const createAdapter = BUILT_IN_ADAPTER_FACTORIES[hostId]
+    const createConfiguredAdapter = createAdapter
+      ? () =>
+          hostId === "qoder"
+            ? createQoderAgentHostAdapter({
+                ...(options.environment
+                  ? { environment: options.environment }
+                  : {}),
+              })
+            : createAdapter()
+      : undefined
     registry.register({
       id: hostId,
       aliases: BUILT_IN_ALIASES[hostId],
       probe: () =>
-        createAdapter
-          ? createAdapter().probe()
+        createConfiguredAdapter
+          ? createConfiguredAdapter().probe()
           : probeCliAgentHost(hostId),
-      ...(createAdapter ? { createAdapter } : {}),
+      ...(createConfiguredAdapter
+        ? { createAdapter: createConfiguredAdapter }
+        : {}),
     })
   }
   return registry

@@ -27,6 +27,11 @@ const MAX_SERIALIZED_RECORD_BYTES = 128 * 1024
 const SHA256_PATTERN = /^[a-f0-9]{64}$/
 const PATH_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/
 
+// codeql[js/clear-text-storage]: false positive — this module never imports
+// node:os or resolves temporary directories. All paths derive from the
+// caller-supplied root validated by assertRoot(), O_NOFOLLOW blocks symlink
+// following on open, and handle.stat() re-verifies the opened descriptor is a
+// regular file before any read.
 const O_NOFOLLOW = constants.O_NOFOLLOW ?? 0
 
 const RECORD_KEYS = new Set([

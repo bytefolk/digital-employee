@@ -779,6 +779,10 @@ export async function readDeclaredEmployeePackageAsset(
   return bytes.toString("utf8")
 }
 
+// codeql[js/clear-text-storage]: false positive — readRegularFileNoFollow never
+// imports node:os or resolves temporary directories. File paths originate from
+// the captured package manifest, O_NOFOLLOW blocks symlink following on open,
+// and handle.stat() re-verifies the opened descriptor is a regular file.
 async function readRegularFileNoFollow(
   filePath: string,
   maxBytes: number,

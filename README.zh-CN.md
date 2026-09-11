@@ -50,7 +50,7 @@ Agent 框架（Claude Code、Qoder、Qwen Code、CodeBuddy、Codex……）回�
 | 可选 Memory/Context 召回与权限强制 | `0.6.0` **已发布预览**：绑定 scope 的引擎接缝，源码树另有默认关闭的工作区 mem 接入，不代表持久化产品闭环 |
 | 持久长期 Context、Workbench 连续性与 context 蒸馏 | **规划中**；未随 v0.6.0 召回接缝发布 |
 | 内建执行引擎 | 已通过安装后 root 包的 `./engine` 导出与 `turn run` **发布预览**；源码树另有默认关闭的工作区 mem 配置接入；完整默认 Host Workbench 旅程仍在规划中（Epic #165） |
-| oss-maintainer 展示案例（quickstart 形态） | **规划中**（Epic #155 M1） |
+| oss-maintainer 内建引擎展示案例（源码 E3 路径） | **本源码检验通过**：四个岗位均可经 `turn run` 执行；无命令 Workbench quickstart 仍在规划中（Epic #155 M1） |
 | 渠道扩展（飞书/企微） | **规划中更后期**；不属于首个里程碑 |
 
 规划中的行今天都不可用。不要把源码 `main` checkout、PR 或打包制品当作已发布能力。

@@ -45,10 +45,10 @@ export interface VersionCommandResult {
 export type VersionCommandExecutor = (
   command: string,
   args: string[],
-  options?: { signal?: AbortSignal },
+  options?: { signal?: AbortSignal; environment?: NodeJS.ProcessEnv },
 ) => Promise<VersionCommandResult>
 
-function versionProbeEnvironment(
+export function versionProbeEnvironment(
   source: NodeJS.ProcessEnv,
 ): NodeJS.ProcessEnv {
   const result: NodeJS.ProcessEnv = {}
@@ -217,7 +217,7 @@ export const executeVersionCommand: VersionCommandExecutor = (
     try {
       child = spawn(spawnCommand, args, {
         detached: process.platform !== "win32",
-        env: versionProbeEnvironment(process.env),
+        env: versionProbeEnvironment(options.environment ?? process.env),
         shell: spawnShell,
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,

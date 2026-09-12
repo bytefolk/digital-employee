@@ -38,6 +38,23 @@ All notable changes to this project will be documented in this file.
 - Replace former GitHub owner coordinates in shipped templates and examples
   with ByteFolk, and align visible employee authorship while retaining frozen
   JSON Schema identities and the existing npm compatibility namespace.
+- The Codex default-deny audit probe accepts an explicit `--expect-version`
+  instead of requiring an edit to the pinned `AUDITED_CODEX_VERSION`, and both
+  the flag and the `codex --version` extraction derive from one shared semver
+  grammar so they cannot drift apart. Full-version equality is enforced,
+  including prerelease and build-metadata suffixes: a prerelease is auditable
+  under its real version and can no longer be admitted under, and recorded as,
+  its release prefix. The pinned default is unchanged at `0.148.0` and the
+  probe still fails closed on a mismatch, so prior records stay reproducible.
+- Codex default-deny research is re-audited against stable Codex CLI 0.153.4:
+  the offline Responses fixture still observes model-visible `apply_patch`,
+  the same four candidate removal surfaces are rejected by `--strict-config`
+  as unknown fields, and observed event types are unchanged from 0.148.0. The
+  verdict stays NO-GO / probe-only, recorded in
+  `docs/research/codex-cli-0.153.4-default-deny-audit.md`. Upstream
+  openai/codex#8161 remains closed NOT_PLANNED and openai/codex#6049 remains
+  open with no landed switch, so a version bump alone no longer justifies a
+  fresh audit.
 - Prepare GitHub repository and GHCR coordinates for the ByteFolk organization
   handle cutover while retaining published JSON Schema identities and the
   existing npm compatibility namespace.

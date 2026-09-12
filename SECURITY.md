@@ -110,6 +110,32 @@ Adapter-specific deterministic fixtures do not establish live model
 entitlement, provider terms or multi-tenant isolation; no live model request
 was used for the current verification claim.
 
+## Pull request Scorecard boundary
+
+The required `OpenSSF Scorecard` PR check analyzes the checked-out PR merge
+commit and uploads `scorecard-pr-results` as a workflow artifact. It uses only
+`contents: read`, does not persist checkout credentials, and does not execute
+repository scripts. Publication is disabled: no PAT, secret input, OIDC or
+SARIF-upload permission is granted. A missing report fails the artifact step.
+This check confirms analysis completed, not that every Scorecard finding is
+resolved or that a human approved the candidate.
+
+The pinned [Scorecard action v2.4.4 implementation](https://github.com/ossf/scorecard-action/blob/2d1146689b8cda280b9bc96326124645441f03bc/options/options.go)
+selects local-checkout analysis for `pull_request`. Repository metadata comes
+from the event's top-level repository, so a fork-to-canonical PR is distinct
+from running the action inside the fork repository. Upstream calls PR support
+experimental; source inspection is not a substitute for exact-head hosted
+artifact evidence. Local analysis has limited repository-governance coverage
+and does not replace the unchanged main/scheduled `bytefolk-scorecard.yml`
+repository-wide reporting, badge or code-scanning publication.
+
+All workflow action references are commit-pinned and require review when
+updated. The upstream action itself uses a version-tagged container image;
+record the actual image digest from the hosted run, not an end-to-end immutable
+image claim. Run the focused security-contract tests with
+`npx tsx --test tests/scripts/scorecard-workflow.test.ts`; they also run in the
+unchanged `npm run check` CI matrix.
+
 ## Supported versions
 
 Until the first stable release, only the latest tagged `0.x` release receives

@@ -122,7 +122,6 @@ test("default-branch repository reporting remains separate from PR analysis", ()
   assert.deepEqual(main.on, {
     push: { branches: ["main"] },
     schedule: [{ cron: "43 3 * * 1" }],
-    workflow_dispatch: null
   });
   const steps = main.jobs.scorecard.steps;
   assert.equal(steps.find((step: { uses: string }) => step.uses.startsWith("ossf/scorecard-action@")).with.publish_results, true);

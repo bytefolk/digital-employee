@@ -24,6 +24,7 @@ import type {
   TurnBudget,
   TurnPendingApprovalInput,
 } from "../../../packages/engine/src/contracts.js"
+import { DIGITAL_EMPLOYEE_QODER_COMMAND } from "../qoder-command.js"
 
 export const TURN_ENVELOPE_VERSION = "turn-envelope.v1alpha2" as const
 /** Legacy version still accepted for byte-exact compatibility (#205). */
@@ -51,7 +52,7 @@ export const TURN_ENGINE_CLAUDE_COMMAND_ENV =
  * without putting anything credential-bearing in argv.
  */
 export const TURN_ENGINE_QODER_COMMAND_ENV =
-  "DIGITAL_EMPLOYEE_QODER_COMMAND" as const
+  DIGITAL_EMPLOYEE_QODER_COMMAND
 
 export interface TurnEnvelope {
   schemaVersion: typeof TURN_ENVELOPE_VERSION | typeof TURN_ENVELOPE_V1_VERSION

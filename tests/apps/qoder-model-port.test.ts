@@ -6,7 +6,7 @@
  */
 
 import assert from "node:assert/strict"
-import { mkdtemp, readFile, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import test from "node:test"
@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url"
 import {
   createQoderModelPort,
   probeQoderModelPort,
+  resolveQoderModelPortCommand,
   QoderModelPortError,
 } from "../../apps/cli/turn/qoder-model-port.js"
 import type { ModelTurnInput } from "../../packages/engine/src/model-port.js"
@@ -42,6 +43,21 @@ function portEnvironment(): NodeJS.ProcessEnv {
     PATH: process.env.PATH,
     QODER_PERSONAL_ACCESS_TOKEN: TOKEN,
   }
+}
+
+async function installVersionCommand(
+  directory: string,
+  name: string,
+  version: string,
+): Promise<void> {
+  await writeFile(
+    path.join(directory, name),
+    "#!/bin/sh\n" +
+      "printf '%s\\n' " +
+      JSON.stringify(version) +
+      "\n",
+    { mode: 0o755 },
+  )
 }
 
 test("#185 AC-002: zero-tool completion returns the fixture answer without usage", async () => {
@@ -106,4 +122,46 @@ test("#185 REQ-004: the probe fails closed per fault class", async () => {
     mode: 0o755,
   })
   assert.equal(probeQoderModelPort(good), undefined)
+})
+
+test("#253: Qoder command override accepts the China-region entrypoint", async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "qoder-command-cn-"))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  await installVersionCommand(directory, "qoderclicn", "qoderclicn 1.1.12")
+
+  const resolution = resolveQoderModelPortCommand({
+    PATH: directory,
+    DIGITAL_EMPLOYEE_QODER_COMMAND: "qoderclicn",
+  })
+  assert.deepEqual(resolution, {
+    command: "qoderclicn",
+    displayCommand: "qoderclicn",
+    source: "override",
+  })
+})
+
+test("#253: fallback probes qodercli first and then China-region names", async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "qoder-command-fallback-"))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  await installVersionCommand(directory, "qoderclicn", "qoderclicn 1.1.12")
+
+  const fallback = resolveQoderModelPortCommand({ PATH: directory })
+  assert.equal(fallback.command, "qoderclicn")
+  assert.equal(fallback.source, "fallback")
+
+  await installVersionCommand(directory, "qodercli", "qodercli 1.1.13")
+  const priority = resolveQoderModelPortCommand({ PATH: directory })
+  assert.equal(priority.command, "qodercli")
+  assert.equal(priority.displayCommand, "qodercli")
+})
+
+test("#253: invalid explicit command fails closed without echoing the override", () => {
+  const resolution = resolveQoderModelPortCommand({
+    PATH: process.env.PATH,
+    DIGITAL_EMPLOYEE_QODER_COMMAND: "qodercli --version",
+  })
+  assert.equal(resolution.error, "qoder_command_override_invalid")
+  assert.equal(resolution.command, undefined)
+  assert.equal(resolution.displayCommand, "configured override")
+  assert.equal(JSON.stringify(resolution).includes("qodercli --version"), false)
 })

@@ -34,6 +34,12 @@ import {
   createQoderAgentHostAdapter,
   isConformantQoderCliVersion,
 } from "../qoder-agent-host.js"
+import type { VersionCommandResult } from "../agent-hosts.js"
+import { versionProbeEnvironment } from "../agent-hosts.js"
+import {
+  qoderCommandDisplay,
+  selectQoderCommandSync,
+} from "../qoder-command.js"
 
 export class QoderModelPortError extends Error {
   constructor(
@@ -87,29 +93,108 @@ export function probeQoderModelPort(
   prefixArgs: readonly string[] = [],
   timeoutMs = 10_000,
 ): string | undefined {
-  // The adapter's process-group cleanup discipline is POSIX-only.
+  const probe = probeQoderVersion(
+    command,
+    prefixArgs,
+    timeoutMs,
+    process.env,
+  )
   if (process.platform === "win32") {
     return "host_platform_not_conformance_verified"
+  }
+  if (probe.status !== "installed") {
+    return "qoder_binary_unavailable"
+  }
+  if (!isConformantQoderCliVersion(probe.output)) {
+    return "qoder_version_not_conformance_verified"
+  }
+  return undefined
+}
+
+function probeQoderVersion(
+  command: string,
+  prefixArgs: readonly string[],
+  timeoutMs: number,
+  environment: NodeJS.ProcessEnv,
+): VersionCommandResult {
+  if (process.platform === "win32") {
+    return { status: "probe_failed" }
   }
   let probe: ReturnType<typeof spawnSync>
   try {
     probe = spawnSync(command, [...prefixArgs, "--version"], {
       encoding: "utf8",
+      env: versionProbeEnvironment(environment),
       timeout: timeoutMs,
       shell: false,
       windowsHide: true,
     })
   } catch {
-    return "qoder_binary_unavailable"
+    return { status: "probe_failed" }
   }
   if (probe.error !== undefined || probe.status !== 0) {
-    return "qoder_binary_unavailable"
+    return { status: "not_found" }
   }
-  const announced = typeof probe.stdout === "string" ? probe.stdout : undefined
-  if (!isConformantQoderCliVersion(announced)) {
-    return "qoder_version_not_conformance_verified"
+  return {
+    status: "installed",
+    output:
+      typeof probe.stdout === "string" ? probe.stdout.slice(0, 256) : undefined,
   }
-  return undefined
+}
+
+export interface QoderModelPortCommandResolution {
+  command?: string
+  displayCommand: string
+  source?: "override" | "fallback"
+  error?:
+    | "qoder_command_override_invalid"
+    | "qoder_binary_unavailable"
+    | "qoder_version_not_conformance_verified"
+}
+
+/**
+ * Resolves the same override/fallback list used by the built-in Qoder Agent
+ * Host. The returned display value is either a known basename or a generic
+ * label; absolute executable paths never cross this diagnostic boundary.
+ */
+export function resolveQoderModelPortCommand(
+  environment: NodeJS.ProcessEnv,
+  prefixArgs: readonly string[] = [],
+  timeoutMs = 10_000,
+): QoderModelPortCommandResolution {
+  try {
+    const selection = selectQoderCommandSync(
+      environment,
+      (command) =>
+        probeQoderVersion(command, prefixArgs, timeoutMs, environment),
+      (result) => result.status === "installed",
+    )
+    if (selection.result.status !== "installed") {
+      return {
+        displayCommand: qoderCommandDisplay(selection.command),
+        source: selection.source,
+        error: "qoder_binary_unavailable",
+      }
+    }
+    if (!isConformantQoderCliVersion(selection.result.output)) {
+      return {
+        command: selection.command,
+        displayCommand: qoderCommandDisplay(selection.command),
+        source: selection.source,
+        error: "qoder_version_not_conformance_verified",
+      }
+    }
+    return {
+      command: selection.command,
+      displayCommand: qoderCommandDisplay(selection.command),
+      source: selection.source,
+    }
+  } catch {
+    return {
+      displayCommand: "configured override",
+      error: "qoder_command_override_invalid",
+    }
+  }
 }
 
 /**

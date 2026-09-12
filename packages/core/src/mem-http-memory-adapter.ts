@@ -22,8 +22,6 @@ import type {
   TaskState,
 } from "./memory-port.js"
 
-export const MEM_HTTP_PINNED_REVISION =
-  "4c714aa352f79f0080a24904668210d6c445ba10" as const
 export const MEM_DURABLE_CONTEXT_CONTRACT = "durable-context.v1" as const
 
 const DEFAULT_TIMEOUT_MS = 10_000
@@ -125,7 +123,11 @@ export interface MemHttpMemoryAdapterOptions {
   positionId: string
   memoryScope: string
   tokenEnv: string
+  /** Exact mem server revision accepted by this adapter instance. */
+  pinnedRevision: string
   timeoutMs?: number
+  /** Test/embedder seam; only tokenEnv is ever read from this object. */
+  environment?: NodeJS.ProcessEnv
 }
 
 interface AdapterConfig {
@@ -136,7 +138,9 @@ interface AdapterConfig {
   principal: string
   memoryScope: string
   tokenEnv: string
+  pinnedRevision: string
   timeoutMs: number
+  environment: NodeJS.ProcessEnv
 }
 
 interface MemMemory {
@@ -173,6 +177,10 @@ function record(value: unknown): value is Record<string, unknown> {
     !Array.isArray(value) &&
     Object.getPrototypeOf(value) === Object.prototype
   )
+}
+
+function environmentRecord(value: unknown): value is NodeJS.ProcessEnv {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
 }
 
 function exactKeys(
@@ -247,6 +255,7 @@ function validateOptions(value: MemHttpMemoryAdapterOptions): AdapterConfig {
         "positionId",
         "memoryScope",
         "tokenEnv",
+        "pinnedRevision",
       ],
       [
         "baseUrl",
@@ -255,7 +264,9 @@ function validateOptions(value: MemHttpMemoryAdapterOptions): AdapterConfig {
         "positionId",
         "memoryScope",
         "tokenEnv",
+        "pinnedRevision",
         "timeoutMs",
+        "environment",
       ],
     )
   ) {
@@ -275,6 +286,23 @@ function validateOptions(value: MemHttpMemoryAdapterOptions): AdapterConfig {
   if (typeof value.tokenEnv !== "string" || !TOKEN_ENV_PATTERN.test(value.tokenEnv)) {
     throw configError("tokenEnv must name one position-scoped MEM_*_TOKEN variable")
   }
+  if (
+    typeof value.pinnedRevision !== "string" ||
+    value.pinnedRevision.length === 0 ||
+    value.pinnedRevision.length > 128 ||
+    value.pinnedRevision.trim() !== value.pinnedRevision ||
+    !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value.pinnedRevision)
+  ) {
+    throw configError("pinnedRevision must be a bounded revision identifier")
+  }
+  if (
+    value.environment !== undefined &&
+    !environmentRecord(value.environment)
+  ) {
+    // A supplied environment is an internal seam, not a user-facing config
+    // field. It must be an object and is intentionally not copied or logged.
+    throw configError("environment must be a process environment object")
+  }
   return {
     baseUrl: normalizeBaseUrl(value.baseUrl),
     memWorkspaceId: validateUUID(value.memWorkspaceId, "memWorkspaceId"),
@@ -286,12 +314,14 @@ function validateOptions(value: MemHttpMemoryAdapterOptions): AdapterConfig {
     principal: derivePositionPrincipal(positionId),
     memoryScope: normalizeMemoryScope(value.memoryScope),
     tokenEnv: value.tokenEnv,
+    pinnedRevision: value.pinnedRevision,
     timeoutMs,
+    environment: value.environment ?? process.env,
   }
 }
 
 function tokenFromEnvironment(config: AdapterConfig): string {
-  const value = process.env[config.tokenEnv]
+  const value = config.environment[config.tokenEnv]
   if (typeof value !== "string" || !TOKEN_VALUE_PATTERN.test(value)) {
     throw configError(
       "the configured position token environment variable is missing or malformed",
@@ -448,12 +478,26 @@ function validateCapabilities(value: unknown, config: AdapterConfig): void {
 
 async function preflight(config: AdapterConfig, token: string): Promise<void> {
   const version = await requestJson(config, "/v1/version")
-  if (
-    !record(version) ||
-    !exactKeys(version, ["version"]) ||
-    version.version !== MEM_HTTP_PINNED_REVISION
-  ) {
-    throw contractError("The mem server revision is not the pinned revision.")
+  if (!record(version) || !exactKeys(version, ["version"])) {
+    throw new MemoryPortError(
+      "MEMORY_CONTRACT_UNSUPPORTED",
+      "The mem server version response does not match the pinned contract.",
+      { status: 502 },
+    )
+  }
+  if (typeof version.version !== "string") {
+    throw new MemoryPortError(
+      "MEMORY_CONTRACT_UNSUPPORTED",
+      "The mem server version response does not contain a revision string.",
+      { status: 502 },
+    )
+  }
+  if (version.version !== config.pinnedRevision) {
+    throw new MemoryPortError(
+      "MEMORY_REVISION_MISMATCH",
+      "The mem server revision does not match the configured revision.",
+      { status: 502 },
+    )
   }
   validateCapabilities(
     await requestJson(config, "/v1/capabilities", { token }),

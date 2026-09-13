@@ -1,10 +1,11 @@
 import assert from "node:assert/strict"
-import { mkdtemp } from "node:fs/promises"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import test from "node:test"
 
 import { createBuiltInAgentHostRegistry } from "../../apps/cli/agent-host-registry.js"
+import { resolveQoderModelPortCommand } from "../../apps/cli/turn/qoder-model-port.js"
 import { createEmployeePackage } from "../../apps/cli/employee-package.js"
 import {
   inspectEmployeeHostCompatibility,
@@ -113,6 +114,51 @@ test("built-in registry exposes four runnable adapters and keeps Codex probe-onl
   assert.equal(registry.resolve("claude"), "claude-code")
   assert.equal(registry.resolve("qwen"), "qwen-code")
   assert.equal(registry.resolve("codebuddy-code"), "codebuddy")
+})
+
+test("#253: registry probe and turn resolver select the same explicit Qoder command", async (t) => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "qoder-registry-command-"))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  await writeFile(
+    path.join(directory, "qoderclicn"),
+    "#!/bin/sh\nprintf '%s\\n' 'qoderclicn 1.1.12'\n",
+    { mode: 0o755 },
+  )
+  const environment = {
+    PATH: directory,
+    DIGITAL_EMPLOYEE_QODER_COMMAND: "qoderclicn",
+    QODER_PERSONAL_ACCESS_TOKEN: "fixture-token",
+  }
+
+  const registryProbe = await createBuiltInAgentHostRegistry({
+    environment,
+  }).probe("qoder")
+  const turnResolution = resolveQoderModelPortCommand(environment)
+
+  assert.equal(registryProbe.status, "ready")
+  assert.equal(registryProbe.version, "qoderclicn 1.1.12")
+  assert.deepEqual(turnResolution, {
+    command: "qoderclicn",
+    displayCommand: "qoderclicn",
+    source: "override",
+  })
+})
+
+test("#253: built-in registry rejects an invalid explicit Qoder command", async () => {
+  const registryProbe = await createBuiltInAgentHostRegistry({
+    environment: {
+      DIGITAL_EMPLOYEE_QODER_COMMAND: "qodercli --version",
+    },
+  }).probe("qoder")
+
+  assert.equal(registryProbe.status, "not_ready")
+  assert.equal(registryProbe.available, false)
+  assert.equal(
+    registryProbe.issues.some(
+      (entry) => entry.code === "qoder_command_override_invalid",
+    ),
+    true,
+  )
 })
 
 test("trusted embedders can register a host without changing the employee package", async () => {

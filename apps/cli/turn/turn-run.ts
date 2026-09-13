@@ -23,37 +23,57 @@ import path from "node:path"
 import {
   createInMemoryBudgetLedger,
   createInMemoryEscalationSink,
-  createInMemoryEvidenceSink,
 } from "../../../packages/engine/src/index.js"
 import {
   createDeterministicModelPort,
   type ModelPort,
 } from "../../../packages/engine/src/model-port.js"
+import { digestOutputValue } from "../../../packages/engine/src/turn-evidence.js"
 import type { EngineTurnRequest } from "../../../packages/engine/src/contracts.js"
 import {
   validateOrganizationPermissionsArtifact,
   type OrganizationPermissions,
 } from "../../../packages/engine/src/org-permissions.js"
 import { createClaudeLocalModelPort, probeLocalClaude } from "./claude-local-model-port.js"
-import { createQoderModelPort, probeQoderModelPort } from "./qoder-model-port.js"
+import {
+  createQoderModelPort,
+  resolveQoderModelPortCommand,
+} from "./qoder-model-port.js"
 import {
   operatorCredentialView,
   QODER_SERVICE_TOKEN_ENV,
   readServiceCredential,
 } from "../credential-view.js"
 import { executeTurn } from "../../../packages/engine/src/turn-executor.js"
+import {
+  MEMORY_WRITE_REQUEST_SCHEMA_VERSION,
+  MemoryPortError,
+  TASK_STATE_SCHEMA_VERSION,
+  derivePositionPrincipal,
+} from "../../../packages/core/src/memory-port.js"
 import { loadOrgModel, orgPaths } from "../org/model.js"
+import { positionDirectorySegments } from "../org/permissions.js"
+import {
+  computeEmployeePackageDirectoryDigest,
+  inspectEmployeePackage,
+  readDeclaredEmployeePackageAsset,
+} from "../employee-package.js"
+import {
+  resolveWorkspaceMemory,
+  WorkspaceMemoryConfigError,
+} from "./memory-config.js"
 import {
   parseTurnEnvelope,
   TurnEnvelopeError,
   TURN_ENGINE_CLAUDE_COMMAND_ENV,
   TURN_ENGINE_MODEL_ENV,
   TURN_ENGINE_MODEL_SCRIPT_ENV,
-  TURN_ENGINE_QODER_COMMAND_ENV,
   type TurnEnvelope,
 } from "./envelope.js"
+import { createFileEvidenceSink } from "./file-evidence-sink.js"
 
 const MAX_STDERR_DIAGNOSTIC_BYTES = 8 * 1024
+const MAX_POSITION_CONTEXT_BYTES = 512 * 1024
 
 export interface TurnRunOptions {
   workspace: string
@@ -175,8 +195,11 @@ function resolveModelPort(env: NodeJS.ProcessEnv): ModelPort {
     // version or missing token are environment faults: surface them here so
     // they map to exit 1, instead of letting the engine model them as a
     // failed turn and report exit 0.
-    const command = env[TURN_ENGINE_QODER_COMMAND_ENV]?.trim() || "qodercli"
-    const unusable = probeQoderModelPort(command)
+    const resolution = resolveQoderModelPortCommand(env)
+    const command = resolution.displayCommand
+    const unusable =
+      resolution.error ??
+      (resolution.command === undefined ? "qoder_binary_unavailable" : undefined)
     if (unusable !== undefined) {
       throw new TurnSpawnError(
         "engine.model_unavailable",
@@ -186,16 +209,16 @@ function resolveModelPort(env: NodeJS.ProcessEnv): ModelPort {
     // #241: the readiness decision reads the OPERATOR credential view (the same
     // one `doctor` evaluates), never the stripped turn allowlist. The spawned
     // host still receives no raw credential in its environment: the adapter
-    // delivers it via the 0600 auth-payload file. We therefore do NOT pass the
-    // allowlist `env` as the port environment.
-    if (!readServiceCredential(QODER_SERVICE_TOKEN_ENV)) {
-      const view = operatorCredentialView("qoder")
+    // receives this operator view, then strips the credential and delivers it
+    // via the 0600 auth-payload file.
+    if (!readServiceCredential(QODER_SERVICE_TOKEN_ENV, env)) {
+      const view = operatorCredentialView("qoder", env)
       throw new TurnSpawnError(
         "engine.model_unavailable",
         `qoder_service_token_not_configured: ${QODER_SERVICE_TOKEN_ENV} is missing from the operator environment (credential view: ${JSON.stringify(view)}). recovery: export ${QODER_SERVICE_TOKEN_ENV} in the shell that runs digital-employee, exactly as \`doctor\` reads it; the isolated run environment intentionally strips it from the child process.`,
       )
     }
-    return createQoderModelPort({ command })
+    return createQoderModelPort({ command: resolution.command, environment: env })
   }
   throw new TurnSpawnError(
     "engine.model_unavailable",
@@ -206,7 +229,7 @@ function resolveModelPort(env: NodeJS.ProcessEnv): ModelPort {
 async function assertWorkspaceRef(
   workspace: string,
   envelope: TurnEnvelope,
-): Promise<void> {
+): Promise<Awaited<ReturnType<typeof loadOrgModel>>> {
   let stat
   try {
     stat = await lstat(workspace)
@@ -224,8 +247,9 @@ async function assertWorkspaceRef(
   }
   // The workspace must carry the organization model marker; a spawn turn
   // against an uninitialized workspace fails closed.
+  let loadedOrgModel: Awaited<ReturnType<typeof loadOrgModel>>
   try {
-    await loadOrgModel(workspace)
+    loadedOrgModel = await loadOrgModel(workspace)
   } catch (error) {
     const code =
       error instanceof TypeError ? error.message : "engine.workspace_invalid"
@@ -240,6 +264,116 @@ async function assertWorkspaceRef(
       "envelope workspaceRef does not match the workspace argument",
     )
   }
+  return loadedOrgModel
+}
+
+/**
+ * Project the selected position package into the engine's mandatory context
+ * slots. The workspace/org model remains authoritative for placement and
+ * package digest; the package itself supplies the executable instructions
+ * and bounded knowledge assets. Older envelope-only fixtures may not have
+ * materialized packages yet, so an absent package is left as an explicit
+ * compatibility fallback rather than silently reading an arbitrary path.
+ */
+async function loadPositionContext(
+  workspace: string,
+  positionId: string,
+  loadedOrgModel: Awaited<ReturnType<typeof loadOrgModel>>,
+): Promise<EngineTurnRequest["position"] | undefined> {
+  const role = loadedOrgModel.model.roles.find((entry) => entry.id === positionId)
+  if (!role) {
+    throw new TurnSpawnError(
+      "workspace_org_position_unknown",
+      `position is not present in the organization model: ${positionId}`,
+    )
+  }
+  const segments = positionDirectorySegments(loadedOrgModel.model, positionId)
+  const directory = path.join(orgPaths(workspace).positionsDir, ...segments)
+  let stat
+  try {
+    stat = await lstat(directory)
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return undefined
+    }
+    throw new TurnSpawnError(
+      "engine.position_package_invalid",
+      "position package directory is unreadable",
+    )
+  }
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    throw new TurnSpawnError(
+      "engine.position_package_invalid",
+      "position package directory must be a real directory",
+    )
+  }
+
+  let inspection
+  try {
+    inspection = await inspectEmployeePackage(directory)
+  } catch {
+    throw new TurnSpawnError(
+      "engine.position_package_invalid",
+      "position package failed employee-package validation",
+    )
+  }
+  if (inspection.manifest.name !== positionId) {
+    throw new TurnSpawnError(
+      "engine.position_package_invalid",
+      "position package name does not match the organization position",
+    )
+  }
+  try {
+    const currentDigest = await computeEmployeePackageDirectoryDigest(directory)
+    if (currentDigest !== role.package.digest) {
+      throw new TurnSpawnError(
+        "engine.position_package_changed",
+        "position package digest differs from the applied organization model",
+      )
+    }
+  } catch (error) {
+    if (error instanceof TurnSpawnError) throw error
+    throw new TurnSpawnError(
+      "engine.position_package_invalid",
+      "position package digest could not be verified",
+    )
+  }
+
+  const knowledgeAssets = inspection.manifest.assets
+    .filter((asset) => asset.startsWith("./knowledge/"))
+    .slice()
+    .sort()
+  const knowledge: string[] = []
+  let contextBytes = Buffer.byteLength(inspection.artifacts.skill, "utf8")
+  for (const asset of knowledgeAssets) {
+    const content = await readDeclaredEmployeePackageAsset(inspection, asset)
+    contextBytes += Buffer.byteLength(content, "utf8")
+    if (contextBytes > MAX_POSITION_CONTEXT_BYTES) {
+      throw new TurnSpawnError(
+        "engine.position_package_too_large",
+        "position instructions and knowledge exceed the bounded context size",
+      )
+    }
+    knowledge.push(`${asset}\n${content}`)
+  }
+  const instructions = [
+    inspection.artifacts.skill,
+    ...(knowledge.length > 0 ? ["## Package knowledge\n", ...knowledge] : []),
+  ].join("\n\n")
+  const spec = JSON.stringify({
+    positionId: role.id,
+    name: role.name,
+    description: role.description,
+    reportTo: role.reportTo,
+    mode: role.mode,
+    package: {
+      name: role.package.name,
+      version: role.package.version,
+      digest: role.package.digest,
+    },
+    budget: role.budget,
+  })
+  return { instructions, spec }
 }
 
 function boundedDiagnostic(line: string): string {
@@ -283,13 +417,31 @@ export async function runTurn(options: TurnRunOptions): Promise<TurnRunResult> {
     )
   }
 
+  let loadedOrgModel: Awaited<ReturnType<typeof loadOrgModel>>
   try {
-    await assertWorkspaceRef(options.workspace, envelope)
+    loadedOrgModel = await assertWorkspaceRef(options.workspace, envelope)
   } catch (error) {
     if (error instanceof TurnSpawnError) {
       return failSpawn(error.code, error.message)
     }
     throw error
+  }
+
+  let positionContext: EngineTurnRequest["position"] | undefined
+  try {
+    positionContext = await loadPositionContext(
+      options.workspace,
+      options.positionId,
+      loadedOrgModel,
+    )
+  } catch (error) {
+    if (error instanceof TurnSpawnError) {
+      return failSpawn(error.code, error.message)
+    }
+    return failSpawn(
+      "engine.position_package_invalid",
+      "position package could not be loaded",
+    )
   }
 
   let permissions: OrganizationPermissions
@@ -300,6 +452,32 @@ export async function runTurn(options: TurnRunOptions): Promise<TurnRunResult> {
       return failSpawn(error.code, error.message)
     }
     throw error
+  }
+
+  let memory: Awaited<ReturnType<typeof resolveWorkspaceMemory>>
+  try {
+    memory = await resolveWorkspaceMemory({
+      workspace: options.workspace,
+      positionId: options.positionId,
+      conversationRef: envelope.conversationRef,
+      turnId: envelope.turnId,
+      env,
+    })
+  } catch (error) {
+    if (error instanceof WorkspaceMemoryConfigError) {
+      return failSpawn("engine.memory_configuration_invalid", error.code)
+    }
+    return failSpawn(
+      "engine.memory_configuration_invalid",
+      "workspace memory configuration could not be resolved",
+    )
+  }
+  if (memory.status === "disabled") {
+    writeDiagnostic(`digital-employee: memory disabled (${memory.reason})`)
+  } else {
+    writeDiagnostic(
+      `digital-employee: memory enabled (adapter ${memory.adapterIdentity})`,
+    )
   }
 
   let model: ModelPort
@@ -320,6 +498,7 @@ export async function runTurn(options: TurnRunOptions): Promise<TurnRunResult> {
     input: envelope.input,
     budget: envelope.budget ?? { maxIterations: 1 },
     permissions,
+    ...(positionContext !== undefined ? { position: positionContext } : {}),
     ...(envelope.positionBudget !== undefined
       ? {
           positionBudget: envelope.positionBudget,
@@ -336,7 +515,12 @@ export async function runTurn(options: TurnRunOptions): Promise<TurnRunResult> {
   }
 
   const escalationSink = createInMemoryEscalationSink()
-  const evidenceSink = createInMemoryEvidenceSink()
+  // Evidence is part of the trusted terminal sequence, so the CLI must not
+  // leave it only in process memory. The sink stores digests/counters only;
+  // no prompt, completion, chain-of-thought, or credential is persisted.
+  const evidenceSink = createFileEvidenceSink(
+    path.join(orgPaths(options.workspace).stateDir, "evidence"),
+  )
 
   let terminalEmitted = false
   try {
@@ -345,9 +529,60 @@ export async function runTurn(options: TurnRunOptions): Promise<TurnRunResult> {
       budgetLedger: createInMemoryBudgetLedger(),
       escalationSink,
       evidenceSink,
+      ...(memory.status === "enabled"
+        ? {
+            memory: {
+              port: memory.port,
+              enabled: true,
+              workspaceInstanceId: memory.workspaceInstanceId,
+              sessionId: memory.sessionId,
+              memoryScope: memory.memoryScope,
+              mode: memory.mode,
+              adapterIdentity: memory.adapterIdentity,
+              ...(memory.limit === undefined ? {} : { limit: memory.limit }),
+            },
+          }
+        : {}),
       ...(options.now !== undefined ? { now: options.now } : {}),
       ...(options.newId !== undefined ? { newId: options.newId } : {}),
     })) {
+      if (event.type === "run.completed" && memory.status === "enabled") {
+        try {
+          await memory.port.writeTaskState({
+            schemaVersion: MEMORY_WRITE_REQUEST_SCHEMA_VERSION,
+            workspaceInstanceId: memory.workspaceInstanceId,
+            sessionId: memory.sessionId,
+            turnId: envelope.turnId,
+            positionId: envelope.positionId,
+            principal: derivePositionPrincipal(envelope.positionId),
+            memoryScope: memory.memoryScope,
+            taskState: {
+              schemaVersion: TASK_STATE_SCHEMA_VERSION,
+              taskId: memory.taskId,
+              status: "completed",
+              summary: "Digital Employee turn completed.",
+              terminalOutputDigest: `sha256:${digestOutputValue(event.output)}`,
+              recordedAt: event.timestamp,
+            },
+          })
+        } catch (error) {
+          if (
+            memory.mode === "optional" &&
+            error instanceof MemoryPortError &&
+            error.code === "MEMORY_UNAVAILABLE"
+          ) {
+            writeDiagnostic(
+              "digital-employee: warning: memory write unavailable; turn result was not persisted",
+            )
+          } else {
+            const code =
+              error instanceof MemoryPortError
+                ? error.code
+                : "MEMORY_WRITE_FAILED"
+            return failSpawn("engine.memory_write_failed", code)
+          }
+        }
+      }
       writeEvent(
         JSON.stringify(
           envelope.conversationRef !== undefined

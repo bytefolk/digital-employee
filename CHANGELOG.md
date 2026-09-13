@@ -9,6 +9,12 @@ All notable changes to this project will be documented in this file.
 - Run the required OpenSSF Scorecard analysis on pull requests targeting main
   with read-only permissions and a local report artifact, preserving the
   separate default-branch reporting workflow (#262).
+- Declare the `packages/engine` workspace `private: true` and remove its public
+  `publishConfig`, so the execution engine can no longer be published by
+  accident. Nothing in the release lane ever packed it, which made the existing
+  protection incidental; it is now explicit in the manifest and pinned by a
+  regression test that also asserts the release lane keeps exactly two publish
+  targets (#247).
 
 ### Changed
 

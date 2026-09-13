@@ -51,6 +51,22 @@ with a tag ruleset. Every registry-writing job revalidates the remote tag
 immediately before its write, but only server-side tag protection closes the
 remaining check/write race.
 
+## Source-only packages
+
+The release lane builds, verifies, and publishes exactly two archives: the root
+package and `packages/core`. `packages/engine` is a source-only workspace. Its
+manifest declares `private: true` and carries no `publishConfig`, so `npm
+publish` refuses it even if a publish is attempted by hand from that directory,
+and no release or repair job names it. The engine's capability still ships to
+consumers through the root package's `./engine` subpath export, which resolves
+to compiled output inside the root archive.
+
+Do not add a publish job, a `--expected-name` entry, or a `PACKAGE_SPECS` member
+for the engine without a separate package-layout decision: promoting a
+source-only workspace to a published coordinate is a breaking change to a
+shipped surface and therefore a MINOR release.
+`tests/scripts/package-publish-boundary.test.ts` pins this boundary (#247).
+
 ## Repair one channel
 
 Run repairs from the release tag itself so the workflow identity, checked-out

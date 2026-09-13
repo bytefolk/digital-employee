@@ -1,6 +1,7 @@
 {
   "name": "@fullstack-ai-infra/digital-employee-engine",
   "version": "0.4.0",
+  "private": true,
   "description": "Built-in, TypeScript-native execution engine (read-only S1 core) for digital employees. Clean-room, dependency-light, no tool surface.",
   "type": "module",
   "repository": {
@@ -14,9 +15,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
-  },
-  "publishConfig": {
-    "access": "public"
   },
   "files": [
     "dist",

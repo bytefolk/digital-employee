@@ -66,7 +66,7 @@
     "employee:run": "npm run build --silent && node ./dist/apps/cli/bin.js run",
     "test": "tsx --test --test-concurrency=1 tests/**/*.test.ts",
     "test:integration:signed-task-e2e": "tsx --test tests/integration/signed-task-e2e.test.ts",
-    "test:coverage": "tsx --test --experimental-test-coverage --test-concurrency=1 --test-coverage-include='apps/**/*.ts' --test-coverage-include='connectors/**/*.ts' --test-coverage-include='packages/**/*.ts' --test-coverage-include='profiles/**/*.ts' --test-coverage-include='scripts/**/*.js' --test-coverage-lines=85 --test-coverage-branches=65 --test-coverage-functions=80 tests/**/*.test.ts",
+    "test:coverage": "c8 tsx --test --test-concurrency=1 tests/**/*.test.ts && node scripts/check-coverage-report.js",
     "governance:check": "node ./scripts/requirement-governance-check.js",
     "governance:precheck": "node ./scripts/governance-precheck.js",
     "security:check": "node ./scripts/security-check.js",
@@ -89,7 +89,29 @@
   },
   "devDependencies": {
     "@types/node": "26.2.0",
-    "tsx": "4.20.6",
+    "c8": "12.0.0",
+    "tsx": "4.23.13",
     "typescript": "7.0.2"
+  },
+  "c8": {
+    "include": [
+      "apps/**/*.ts",
+      "connectors/**/*.ts",
+      "packages/**/*.ts",
+      "profiles/**/*.ts",
+      "scripts/**/*.js",
+      "dist/apps/**/*.js",
+      "dist/connectors/**/*.js",
+      "dist/packages/**/*.js",
+      "dist/profiles/**/*.js"
+    ],
+    "exclude": [],
+    "exclude-after-remap": false,
+    "all": false,
+    "check-coverage": true,
+    "lines": 85,
+    "branches": 65,
+    "functions": 80,
+    "reporter": ["text", "json", "json-summary"]
   }
 }

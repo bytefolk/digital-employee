@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/workspace.schema.json",
+  "title": "Digital Employee workspace manifest v1 alpha 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "workspaceInstanceId",
+    "name",
+    "description",
+    "template",
+    "createdAt",
+    "organization",
+    "positions",
+    "context",
+    "memory"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "workspace.v1alpha1"
+    },
+    "workspaceInstanceId": {
+      "$ref": "#/$defs/uuid"
+    },
+    "name": {
+      "$ref": "#/$defs/identifier"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "template": {
+      "$ref": "#/$defs/identifier"
+    },
+    "createdAt": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "organization": {
+      "$ref": "#/$defs/portablePath"
+    },
+    "positions": {
+      "$ref": "#/$defs/portablePath"
+    },
+    "context": {
+      "$ref": "#/$defs/portablePath"
+    },
+    "memory": {
+      "$ref": "#/$defs/memory"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "maxLength": 64
+    },
+    "portablePath": {
+      "type": "string",
+      "pattern": "^\\./(?!.*(?:^|/)\\.\\.(?:/|$)).+"
+    },
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "envName": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{0,127}$"
+    },
+    "tokenEnvName": {
+      "type": "string",
+      "pattern": "^MEM_[A-Z0-9_]{1,100}_TOKEN$"
+    },
+    "scopeEnvName": {
+      "type": "string",
+      "pattern": "^MEM_[A-Z0-9_]{1,100}_SCOPE$"
+    },
+    "memory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "adapter",
+        "enabled",
+        "mode",
+        "baseUrlEnv",
+        "memWorkspaceIdEnv",
+        "pinnedRevisionEnv",
+        "bindings"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "workspace-memory.v1"
+        },
+        "adapter": {
+          "const": "mem-http.v1"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": [
+            "optional",
+            "required"
+          ]
+        },
+        "baseUrlEnv": {
+          "$ref": "#/$defs/envName"
+        },
+        "memWorkspaceIdEnv": {
+          "$ref": "#/$defs/envName"
+        },
+        "pinnedRevisionEnv": {
+          "$ref": "#/$defs/envName"
+        },
+        "bindings": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/identifier"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "tokenEnv",
+              "memoryScopeEnv"
+            ],
+            "properties": {
+              "tokenEnv": {
+                "$ref": "#/$defs/tokenEnvName"
+              },
+              "memoryScopeEnv": {
+                "$ref": "#/$defs/scopeEnvName"
+              }
+            }
+          }
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        }
+      }
+    }
+  }
+}

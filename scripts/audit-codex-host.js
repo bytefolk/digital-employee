@@ -12,12 +12,34 @@ export const AUDITED_CODEX_VERSION = "0.148.0";
 export const AUDIT_SCHEMA = "codex-host-research-record.v1";
 export const MAX_LOOPBACK_REQUEST_BYTES = 4 * 1024 * 1024;
 
-function parseArgs(argv) {
-  const index = argv.indexOf("--codex-bin");
-  if (index === -1 || !argv[index + 1]) {
-    throw new TypeError("usage: audit-codex-host.js --codex-bin <path>");
+// Keep argument validation and `codex --version` extraction on the same version
+// grammar. A mismatch between the two can silently file an audit under a
+// different build than the executable that actually ran.
+export const SEMVER_SOURCE = String.raw`\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?`;
+export const SEMVER_PATTERN = new RegExp(`^${SEMVER_SOURCE}$`);
+const CODEX_VERSION_PATTERN = new RegExp(`codex-cli (${SEMVER_SOURCE})(?:\\s|$)`);
+
+export function parseArgs(argv) {
+  const binIndex = argv.indexOf("--codex-bin");
+  if (binIndex === -1 || !argv[binIndex + 1]) {
+    throw new TypeError(
+      "usage: audit-codex-host.js --codex-bin <path> [--expect-version <semver>]",
+    );
   }
-  return { codexBin: path.resolve(argv[index + 1]) };
+  // The probe refuses a Codex it was not told to expect, so that a record can
+  // never silently describe a different build than the one it audited. The
+  // flag makes auditing another version explicit instead of requiring an edit
+  // to AUDITED_CODEX_VERSION.
+  const versionIndex = argv.indexOf("--expect-version");
+  let expectVersion = AUDITED_CODEX_VERSION;
+  if (versionIndex !== -1) {
+    const value = argv[versionIndex + 1];
+    if (!value || !SEMVER_PATTERN.test(value)) {
+      throw new TypeError("--expect-version requires a semver value, e.g. 0.153.4");
+    }
+    expectVersion = value;
+  }
+  return { codexBin: path.resolve(argv[binIndex + 1]), expectVersion };
 }
 
 export function toolName(tool) {
@@ -142,7 +164,7 @@ function completedResponse(responseId) {
   return `${events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("")}data: [DONE]\n\n`;
 }
 
-export async function auditCodex(codexBin) {
+export async function auditCodex(codexBin, expectVersion = AUDITED_CODEX_VERSION) {
   const root = await mkdtemp(path.join(os.tmpdir(), "digital-employee-codex-audit-"));
   const env = isolatedEnv(root);
   await Promise.all([
@@ -241,10 +263,12 @@ export async function auditCodex(codexBin) {
     if (!address || typeof address === "string") throw new Error("loopback bind failed");
     const versionResult = await runProcess(codexBin, ["--version"], { env, cwd: root });
     requireSuccessfulProcess(versionResult, "Codex version probe");
-    const versionMatch = /codex-cli (\d+\.\d+\.\d+)/.exec(versionResult.stdout);
+    // Capture the complete version, including prerelease and build metadata,
+    // so the record names exactly the build that produced the evidence.
+    const versionMatch = CODEX_VERSION_PATTERN.exec(versionResult.stdout);
     const version = versionMatch?.[1];
-    if (version !== AUDITED_CODEX_VERSION) {
-      throw new Error(`expected codex-cli ${AUDITED_CODEX_VERSION}`);
+    if (version !== expectVersion) {
+      throw new Error(`expected codex-cli ${expectVersion}, found ${version ?? "unknown"}`);
     }
 
     const provider = `{ name = "Offline audit fixture", base_url = "http://127.0.0.1:${address.port}/v1", env_key = "CODEX_AUDIT_FAKE_KEY", wire_api = "responses", supports_websockets = false }`;
@@ -316,8 +340,8 @@ export async function auditCodex(codexBin) {
 }
 
 async function main() {
-  const { codexBin } = parseArgs(process.argv.slice(2));
-  const record = await auditCodex(codexBin);
+  const { codexBin, expectVersion } = parseArgs(process.argv.slice(2));
+  const record = await auditCodex(codexBin, expectVersion);
   process.stdout.write(`${JSON.stringify(record, null, 2)}\n`);
 }
 

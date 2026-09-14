@@ -1,12 +1,13 @@
-name: ByteFolk Scorecard
+name: Scorecard PR
 
 on:
-  push:
+  pull_request:
     branches:
       - main
-  schedule:
-    - cron: '43 3 * * 1'
 
+# Experimental PR support analyzes the local merge checkout. Repository-wide
+# reporting and publication remain in bytefolk-scorecard.yml on main.
+# Never add pull_request_target, publication credentials, or PR script steps.
 permissions:
   contents: read
 
@@ -15,34 +16,23 @@ jobs:
     name: OpenSSF Scorecard
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    permissions:
-      contents: read
-      actions: read
-      pull-requests: read
-      security-events: write
-      id-token: write
     steps:
-      - name: Check out repository
+      - name: Check out PR merge commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Run Scorecard analysis
+      - name: Analyze PR checkout
         uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
         with:
           results_file: results.sarif
           results_format: sarif
-          publish_results: true
+          publish_results: false
 
-      - name: Upload Scorecard artifact
+      - name: Upload PR Scorecard report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: scorecard-results
+          name: scorecard-pr-results
           path: results.sarif
           if-no-files-found: error
           retention-days: 14
-
-      - name: Upload Scorecard results
-        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.4
-        with:
-          sarif_file: results.sarif

@@ -861,7 +861,7 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
       const result = await this.versionExecutor(
         candidate,
         [...this.commandPrefixArgs, "--version"],
-        { signal },
+        { signal, environment: this.environment },
       )
       if (result.status === "installed") {
         return { command: candidate, result }

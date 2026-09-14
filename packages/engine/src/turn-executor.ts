@@ -433,6 +433,7 @@ export async function* executeTurn(
         memoryEvidence = {
           mode: "optional",
           adapterIdentity: memoryOptions.adapterIdentity,
+          memoryScope: memoryOptions.memoryScope,
           retrievedAt: timestamp(now),
           itemCount: 0,
           totalBytes: 0,
@@ -476,6 +477,7 @@ export async function* executeTurn(
       memoryEvidence = {
         mode: memoryOptions.mode,
         adapterIdentity: memoryOptions.adapterIdentity,
+        memoryScope: memoryOptions.memoryScope,
         retrievedAt: recall.retrievedAt,
         itemCount: recall.items.length,
         totalBytes: recall.items.reduce(

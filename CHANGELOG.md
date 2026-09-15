@@ -14,6 +14,8 @@ All notable changes to this project will be documented in this file.
 - Use the shared Qoder command probe for `turn run`, including CN-only PATH
   discovery. Explicit command overrides now fail closed; only an absent
   default command permits fallback to the next supported command name (#253).
+- Check deployment-lock watchdog signals per helper attempt/PID, with real
+  two-watchdog retry and strict signal/cleanup regressions (#267).
 
 ### Changed
 

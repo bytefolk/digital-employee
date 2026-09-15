@@ -1083,8 +1083,9 @@ const hooks = {
       return wrapperInvocation("pass")
     }
     if (
-      ["direct-watchdog", "direct-timeout"].includes(options.mode) &&
-      invocationCount === 1
+      (options.mode === "direct-watchdog" &&
+        invocationCount <= (options.directWatchdogAttempts ?? 1)) ||
+      (options.mode === "direct-timeout" && invocationCount === 1)
     ) {
       return options.blockingUtility
     }
@@ -1156,7 +1157,7 @@ const hooks = {
     appendHarnessEvent({ type: "spawn", ...context, observedAt })
     if (
       options.mode === "direct-watchdog" &&
-      context.attempt === 2 &&
+      context.attempt === (options.directWatchdogAttempts ?? 1) + 1 &&
       options.ownerPid
     ) {
       process.kill(options.ownerPid, "SIGUSR1")
@@ -4999,11 +5000,11 @@ test("deployment lock deadline and supervised-helper matrix uses the real platfo
     {
       minimumAttempts,
       contended,
-    }: { minimumAttempts: number; contended: boolean },
+    }: { minimumAttempts: number; contended?: boolean },
   ): DeploymentLockActorEvent[] {
     assert.equal(report.phase, "acquired")
     assert.equal(report.error, undefined)
-    assert.equal(report.contended, contended)
+    if (contended !== undefined) assert.equal(report.contended, contended)
     assert.ok(
       report.events.length >= minimumAttempts,
       `expected at least ${minimumAttempts} attempts, got ${report.events.length}`,
@@ -5052,6 +5053,52 @@ test("deployment lock deadline and supervised-helper matrix uses the real platfo
     return wrapperEvents.filter((event) => event.pid === actorEvent.pid)
   }
 
+  function assertDirectWatchdogAttempts(
+    report: DeploymentLockActorReport,
+    harnessEvents: ReadonlyArray<Record<string, unknown>>,
+    forcedWatchdogs: number,
+  ): void {
+    const attempts = assertClosedAttemptChain(report, {
+      minimumAttempts: forcedWatchdogs + 1,
+    })
+    assertSettledHelperCleanup(report, false)
+    const cleanup = report.cleanup!
+    assert.equal(cleanup.childExitCodes.length, attempts.length)
+    assert.equal(cleanup.childSignalCodes.length, attempts.length)
+    const spawns = harnessEvents.filter((event) => event.type === "spawn")
+    assert.deepEqual(
+      spawns.map((event) => [event.attempt, event.pid]),
+      attempts.map((event) => [event.attempt, event.pid]),
+    )
+    assert.equal(harnessEvents[0], spawns[0])
+    for (const [index, attempt] of attempts.entries()) {
+      const signals = harnessEvents.slice(
+        harnessEvents.indexOf(spawns[index]!) + 1,
+        spawns[index + 1] ? harnessEvents.indexOf(spawns[index + 1]!) : undefined,
+      ).filter((event) => event.type === "signal")
+      for (const signal of signals) assert.equal(signal.pid, attempt.pid)
+      const terminalSignal = cleanup.childSignalCodes[index]
+      const exitCode = cleanup.childExitCodes[index]
+      // The owner remains locked for these attempts: only the watchdog can
+      // end the blocking native helper, before the owner's release on retry.
+      if (index < forcedWatchdogs) assert.equal(terminalSignal, "SIGTERM")
+      if (terminalSignal === null) {
+        assert.ok(exitCode === 0 || exitCode === 1 || exitCode === 75)
+      } else {
+        assert.equal(terminalSignal, "SIGTERM")
+        assert.equal(exitCode, null)
+      }
+      // Count per attempt/PID, not per acquisition. Also reject duplicate TERM
+      // requests if a native exit races the watchdog and wins terminal status.
+      assert.deepEqual(
+        signals.map((event) => event.signal),
+        terminalSignal === "SIGTERM" || signals.length > 0 ? ["SIGTERM"] : [],
+      )
+    }
+    assert.equal(cleanup.childExitCodes.at(-1), 0)
+    assert.equal(cleanup.childSignalCodes.at(-1), null)
+  }
+
   await t.test(
     "the default budget exposes one approximately 20 second deadline on a free real lock",
     async (subtest) => {
@@ -5076,64 +5123,84 @@ test("deployment lock deadline and supervised-helper matrix uses the real platfo
 
   await t.test("direct real utility contention, watchdog close, timeout, and successor", async (subtest) => {
     const blockingUtility = blockingDeploymentLockUtility(utility)
-    const retryOwnerOptions = await caseOptions("direct-watchdog-owner", {
-      holdAfterAcquire: true,
-    })
-    const retryOwner = startDeploymentLockActor(subtest, retryOwnerOptions)
-    await waitFor(() => retryOwner.stdoutText().endsWith("\n"), 5_000)
-    const [retryOwnerReport] = deploymentLockActorReports(retryOwner.stdoutText())
-    assert.equal(retryOwnerReport?.phase, "acquired")
-    assert.equal(
-      await deploymentKernelLockIsFree(retryOwnerOptions.lockPath, utility),
-      false,
-    )
-    assert.ok(retryOwner.child.pid)
+    async function assertDirectRetry(directWatchdogAttempts: number) {
+      const label = `direct-watchdog-${directWatchdogAttempts}-owner`
+      const retryOwnerOptions = await caseOptions(label, {
+        holdAfterAcquire: true,
+      })
+      const retryOwner = startDeploymentLockActor(subtest, retryOwnerOptions)
+      await waitFor(() => retryOwner.stdoutText().endsWith("\n"), 5_000)
+      const [retryOwnerReport] = deploymentLockActorReports(retryOwner.stdoutText())
+      assert.equal(retryOwnerReport?.phase, "acquired")
+      assert.equal(
+        await deploymentKernelLockIsFree(retryOwnerOptions.lockPath, utility),
+        false,
+      )
+      assert.ok(retryOwner.child.pid)
 
-    const retryOptions = await caseOptions("direct-watchdog-owner", {
-      mode: "direct-watchdog",
-      timeoutMs: 3_000,
-      probeWatchdogTimeoutMs: 100,
-      blockingUtility,
-      ownerPid: retryOwner.child.pid,
-    })
-    const retried = await completedActor(subtest, retryOptions)
-    assert.equal(retried.phase, "acquired")
-    assert.ok(retried.events.length >= 2)
-    const [watchdogAttempt] = retried.events
-    assert.ok(watchdogAttempt)
-    for (const event of retried.events) {
-      assert.equal(event.fileDescriptor, watchdogAttempt.fileDescriptor)
-      assert.equal(event.decisionDeadline, watchdogAttempt.decisionDeadline)
-      assertProcessIsReaped(event.pid)
+      const retryOptions = await caseOptions(label, {
+        mode: "direct-watchdog",
+        directWatchdogAttempts,
+        wrapperEventsPath: `${retryOwnerOptions.wrapperEventsPath}.contender`,
+        timeoutMs: 3_000,
+        probeWatchdogTimeoutMs: 100,
+        blockingUtility,
+        ownerPid: retryOwner.child.pid,
+      })
+      const retried = await completedActor(subtest, retryOptions)
+      const retryEvents = await readJsonLines(retryOptions.wrapperEventsPath)
+      assertDirectWatchdogAttempts(retried, retryEvents, directWatchdogAttempts)
+      if (directWatchdogAttempts === 2) {
+        const signalIndex = retryEvents.findIndex((event) => event.type === "signal")
+        const firstSignal = retryEvents[signalIndex]!
+        const beforeSignal = retryEvents.slice(0, signalIndex)
+        const afterSignal = retryEvents.slice(signalIndex + 1)
+        // A valid two-watchdog transcript disproves the old flat oracle. Its
+        // per-attempt replacement must still reject these corrupted traces.
+        assert.throws(() => assert.deepEqual(
+          retryEvents.filter((event) => event.type === "signal").map((event) => event.signal),
+          ["SIGTERM"],
+        ), { code: "ERR_ASSERTION" })
+        for (const [label, corruptedEvents] of [
+          ["duplicate TERM for one PID", [...beforeSignal, firstSignal, firstSignal, ...afterSignal]],
+          ["missing TERM", [...beforeSignal, ...afterSignal]],
+          ["wrong PID", [...beforeSignal, { ...firstSignal, pid: -1 }, ...afterSignal]],
+        ] as const) {
+          assert.throws(
+            () => assertDirectWatchdogAttempts(retried, corruptedEvents, 2),
+            { code: "ERR_ASSERTION" },
+            label,
+          )
+        }
+        const unreaped = structuredClone(retried)
+        unreaped.cleanup!.directChildrenAlive[0] = true
+        assert.throws(
+          () => assertDirectWatchdogAttempts(unreaped, retryEvents, 2),
+          { code: "ERR_ASSERTION" },
+        )
+        const resetDeadline = structuredClone(retried)
+        resetDeadline.events[1]!.decisionDeadline += 1
+        assert.throws(
+          () => assertDirectWatchdogAttempts(resetDeadline, retryEvents, 2),
+          { code: "ERR_ASSERTION" },
+        )
+      }
+      subtest.diagnostic(JSON.stringify({
+        directWatchdogAttempts,
+        report: retried,
+        signals: retryEvents.filter((event) => event.type === "signal"),
+      }))
+      const retryOwnerCompletion = await retryOwner.completion
+      assert.equal(retryOwnerCompletion.status, 0, retryOwnerCompletion.stderr)
+      assert.deepEqual(
+        deploymentLockActorReports(retryOwnerCompletion.stdout).map((report) => report.phase),
+        ["acquired", "released"],
+      )
+      await assertSuccessor(subtest, retryOptions)
     }
-    for (const event of retried.events.slice(1)) {
-      assert.equal(event.previousPidAlive, false)
-    }
-    const retryEvents = await readJsonLines(retryOptions.wrapperEventsPath)
-    assert.deepEqual(
-      retryEvents
-        .filter((event) => event.type === "signal")
-        .map((event) => event.signal),
-      ["SIGTERM"],
-    )
-    assert.ok(retried.cleanup)
-    assert.deepEqual(
-      retried.cleanup.childCloseListeners,
-      retried.events.map(() => 0),
-    )
-    assert.deepEqual(
-      retried.cleanup.childErrorListeners,
-      retried.events.map(() => 0),
-    )
-    assert.deepEqual(
-      retried.cleanup.directChildrenAlive,
-      retried.events.map(() => false),
-    )
-    assert.equal(retried.cleanup.abortListeners, 0)
-    assert.equal(retried.cleanup.timeouts, 0)
-    assert.equal(retried.cleanup.immediates, 0)
-    const retryOwnerCompletion = await retryOwner.completion
-    assert.equal(retryOwnerCompletion.status, 0, retryOwnerCompletion.stderr)
+
+    await assertDirectRetry(1)
+    await assertDirectRetry(2)
 
     const timeoutOwnerOptions = await caseOptions("direct-timeout-owner", {
       holdAfterAcquire: true,

@@ -144,18 +144,18 @@ test("#253: registry probe and turn resolver select the same explicit Qoder comm
   })
 })
 
-test("#253: built-in registry rejects an invalid explicit Qoder command", async () => {
+test("#253: built-in registry fails closed on an unresolvable explicit Qoder command", async () => {
   const registryProbe = await createBuiltInAgentHostRegistry({
     environment: {
       DIGITAL_EMPLOYEE_QODER_COMMAND: "qodercli --version",
     },
   }).probe("qoder")
 
-  assert.equal(registryProbe.status, "not_ready")
+  assert.equal(registryProbe.status, "not_found")
   assert.equal(registryProbe.available, false)
   assert.equal(
     registryProbe.issues.some(
-      (entry) => entry.code === "qoder_command_override_invalid",
+      (entry) => entry.code === "host_executable_not_found",
     ),
     true,
   )

@@ -35,10 +35,8 @@ import {
   type OrganizationPermissions,
 } from "../../../packages/engine/src/org-permissions.js"
 import { createClaudeLocalModelPort, probeLocalClaude } from "./claude-local-model-port.js"
-import {
-  createQoderModelPort,
-  resolveQoderModelPortCommand,
-} from "./qoder-model-port.js"
+import { createQoderModelPort } from "./qoder-model-port.js"
+import { createQoderAgentHostAdapter } from "../qoder-agent-host.js"
 import {
   operatorCredentialView,
   QODER_SERVICE_TOKEN_ENV,
@@ -68,6 +66,7 @@ import {
   TURN_ENGINE_CLAUDE_COMMAND_ENV,
   TURN_ENGINE_MODEL_ENV,
   TURN_ENGINE_MODEL_SCRIPT_ENV,
+  TURN_ENGINE_QODER_COMMAND_ENV,
   type TurnEnvelope,
 } from "./envelope.js"
 import { createFileEvidenceSink } from "./file-evidence-sink.js"
@@ -133,7 +132,7 @@ async function loadPermissionsArtifact(
   }
 }
 
-function resolveModelPort(env: NodeJS.ProcessEnv): ModelPort {
+async function resolveModelPort(env: NodeJS.ProcessEnv): Promise<ModelPort> {
   const engine = env[TURN_ENGINE_MODEL_ENV]
   if (engine === undefined || engine.trim().length === 0) {
     throw new TurnSpawnError(
@@ -189,21 +188,34 @@ function resolveModelPort(env: NodeJS.ProcessEnv): ModelPort {
     return createClaudeLocalModelPort({ command, environment: env })
   }
   if (engine === "qoder") {
+    // The unsupported platform must not launch even a version candidate.
+    if (process.platform === "win32") {
+      throw new TurnSpawnError(
+        "engine.model_unavailable",
+        "host_platform_not_conformance_verified: the Qoder CLI platform is not verified",
+      )
+    }
     // Isolated service-token port (#185): wraps the conformance-verified
     // Qoder adapter in zero-tool mode. The token flows only through the
     // environment allowlist, never argv. Missing binary, out-of-family
     // version or missing token are environment faults: surface them here so
     // they map to exit 1, instead of letting the engine model them as a
     // failed turn and report exit 0.
-    const resolution = resolveQoderModelPortCommand(env)
-    const command = resolution.displayCommand
-    const unusable =
-      resolution.error ??
-      (resolution.command === undefined ? "qoder_binary_unavailable" : undefined)
+    // Share the doctor/setup/employee-run resolver, then pin the selected
+    // command for execution. An absent override permits CN-only discovery.
+    const override = env[TURN_ENGINE_QODER_COMMAND_ENV]?.trim()
+    const { command, probe } = await createQoderAgentHostAdapter({
+      ...(override ? { command: override } : {}),
+    }).probeWithCommand()
+    const unusable = !probe.available
+      ? "qoder_binary_unavailable"
+      : probe.issues.some((issue) => issue.code === "qoder_version_not_conformance_verified")
+      ? "qoder_version_not_conformance_verified"
+      : undefined
     if (unusable !== undefined) {
       throw new TurnSpawnError(
         "engine.model_unavailable",
-        `${unusable}: the Qoder CLI binary (${command}) is missing, outside the 1.1.x conformance family, or the platform is not verified`,
+        `${unusable}: ${probe.issues.map((issue) => issue.message).join("; ")}`,
       )
     }
     // #241: the readiness decision reads the OPERATOR credential view (the same
@@ -215,10 +227,10 @@ function resolveModelPort(env: NodeJS.ProcessEnv): ModelPort {
       const view = operatorCredentialView("qoder", env)
       throw new TurnSpawnError(
         "engine.model_unavailable",
-        `qoder_service_token_not_configured: ${QODER_SERVICE_TOKEN_ENV} is missing from the operator environment (credential view: ${JSON.stringify(view)}). recovery: export ${QODER_SERVICE_TOKEN_ENV} in the shell that runs digital-employee, exactly as \`doctor\` reads it; the isolated run environment intentionally strips it from the child process.`,
+        `qoder_service_token_not_configured: ${QODER_SERVICE_TOKEN_ENV} is missing from the operator environment (credential view: ${JSON.stringify(view)}). ${probe.issues.find((issue) => issue.code === "qoder_command_selected")?.message ?? ""} recovery: export ${QODER_SERVICE_TOKEN_ENV} in the shell that runs digital-employee, exactly as \`doctor\` reads it; the isolated run environment intentionally strips it from the child process.`,
       )
     }
-    return createQoderModelPort({ command: resolution.command, environment: env })
+    return createQoderModelPort({ command, environment: env })
   }
   throw new TurnSpawnError(
     "engine.model_unavailable",
@@ -482,7 +494,7 @@ export async function runTurn(options: TurnRunOptions): Promise<TurnRunResult> {
 
   let model: ModelPort
   try {
-    model = options.model ?? resolveModelPort(env)
+    model = options.model ?? await resolveModelPort(env)
   } catch (error) {
     if (error instanceof TurnSpawnError) {
       return failSpawn(error.code, error.message)

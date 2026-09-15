@@ -1,7 +1,8 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import { createServer } from "node:http"
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { chmod, lstat, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from "node:fs/promises"
+import { constants as fsConstants } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import type { AddressInfo } from "node:net"
@@ -269,6 +270,61 @@ test("workspace memory config is disabled by default and reports why", async () 
   }
 })
 
+test("reading missing memory configuration never creates a workspace manifest", async () => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "turn-memory-read-"))
+  try {
+    assert.deepEqual(await resolveWorkspaceMemory({
+      workspace, positionId: "repo-owner", conversationRef: "conversation-1",
+      turnId: "turn-1", env: {},
+    }), { status: "disabled", reason: "workspace_manifest_missing" })
+    await assert.rejects(lstat(path.join(workspace, "workspace.json")), { code: "ENOENT" })
+  } finally {
+    await rm(workspace, { recursive: true, force: true })
+  }
+})
+
+test("reading memory configuration preserves existing bytes and permissions", async () => {
+  const workspace = await createWorkspace({ enabled: false })
+  const manifest = path.join(workspace, "workspace.json")
+  try {
+    await chmod(manifest, 0o644)
+    const before = await readFile(manifest, "utf8")
+    const result = await resolveWorkspaceMemory({
+      workspace, positionId: "repo-owner", conversationRef: "conversation-1",
+      turnId: "turn-1", env: {},
+    })
+    assert.equal(result.status, "disabled")
+    assert.equal(await readFile(manifest, "utf8"), before)
+    // The fixture mode is known; inspect it only after the read. Windows chmod
+    // supports the owner read/write bits, not Unix group/other permissions.
+    const modeMask = process.platform === "win32" ? 0o600 : 0o777
+    assert.equal((await lstat(manifest)).mode & modeMask, 0o644 & modeMask)
+  } finally {
+    await rm(workspace, { recursive: true, force: true })
+  }
+})
+
+test("memory configuration keeps no-follow protection where the platform supports it", {
+  skip: !fsConstants.O_NOFOLLOW,
+}, async () => {
+  const workspace = await createWorkspace({ enabled: false })
+  const manifest = path.join(workspace, "workspace.json")
+  const target = path.join(workspace, "original.json")
+  try {
+    await rename(manifest, target)
+    const before = await readFile(target, "utf8")
+    await symlink("original.json", manifest)
+    await assert.rejects(resolveWorkspaceMemory({
+      workspace, positionId: "repo-owner", conversationRef: "conversation-1",
+      turnId: "turn-1", env: {},
+    }), (error: unknown) => error instanceof WorkspaceMemoryConfigError
+      && error.code === "workspace_memory_manifest_unreadable")
+    assert.equal(await readFile(target, "utf8"), before)
+  } finally {
+    await rm(workspace, { recursive: true, force: true })
+  }
+})
+
 test("enabled workspace config derives stable session identity and fails closed on missing env", async () => {
   const workspace = await createWorkspace({ enabled: true })
   try {
@@ -372,6 +428,61 @@ test("turn run recalls and persists bounded task state from workspace config", a
         ),
         true,
       )
+    })
+  } finally {
+    await rm(workspace, { recursive: true, force: true })
+  }
+})
+
+test("AC-002/AC-003: the same turn names a config pin mismatch, accepts a corrected pin, and reports absent memory", async () => {
+  const workspace = await createWorkspace({ enabled: true })
+  try {
+    await withMemServer(async (baseUrl, seen) => {
+      const run = async (env: NodeJS.ProcessEnv) => {
+        const events: Array<Record<string, any>> = []
+        const diagnostics: string[] = []
+        let modelCalls = 0
+        const result = await runTurn({
+          workspace,
+          positionId: "repo-owner",
+          envelopeText: envelope(workspace),
+          env,
+          model: {
+            async complete() {
+              modelCalls += 1
+              return { text: "configuration acceptance" }
+            },
+          },
+          writeEvent: (line) => events.push(JSON.parse(line)),
+          writeDiagnostic: (line) => diagnostics.push(line),
+        })
+        return { result, events, diagnostics, modelCalls }
+      }
+
+      // Keep the server and compiled code fixed; only operator config changes.
+      const mismatch = await run({
+        ...memoryEnv(baseUrl),
+        MEM_HTTP_PINNED_REVISION: "different-revision",
+      })
+      assert.equal(mismatch.modelCalls, 0)
+      assert.equal(mismatch.events.at(-1)?.type, "run.failed")
+      assert.match(mismatch.events.at(-1)?.error.message, /MEMORY_REVISION_MISMATCH/)
+      assert.equal(seen.some((request) => request.method === "POST"), false)
+
+      const configured = await run(memoryEnv(baseUrl))
+      assert.equal(configured.result.exitCode, 0)
+      assert.equal(configured.modelCalls, 1)
+      assert.equal(configured.events.at(-1)?.type, "run.completed")
+      assert.ok(configured.diagnostics.some((line) => line.includes("adapter mem-http.v1")))
+
+      const beforeDisabled = seen.length
+      await rm(path.join(workspace, "workspace.json"))
+      await rm(path.join(workspace, ".digital-employee", "evidence"), { recursive: true, force: true })
+      const absent = await run({})
+      assert.equal(absent.result.exitCode, 0)
+      assert.equal(absent.events.at(-1)?.type, "run.completed")
+      assert.ok(absent.diagnostics.some((line) => line.includes("memory disabled (workspace_manifest_missing)")))
+      assert.equal(seen.length, beforeDisabled)
     })
   } finally {
     await rm(workspace, { recursive: true, force: true })

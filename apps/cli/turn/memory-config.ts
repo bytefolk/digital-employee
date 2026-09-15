@@ -230,6 +230,9 @@ async function readWorkspaceManifest(
     handle = await open(
       manifestPath,
       fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0),
+      // O_CREAT is absent: this never creates or chmods a manifest. Keep an
+      // explicit private mode for filesystem analyzers that model open as creation.
+      0o600,
     )
     const stat = await handle.stat()
     if (!stat.isFile() || stat.size > MAX_WORKSPACE_MANIFEST_BYTES) {

@@ -218,12 +218,31 @@ Workbench Bridge 不得：
 
 | 项 | 说明 |
 | --- | --- |
-| 启用方式 | `DIGITAL_EMPLOYEE_ENGINE_MODEL=qoder`；二进制默认取 PATH 上的 `qodercli`，可用 `DIGITAL_EMPLOYEE_QODER_COMMAND` 指定 |
+| 启用方式 | `DIGITAL_EMPLOYEE_ENGINE_MODEL=qoder`；与 doctor、setup、employee run 共用 Qoder 命令探针：未配置 override 时按 `qodercli` → `qoderclicn` → `qodercn` 查找，只有 not-found 才继续；`DIGITAL_EMPLOYEE_QODER_COMMAND` 可指定唯一命令 |
 | 凭据 | 唯一入口是环境 allowlist 中的 `QODER_PERSONAL_ACCESS_TOKEN`。令牌不进 argv、envelope、事件流或诊断；沿用 Adapter 的 auth-payload 文件纪律（0600、run 局部、运行结束即删除） |
 | 版本族 | 与隔离 Adapter 相同：`1.1.x` conformance 族。族外版本、二进制缺失或本里程碑 **NOT VERIFIED / named limit** 的平台（Windows，详见 [Windows status](architecture.md#windows-status)）在 port 解析阶段 fail closed（退出码 1，环境故障），不会被建模成"员工失败"的治理结论（退出码 0） |
 | 工具面 | 零工具：`tools.default=deny` 且 allow 为空、无文件系统授权、网络 deny、approval never、无 MCP、`maxTurns=1`。Adapter 的 init 断言会在运行期复核公告的工具集 |
 | 用量 | **如实缺失**：Adapter 的 usage 事件不是稳定契约（`usage_events: unknown`），该 port 只返回文本、不返回 token 数。per-task/per-day 的 token 记账对该 port 记 0，iteration 预算仍生效；不得据此 port 做 token 级预算拦截 |
 
 **适用边界**：这是隔离服务凭据路径，与 `claude-local` 的本地订阅路径互不替代。令牌由操作方合法取得并自行配置；不得将任何令牌随员工包、镜像或分发物发布。
+
+命令优先级为受信任调用方的 `options.command`、非空且去除首尾空白的
+`DIGITAL_EMPLOYEE_QODER_COMMAND`、默认查找链。显式命令或环境 override 失败时
+不会换用其他命令；默认链中不能执行、版本探针失败或版本不合规也会终止查找。
+`turn run` 将探针选中的命令传给执行 Adapter；受支持的 POSIX 路径不通过 shell 解析命令。
+选中 CN 命令不会复用个人登录，也不证明模型权益或真实服务可用。
+
+命令选择保存在 Qoder Adapter 的本地执行状态中。`probeWithCommand()` 返回
+分离的 `{ command, probe }`，供进程内 turn 调用方固定执行命令；它不属于
+`AgentHostAdapter` 或 `agent-host.v1` wire。公开 `probe()`、`preflight()`、
+registry 和 wire 结果维持冻结的 v1 顶层 key，不包含 `resolvedCommand` 或
+`command`，严格消费者继续拒绝额外字段。
+
+所选命令通过现有 `issues[]` 中非阻断的 `qoder_command_selected` 消息诊断；
+查找失败的消息列出尝试的命令。命令文本先脱敏、移除 ASCII 控制字符，再截断至
+1024 字符，不参与执行选择，也不证明解析后的文件身份。缺少服务令牌的 turn
+错误也包含该诊断。每个 run 保持自己的命令选择，并发 probe 或 run 不会覆盖它。
+Windows turn 在启动任何候选版本探针前以 `host_platform_not_conformance_verified`
+拒绝执行；这不代表 Windows 已通过宿主认证。
 
 **未达成的部分**：该 port 是 spawn 面上的模型口，不等于 host qualification——Qoder live E4 qualification 归 #177/#113，需真实令牌授权后现场验证，CI 以 conformance fixture（E3）覆盖。

@@ -6,16 +6,24 @@
   "additionalProperties": false,
   "required": [
     "schemaVersion",
-    "workspaceInstanceId",
     "name",
     "description",
     "template",
     "createdAt",
     "organization",
     "positions",
-    "context",
-    "memory"
+    "context"
   ],
+  "if": {
+    "required": [
+      "memory"
+    ]
+  },
+  "then": {
+    "required": [
+      "workspaceInstanceId"
+    ]
+  },
   "properties": {
     "$schema": {
       "type": "string"

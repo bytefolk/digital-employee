@@ -15,6 +15,7 @@ import os from "node:os"
 import path from "node:path"
 import test from "node:test"
 import { fileURLToPath } from "node:url"
+import { Ajv2020 } from "ajv/dist/2020.js"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const builtCli = path.join(root, "dist", "apps", "cli", "bin.js")
@@ -473,4 +474,63 @@ test("workspace help surfaces usage; unknown subcommands fail closed", async (t)
   assert.equal(unknown.status, 1)
   const parsed = JSON.parse(unknown.stdout) as Record<string, unknown>
   assert.equal(parsed.code, "workspace_unknown_subcommand:frobnicate")
+})
+
+test("workspace schema accepts pre-memory manifests without memory or workspaceInstanceId", async () => {
+  const schema = JSON.parse(
+    await readFile(path.join(root, "configs", "workspace.schema.json"), "utf8"),
+  )
+  const ajv = new Ajv2020({ allErrors: true })
+  const validate = ajv.compile(schema)
+
+  const baseManifest = {
+    schemaVersion: "workspace.v1alpha1",
+    name: "pre-memory",
+    description: "A workspace created before the memory feature existed.",
+    template: "oss-maintainer",
+    createdAt: "2026-08-01T00:00:00.000Z",
+    organization: "./organization.v1alpha1.json",
+    positions: "./positions",
+    context: "./context",
+  }
+
+  assert.ok(
+    validate(baseManifest),
+    `manifest without memory or workspaceInstanceId should pass: ${ajv.errorsText(validate.errors)}`,
+  )
+
+  const withMemoryButNoInstance = { ...baseManifest, memory: { schemaVersion: "workspace-memory.v1" } }
+  assert.equal(
+    validate(withMemoryButNoInstance),
+    false,
+    "manifest with memory but no workspaceInstanceId should fail",
+  )
+  assert.ok(
+    ajv.errorsText(validate.errors).includes("workspaceInstanceId"),
+  )
+
+  const validMemory = {
+    schemaVersion: "workspace-memory.v1",
+    adapter: "mem-http.v1",
+    enabled: false,
+    mode: "optional",
+    baseUrlEnv: "MEM_BASE_URL",
+    memWorkspaceIdEnv: "MEM_WORKSPACE_ID",
+    pinnedRevisionEnv: "MEM_PINNED_REVISION",
+    bindings: {
+      "repo-owner": {
+        tokenEnv: "MEM_REPO_OWNER_TOKEN",
+        memoryScopeEnv: "MEM_REPO_OWNER_SCOPE",
+      },
+    },
+  }
+  const withBoth = {
+    ...baseManifest,
+    workspaceInstanceId: "12345678-1234-1234-8234-123456789abc",
+    memory: validMemory,
+  }
+  assert.ok(
+    validate(withBoth),
+    `manifest with both memory and workspaceInstanceId should pass: ${ajv.errorsText(validate.errors)}`,
+  )
 })

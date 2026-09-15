@@ -1,7 +1,19 @@
 import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
+import { execFile } from "node:child_process"
+import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import path from "node:path"
 import test from "node:test"
+import { promisify } from "node:util"
 
+import { buildQuestionEnvelope } from "../../apps/cli/turn/index.js"
+import { deriveMemorySessionId, deriveMemoryTaskId } from "../../apps/cli/turn/memory-config.js"
+import { TURN_ENGINE_MODEL_ENV, TURN_ENGINE_MODEL_SCRIPT_ENV } from "../../apps/cli/turn/envelope.js"
+import { OSS_MAINTAINER_TEMPLATE, renderOrganizationFile, renderWorkspaceManifest } from "../../apps/cli/workspace/templates.js"
+import { validateOrganizationDocument } from "../../apps/cli/org/budget.js"
+import { deriveOrganizationPermissions } from "../../apps/cli/org/permissions.js"
+import { digestOutputValue } from "../../packages/engine/src/turn-evidence.js"
+import { memoryE3Configuration, verifyMemoryE3Artifact, verifyMemoryE3Version } from "./memory-e3-prerequisites.js"
 import { createMemHttpMemoryAdapter } from "../../packages/core/src/mem-http-memory-adapter.js"
 import {
   MEMORY_WRITE_REQUEST_SCHEMA_VERSION,
@@ -19,7 +31,7 @@ const baseUrl = process.env.MEMORY_E3_BASE_URL ?? ""
 const tokenEnv = "MEM_E3_REPO_OWNER_TOKEN"
 const scope = "/DigitalEmployees/repo-owner"
 const principal = "position.repo-owner"
-const pinnedRevision = process.env.MEM_HTTP_PINNED_REVISION ?? "4c714aa352f79f0080a24904668210d6c445ba10"
+const execFileAsync = promisify(execFile)
 
 interface HttpResult {
   status: number
@@ -46,6 +58,8 @@ async function httpJson(
   const response = await fetch(`${baseUrl}${path}`, {
     method: options.method ?? "GET",
     headers,
+    redirect: "error",
+    signal: AbortSignal.timeout(5_000),
     ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
   })
   const raw = await response.text()
@@ -119,10 +133,21 @@ function recallRequest(
 }
 
 test(
-  "actual loopback mem/PostgreSQL E3 covers scoped write, replay, denial and lifecycle",
-  { skip: !runE3 },
+  "released loopback mem/PostgreSQL E3 covers configured CLI, adapter and lifecycle",
+  { skip: !runE3, timeout: 120_000 },
   async (t) => {
-    assert.match(baseUrl, /^http:\/\/(?:127\.0\.0\.1|localhost):[0-9]+$/)
+    const config = memoryE3Configuration(process.env)
+    const { pinnedRevision } = config
+    await verifyMemoryE3Artifact(config)
+    await access("dist/apps/cli/bin.js").catch(() => {
+      throw new Error("MEMORY_E3_CLI_BUILD_REQUIRED")
+    })
+    const version = await httpJson("/v1/version")
+    assert.equal(version.status, 200, "MEMORY_E3_VERSION_UNAVAILABLE")
+    verifyMemoryE3Version(version.body, pinnedRevision)
+    const ready = await httpJson("/readyz")
+    assert.equal(ready.status, 200, "MEMORY_E3_SERVICE_NOT_READY")
+    t.diagnostic(`artifact=${config.artifactUrl} sha256=${config.artifactSha256} serverVersion=${pinnedRevision}`)
 
     const registration = await httpJson("/v1/auth/register", {
       method: "POST",
@@ -175,9 +200,11 @@ test(
     const workspaceInstanceId = randomUUID()
     const sessionId = randomUUID()
     let positionToken = await createPositionToken()
+    const previousToken = process.env[tokenEnv]
     process.env[tokenEnv] = positionToken.token
     t.after(() => {
-      delete process.env[tokenEnv]
+      if (previousToken === undefined) delete process.env[tokenEnv]
+      else process.env[tokenEnv] = previousToken
     })
 
     const memory = createMemHttpMemoryAdapter({
@@ -330,6 +357,86 @@ test(
     process.env[tokenEnv] = positionToken.token
     recalled = await memory.recall(recallRequest(workspaceInstanceId, randomUUID()))
     assert.deepEqual(recalled.items.map((item) => item.memoryId), [second.memoryId])
+
+    // AC-001: invoke the built CLI with configuration only. The model is the
+    // existing deterministic port; all memory requests still go to real mem.
+    await mkdir(".cache", { recursive: true })
+    const cliWorkspace = await mkdtemp(path.resolve(".cache/memory-cli-e3-"))
+    t.after(() => rm(cliWorkspace, { recursive: true, force: true }))
+    const roleDigests = Object.fromEntries(OSS_MAINTAINER_TEMPLATE.roles.map((role) => [
+      role.id, { name: role.id, version: "0.1.0", digest: `sha256:${"a".repeat(64)}` },
+    ]))
+    const organization = renderOrganizationFile(
+      OSS_MAINTAINER_TEMPLATE, "memory-e3", cliWorkspace, roleDigests, new Date().toISOString(),
+    )
+    await writeFile(path.join(cliWorkspace, organization.portablePath), organization.content)
+    await mkdir(path.join(cliWorkspace, ".digital-employee"))
+    await writeFile(path.join(cliWorkspace, ".digital-employee/permissions.json"), JSON.stringify(
+      deriveOrganizationPermissions(validateOrganizationDocument(
+        JSON.parse(new TextDecoder().decode(organization.content)),
+      )),
+    ))
+    const manifest = JSON.parse(new TextDecoder().decode(renderWorkspaceManifest(
+      OSS_MAINTAINER_TEMPLATE, "memory-e3", new Date().toISOString(), workspaceInstanceId,
+    ).content))
+    manifest.memory.enabled = true
+    manifest.memory.mode = "required"
+    await writeFile(path.join(cliWorkspace, "workspace.json"), JSON.stringify(manifest))
+    const envelope = buildQuestionEnvelope({
+      workspace: cliWorkspace, positionId: "repo-owner",
+      question: "Complete the synthetic memory acceptance task.", turnId: "cli-memory-e3",
+    })
+    const envelopePath = path.join(cliWorkspace, "envelope.json")
+    await writeFile(envelopePath, JSON.stringify(envelope))
+    let stdout: string
+    let stderr: string
+    try {
+      ({ stdout, stderr } = await execFileAsync(process.execPath, [
+        path.resolve("dist/apps/cli/bin.js"), "turn", "run", cliWorkspace,
+        "--position", "repo-owner", "--input-file", envelopePath,
+      ], {
+        env: {
+          [TURN_ENGINE_MODEL_ENV]: "deterministic",
+          [TURN_ENGINE_MODEL_SCRIPT_ENV]: '["memory acceptance completed"]',
+          MEM_HTTP_BASE_URL: baseUrl,
+          MEM_HTTP_WORKSPACE_ID: memWorkspaceId,
+          MEM_HTTP_PINNED_REVISION: pinnedRevision,
+          MEM_REPO_OWNER_TOKEN: positionToken.token,
+          MEM_REPO_OWNER_SCOPE: scope,
+        },
+        encoding: "utf8", timeout: 30_000, maxBuffer: 128 * 1024,
+      }))
+    } catch {
+      // Never let execFile's error include raw transcripts, argv paths or tokens.
+      throw new Error("MEMORY_E3_CLI_FAILED")
+    }
+    assert.ok(stderr.includes("memory enabled (adapter mem-http.v1)"), "MEMORY_E3_CLI_BINDING_MISSING")
+    const events = stdout.trim().split("\n").map((line) => JSON.parse(line))
+    const terminals = events.filter((event) => event.type === "run.completed" || event.type === "run.failed")
+    assert.equal(terminals.length, 1)
+    assert.equal(terminals[0].type, "run.completed", "MEMORY_E3_CLI_NOT_COMPLETED")
+    const cliRequest: MemoryWriteRequest = {
+      ...request(workspaceInstanceId, deriveMemorySessionId(workspaceInstanceId, "repo-owner"),
+        "cli-memory-e3", deriveMemoryTaskId("cli-memory-e3"), "c"),
+      taskState: {
+        schemaVersion: TASK_STATE_SCHEMA_VERSION,
+        taskId: deriveMemoryTaskId("cli-memory-e3"),
+        status: "completed",
+        summary: "Digital Employee turn completed.",
+        terminalOutputDigest: `sha256:${digestOutputValue(terminals[0].output)}`,
+        recordedAt: terminals[0].timestamp,
+      },
+    }
+    // Replaying exactly the CLI write must find the already persisted record.
+    // A lane which only made its own adapter write would get replayed=false.
+    const cliWrite = await memory.writeTaskState(cliRequest)
+    assert.equal(cliWrite.replayed, true, "MEMORY_E3_CLI_WRITE_NOT_FOUND")
+    assert.deepEqual(cliWrite.readBack, cliRequest.taskState)
+    await grant(cliWrite.memoryId)
+    const cliRecall = await memory.recall(recallRequest(workspaceInstanceId, randomUUID()))
+    assert.ok(cliRecall.items.some((item) => item.memoryId === cliWrite.memoryId),
+      "MEMORY_E3_CLI_WRITE_NOT_RECALLED")
+    t.diagnostic(`AC-001 CLI=PASS adapter=mem-http.v1 scope=${scope} recall=PASS writeReplay=PASS model=deterministic-fixture`)
 
     const expiring = await createPositionToken("10ms")
     process.env[tokenEnv] = expiring.token

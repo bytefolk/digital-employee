@@ -4,14 +4,51 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add an opt-in released-artifact acceptance gate for the workspace memory E3
+  lane: an explicit disposable-stack flag, a loopback-only endpoint, published
+  `memd` asset URL and SHA-256 verification, an exact version-contract check,
+  and a configuration-only built CLI leg. Its regression tests use synthetic
+  metadata only; real-service acceptance stays a named follow-up until a
+  compatible memd server artifact is published and the lane is actually run.
+
 ### Changed
 
-- Replace former GitHub owner coordinates in shipped templates and examples
-  with ByteFolk, and align visible employee authorship while retaining frozen
-  JSON Schema identities and the existing npm compatibility namespace.
-- Prepare GitHub repository and GHCR coordinates for the ByteFolk organization
-  handle cutover while retaining published JSON Schema identities and the
-  existing npm compatibility namespace.
+- Make the workspace manifest schema backward-compatible with pre-memory
+  workspaces: `memory` is optional and `workspaceInstanceId` is required only
+  when a memory binding is present, matching the runtime fail-safe that treats
+  an absent manifest as disabled memory. Newly created workspaces still render
+  both keys with memory disabled by default.
+- The Codex default-deny audit probe accepts an explicit `--expect-version`
+  instead of requiring an edit to the pinned `AUDITED_CODEX_VERSION`, and both
+  the flag and the `codex --version` extraction derive from one shared semver
+  grammar so they cannot drift apart. Full-version equality is enforced,
+  including prerelease and build-metadata suffixes: a prerelease is auditable
+  under its real version and can no longer be admitted under, and recorded as,
+  its release prefix. The pinned default is unchanged at `0.148.0` and the
+  probe still fails closed on a mismatch, so prior records stay reproducible.
+- Codex default-deny research is re-audited against stable Codex CLI 0.153.4:
+  the offline Responses fixture still observes model-visible `apply_patch`,
+  the same four candidate removal surfaces are rejected by `--strict-config`
+  as unknown fields, and observed event types are unchanged from 0.148.0. The
+  verdict stays NO-GO / probe-only, recorded in
+  `docs/research/codex-cli-0.153.4-default-deny-audit.md`. Upstream
+  openai/codex#8161 remains closed NOT_PLANNED and openai/codex#6049 remains
+  open with no landed switch, so a version bump alone no longer justifies a
+  fresh audit.
+
+### Fixed
+
+- Run the required OpenSSF Scorecard analysis on pull requests targeting main
+  with read-only permissions and a local report artifact, preserving the
+  separate default-branch reporting workflow (#262).
+- Pass an explicit `0o600` mode to the workspace memory manifest reader so that
+  filesystem analyzers that model `open` as creation see a private-mode intent,
+  even though `O_CREAT` is absent and the call never creates or chmods the
+  manifest.
+
+## [0.6.1] - 2026-09-11
 
 ### Added
 
@@ -20,15 +57,28 @@ All notable changes to this project will be documented in this file.
   revision-pinned MemoryPort from environment-variable names, recall before
   model consumption, and persist a bounded terminal task-state projection
   without placing credentials in workspace files.
-- Add a documented opt-in released-mem acceptance gate with explicit isolation,
-  artifact checksum and version prerequisites, plus a configuration-only built
-  CLI turn. Real-service acceptance remains unverified until a compatible mem
-  server artifact is published and the gate is actually run.
-
-## [0.6.1] - 2026-08-31
+- Add a shared Qoder executable resolver (`DIGITAL_EMPLOYEE_QODER_COMMAND`
+  override with a fixed candidate order and shell/control-character rejection)
+  used by the built-in Agent Host and the `turn run` model port.
+- Add a digest-only file evidence sink for the built-in `oss-maintainer`
+  showcase. Each `turn run` turn persists one record at
+  `.digital-employee/evidence/<positionId>/<turnId>.json` with private file
+  permissions, holding hashes, bounded counters, permissions and terminal state
+  only — never the prompt, completion, chain-of-thought or credentials.
+- Verify the built-in `oss-maintainer` showcase end-to-end `turn run` path for
+  all four materialized packages in this source checkout: package validation
+  and digest pinning, `SKILL.md`/`knowledge/` projection into the engine, one
+  trusted terminal per turn, and zero external Host, credential or network
+  access.
 
 ### Changed
 
+- Replace former GitHub owner coordinates in shipped templates and examples
+  with ByteFolk, and align visible employee authorship while retaining frozen
+  JSON Schema identities and the existing npm compatibility namespace.
+- Prepare GitHub repository and GHCR coordinates for the ByteFolk organization
+  handle cutover while retaining published JSON Schema identities and the
+  existing npm compatibility namespace.
 - Document the release-availability boundary for the immutable `0.6.0` npm
   artifacts. The source package version `0.6.1` and packed artifacts do not
   establish an npm package, tag, GHCR image, or GitHub Release; the release

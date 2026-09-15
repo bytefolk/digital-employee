@@ -477,6 +477,7 @@ test("AC-002/AC-003: the same turn names a config pin mismatch, accepts a correc
 
       const beforeDisabled = seen.length
       await rm(path.join(workspace, "workspace.json"))
+      await rm(path.join(workspace, ".digital-employee", "evidence"), { recursive: true, force: true })
       const absent = await run({})
       assert.equal(absent.result.exitCode, 0)
       assert.equal(absent.events.at(-1)?.type, "run.completed")

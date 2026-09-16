@@ -122,12 +122,15 @@ export {
   createInMemoryEvidenceSink,
   digestOutputValue,
   evidenceRecordContainsForbiddenMaterial,
+  validateTurnEvidenceRecord,
 } from "./turn-evidence.js"
 export type {
   EvidenceSinkPort,
   InMemoryEvidenceSink,
   TurnEvidenceApprovalRef,
   TurnEvidenceBudget,
+  TurnEvidenceConformanceResult,
+  TurnEvidenceConformanceViolation,
   TurnEvidencePermissions,
   TurnEvidenceMemory,
   TurnEvidenceMemoryItem,

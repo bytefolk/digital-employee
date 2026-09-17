@@ -1,0 +1,514 @@
+{
+  "schema": "w1-acceptance-evidence.v1",
+  "generatedAt": "2026-09-16T16:06:51.793Z",
+  "environment": {
+    "platform": "darwin",
+    "osRelease": "24.5.0",
+    "node": "v26.7.0",
+    "cliVersion": "0.6.1",
+    "engineVersion": "0.1.0",
+    "checkout": "b239b739772e2ad0b02a4f51c8ed61df79edbea3",
+    "checkoutDirty": false,
+    "modelPort": "deterministic (zero-credential reference port)"
+  },
+  "ac001": {
+    "structural": {
+      "workspaceInit": {
+        "status": "created",
+        "positions": [
+          "repo-owner",
+          "issue-researcher",
+          "release-engineer",
+          "community-operator"
+        ]
+      },
+      "orgApply": {
+        "status": "applied",
+        "positions": 4
+      },
+      "orgTree": {
+        "owner": "repo-owner",
+        "positionCount": 4,
+        "depth": 2
+      }
+    },
+    "turns": [
+      {
+        "positionId": "repo-owner",
+        "role": "owner",
+        "layer": "cli",
+        "terminal": {
+          "type": "run.completed",
+          "reason": "goal_met"
+        },
+        "eventCount": 3,
+        "evidence": {
+          "assemblyManifestDigest": "c7b79cc9ccfeddf1973f08ce045d00f5b73e6c62f04c52f5f61945c572529691",
+          "budget": {
+            "turn": {
+              "iterationsUsed": 1,
+              "maxIterations": 12,
+              "tokensUsed": 0
+            }
+          },
+          "engineVersion": "0.1.0",
+          "evidenceId": "6f0c121b-8f96-43c1-8ba6-0bdb80600334",
+          "inputDigest": "c7b79cc9ccfeddf1973f08ce045d00f5b73e6c62f04c52f5f61945c572529691",
+          "outputDigest": "6d20d2aa711ab357d91212f1343fb2744f97839525eb846b0552102dc344163d",
+          "permissions": {
+            "denials": [],
+            "summary": {
+              "allowCount": 0,
+              "codesSeen": [],
+              "denyCount": 0,
+              "redirectToTargets": []
+            }
+          },
+          "positionId": "repo-owner",
+          "runId": "47c2e32e-ae37-4800-8989-e10d6bc498b8",
+          "schemaVersion": "turn-evidence.v1",
+          "terminal": {
+            "reason": "goal_met",
+            "status": "completed"
+          },
+          "timeBounds": {
+            "completedAt": "2026-09-16T16:06:50.638Z",
+            "startedAt": "2026-09-16T16:06:50.637Z"
+          },
+          "turnId": "b7cc2634-c676-4152-8ebc-3d978509fb57",
+          "workspaceRef": "<tmpdir>/ws"
+        }
+      },
+      {
+        "positionId": "issue-researcher",
+        "role": "worker",
+        "layer": "cli",
+        "terminal": {
+          "type": "run.completed",
+          "reason": "goal_met"
+        },
+        "eventCount": 3,
+        "evidence": {
+          "assemblyManifestDigest": "77435458832517821b9145019f720856a10935e27f64f048b31c74ae9a104eb0",
+          "budget": {
+            "turn": {
+              "iterationsUsed": 1,
+              "maxIterations": 12,
+              "tokensUsed": 0
+            }
+          },
+          "engineVersion": "0.1.0",
+          "evidenceId": "27b42066-aea4-49db-8596-4f40793350bb",
+          "inputDigest": "77435458832517821b9145019f720856a10935e27f64f048b31c74ae9a104eb0",
+          "outputDigest": "6b805c9a09f1f5806c30ed771448a78e77f6a08e78708e6006494ccacffdf429",
+          "permissions": {
+            "denials": [],
+            "summary": {
+              "allowCount": 0,
+              "codesSeen": [],
+              "denyCount": 0,
+              "redirectToTargets": []
+            }
+          },
+          "positionId": "issue-researcher",
+          "runId": "0759aa8d-6d61-43d3-a7af-1ed00ebeee46",
+          "schemaVersion": "turn-evidence.v1",
+          "terminal": {
+            "reason": "goal_met",
+            "status": "completed"
+          },
+          "timeBounds": {
+            "completedAt": "2026-09-16T16:06:50.829Z",
+            "startedAt": "2026-09-16T16:06:50.828Z"
+          },
+          "turnId": "47057da7-b4b2-4da2-984a-5fdd8a7a5fe5",
+          "workspaceRef": "<tmpdir>/ws"
+        }
+      },
+      {
+        "positionId": "release-engineer",
+        "role": "worker",
+        "layer": "cli",
+        "terminal": {
+          "type": "run.completed",
+          "reason": "goal_met"
+        },
+        "eventCount": 3,
+        "evidence": {
+          "assemblyManifestDigest": "2beb6704e00d29892f576ca8d88474bb074f23ff5996052a9c8ae59a16eb018d",
+          "budget": {
+            "turn": {
+              "iterationsUsed": 1,
+              "maxIterations": 12,
+              "tokensUsed": 0
+            }
+          },
+          "engineVersion": "0.1.0",
+          "evidenceId": "6665911c-f11a-4905-b6cd-49afd0ebd829",
+          "inputDigest": "2beb6704e00d29892f576ca8d88474bb074f23ff5996052a9c8ae59a16eb018d",
+          "outputDigest": "efa74287e0dd4cf9c0142f0a20f6c71833131a9850e01aa0f7f4af1a87e08e34",
+          "permissions": {
+            "denials": [],
+            "summary": {
+              "allowCount": 0,
+              "codesSeen": [],
+              "denyCount": 0,
+              "redirectToTargets": []
+            }
+          },
+          "positionId": "release-engineer",
+          "runId": "1af717e6-49d8-4acf-b4ba-1895c061d9fd",
+          "schemaVersion": "turn-evidence.v1",
+          "terminal": {
+            "reason": "goal_met",
+            "status": "completed"
+          },
+          "timeBounds": {
+            "completedAt": "2026-09-16T16:06:51.012Z",
+            "startedAt": "2026-09-16T16:06:51.011Z"
+          },
+          "turnId": "413fe280-e1b3-4755-bf89-108ab9cf62e8",
+          "workspaceRef": "<tmpdir>/ws"
+        }
+      },
+      {
+        "positionId": "community-operator",
+        "role": "worker",
+        "layer": "cli",
+        "terminal": {
+          "type": "run.completed",
+          "reason": "goal_met"
+        },
+        "eventCount": 3,
+        "evidence": {
+          "assemblyManifestDigest": "05419c233e530caa391a0699791f2ced301befb7c3b0f8d09b2d426c93847ed0",
+          "budget": {
+            "turn": {
+              "iterationsUsed": 1,
+              "maxIterations": 12,
+              "tokensUsed": 0
+            }
+          },
+          "engineVersion": "0.1.0",
+          "evidenceId": "4b71f7f2-5005-4cd6-afc0-8c4804c57ecc",
+          "inputDigest": "05419c233e530caa391a0699791f2ced301befb7c3b0f8d09b2d426c93847ed0",
+          "outputDigest": "fbbc6164b7a32eab27e17d808a933bf127671c1bfba40596638ade0bc8f5ff08",
+          "permissions": {
+            "denials": [],
+            "summary": {
+              "allowCount": 0,
+              "codesSeen": [],
+              "denyCount": 0,
+              "redirectToTargets": []
+            }
+          },
+          "positionId": "community-operator",
+          "runId": "131b3322-710e-4c13-9ef5-ed39ad08a4e4",
+          "schemaVersion": "turn-evidence.v1",
+          "terminal": {
+            "reason": "goal_met",
+            "status": "completed"
+          },
+          "timeBounds": {
+            "completedAt": "2026-09-16T16:06:51.206Z",
+            "startedAt": "2026-09-16T16:06:51.205Z"
+          },
+          "turnId": "e598c367-a8a3-4032-a69f-f55ce37ecaa2",
+          "workspaceRef": "<tmpdir>/ws"
+        }
+      }
+    ]
+  },
+  "ac002": {
+    "pinnedCliVersion": "0.6.1",
+    "packages": [
+      {
+        "positionId": "repo-owner",
+        "packageVersion": "0.1.0",
+        "validateStatus": "valid",
+        "evalCode": "EVAL_PASSED",
+        "evalSummary": {
+          "total": 1,
+          "passed": 1,
+          "failed": 0
+        },
+        "packageDirDigest": "54df9451681d3aba17eaa76411d3921a50dba514b148906734e799c12b8b1850"
+      },
+      {
+        "positionId": "issue-researcher",
+        "packageVersion": "0.1.0",
+        "validateStatus": "valid",
+        "evalCode": "EVAL_PASSED",
+        "evalSummary": {
+          "total": 1,
+          "passed": 1,
+          "failed": 0
+        },
+        "packageDirDigest": "50a11e0274c5ef4315a32040abab92cafa4c6d7d7d9cd194b83092d76e6aca20"
+      },
+      {
+        "positionId": "release-engineer",
+        "packageVersion": "0.1.0",
+        "validateStatus": "valid",
+        "evalCode": "EVAL_PASSED",
+        "evalSummary": {
+          "total": 1,
+          "passed": 1,
+          "failed": 0
+        },
+        "packageDirDigest": "1c4a972dc11b67fb737c4b3fa6d2302e76f4719df2ef4c2077b385ac7219c225"
+      },
+      {
+        "positionId": "community-operator",
+        "packageVersion": "0.1.0",
+        "validateStatus": "valid",
+        "evalCode": "EVAL_PASSED",
+        "evalSummary": {
+          "total": 1,
+          "passed": 1,
+          "failed": 0
+        },
+        "packageDirDigest": "dea6facc15adff53b7a382df8329c771fd468e3640e6255330a391f4a13dec9d"
+      }
+    ]
+  },
+  "ac003": {
+    "childEnvironment": [
+      "DIGITAL_EMPLOYEE_ENGINE_MODEL",
+      "DIGITAL_EMPLOYEE_ENGINE_MODEL_SCRIPT",
+      "NODE_NO_WARNINGS",
+      "PATH",
+      "TMPDIR"
+    ],
+    "credentialVariablesForwarded": [],
+    "note": "engine structural no-network/no-spawn guarantee: tests/engine/structural-fail-closed.test.ts"
+  },
+  "ac004a": [
+    {
+      "fixture": "doom_loop (repetition, schema repair loop)",
+      "layer": "engine",
+      "expectedReason": "doom_loop",
+      "expectedCode": "engine.doom_loop_detected",
+      "terminalReason": "doom_loop",
+      "escalationCause": "doom_loop",
+      "escalationRef": "d75c39c8-5944-4395-8e78-97beaebcff33",
+      "evidence": {
+        "assemblyManifestDigest": "20aab212f00e1d073dbbfa56ae815f7aef97e58cecf81492bcc7382bc188c279",
+        "budget": {
+          "turn": {
+            "iterationsUsed": 3,
+            "maxIterations": 8,
+            "tokensUsed": 0
+          }
+        },
+        "engineVersion": "0.1.0",
+        "escalationRef": "d75c39c8-5944-4395-8e78-97beaebcff33",
+        "evidenceId": "f0178289-91ed-4889-92b5-12ba4862c6cf",
+        "inputDigest": "20aab212f00e1d073dbbfa56ae815f7aef97e58cecf81492bcc7382bc188c279",
+        "outputDigest": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "positionId": "repo-owner",
+        "runId": "run-doom-loop",
+        "schemaVersion": "turn-evidence.v1",
+        "terminal": {
+          "errorCode": "engine.doom_loop_detected",
+          "reason": "doom_loop",
+          "status": "failed"
+        },
+        "timeBounds": {
+          "completedAt": "2026-09-16T16:06:51.240Z",
+          "startedAt": "2026-09-16T16:06:51.218Z"
+        },
+        "turnId": "doom-loop",
+        "workspaceRef": "<tmpdir>/terminations"
+      }
+    },
+    {
+      "fixture": "turn_budget_exceeded (token cap, reporting model port)",
+      "layer": "engine",
+      "expectedReason": "turn_budget_exceeded",
+      "expectedCode": "engine.turn_budget_exceeded",
+      "terminalReason": "turn_budget_exceeded",
+      "escalationCause": "turn_budget_exceeded",
+      "escalationRef": "d6f0764a-eb22-4d09-8a8c-60f682457f34",
+      "evidence": {
+        "assemblyManifestDigest": "20aab212f00e1d073dbbfa56ae815f7aef97e58cecf81492bcc7382bc188c279",
+        "budget": {
+          "turn": {
+            "iterationsUsed": 1,
+            "maxIterations": 8,
+            "maxTokens": 50,
+            "tokensUsed": 120
+          }
+        },
+        "engineVersion": "0.1.0",
+        "escalationRef": "d6f0764a-eb22-4d09-8a8c-60f682457f34",
+        "evidenceId": "1049b5d3-ac45-47f1-a370-7f065759a4d7",
+        "inputDigest": "20aab212f00e1d073dbbfa56ae815f7aef97e58cecf81492bcc7382bc188c279",
+        "outputDigest": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "positionId": "repo-owner",
+        "runId": "run-turn-token-budget",
+        "schemaVersion": "turn-evidence.v1",
+        "terminal": {
+          "errorCode": "engine.turn_budget_exceeded",
+          "reason": "turn_budget_exceeded",
+          "status": "failed"
+        },
+        "timeBounds": {
+          "completedAt": "2026-09-16T16:06:51.255Z",
+          "startedAt": "2026-09-16T16:06:51.248Z"
+        },
+        "turnId": "turn-token-budget",
+        "workspaceRef": "<tmpdir>/terminations"
+      }
+    },
+    {
+      "fixture": "turn_budget_exceeded (context-byte cap, pre-model stop)",
+      "layer": "engine",
+      "expectedReason": "turn_budget_exceeded",
+      "expectedCode": "engine.context_budget_exceeded",
+      "terminalReason": "turn_budget_exceeded",
+      "errorCode": "engine.context_budget_exceeded",
+      "escalationCause": "turn_budget_exceeded",
+      "escalationRef": "d10f5804-1a26-4c67-82a9-8d87888945ea",
+      "evidence": {
+        "assemblyManifestDigest": "20aab212f00e1d073dbbfa56ae815f7aef97e58cecf81492bcc7382bc188c279",
+        "budget": {
+          "turn": {
+            "iterationsUsed": 0,
+            "maxIterations": 4,
+            "tokensUsed": 0
+          }
+        },
+        "engineVersion": "0.1.0",
+        "escalationRef": "d10f5804-1a26-4c67-82a9-8d87888945ea",
+        "evidenceId": "892579a9-8e16-4b84-b5b5-e1909fd999b9",
+        "inputDigest": "20aab212f00e1d073dbbfa56ae815f7aef97e58cecf81492bcc7382bc188c279",
+        "outputDigest": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "positionId": "repo-owner",
+        "runId": "run-context-byte-budget",
+        "schemaVersion": "turn-evidence.v1",
+        "terminal": {
+          "errorCode": "engine.context_budget_exceeded",
+          "reason": "turn_budget_exceeded",
+          "status": "failed"
+        },
+        "timeBounds": {
+          "completedAt": "2026-09-16T16:06:51.261Z",
+          "startedAt": "2026-09-16T16:06:51.261Z"
+        },
+        "turnId": "context-byte-budget",
+        "workspaceRef": "<tmpdir>/terminations"
+      }
+    },
+    {
+      "fixture": "position_budget_exceeded (per-task iteration cap)",
+      "layer": "engine",
+      "expectedReason": "position_budget_exceeded",
+      "expectedCode": "engine.position_budget_exceeded",
+      "terminalReason": "position_budget_exceeded",
+      "escalationCause": "position_budget_exceeded",
+      "escalationRef": "99a26f51-43ce-46ac-910d-0071c2e08797",
+      "evidence": {
+        "assemblyManifestDigest": "20aab212f00e1d073dbbfa56ae815f7aef97e58cecf81492bcc7382bc188c279",
+        "budget": {
+          "position": {
+            "dayUsedIterations": 1,
+            "dayUsedTokens": 0,
+            "taskUsedIterations": 1,
+            "taskUsedTokens": 0
+          },
+          "turn": {
+            "iterationsUsed": 1,
+            "maxIterations": 8,
+            "tokensUsed": 0
+          }
+        },
+        "engineVersion": "0.1.0",
+        "escalationRef": "99a26f51-43ce-46ac-910d-0071c2e08797",
+        "evidenceId": "6df82817-f102-469e-9c04-dfb55c2d3f5b",
+        "inputDigest": "20aab212f00e1d073dbbfa56ae815f7aef97e58cecf81492bcc7382bc188c279",
+        "outputDigest": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "positionId": "repo-owner",
+        "runId": "run-position-budget",
+        "schemaVersion": "turn-evidence.v1",
+        "terminal": {
+          "errorCode": "engine.position_budget_exceeded",
+          "reason": "position_budget_exceeded",
+          "status": "failed"
+        },
+        "timeBounds": {
+          "completedAt": "2026-09-16T16:06:51.271Z",
+          "startedAt": "2026-09-16T16:06:51.265Z"
+        },
+        "turnId": "position-budget",
+        "workspaceRef": "<tmpdir>/terminations"
+      }
+    }
+  ],
+  "ac004b": {
+    "checker": "validateTurnEvidenceRecord (packages/engine/src/turn-evidence.ts)",
+    "records": [
+      {
+        "source": "cli:repo-owner",
+        "ok": true,
+        "violations": []
+      },
+      {
+        "source": "cli:issue-researcher",
+        "ok": true,
+        "violations": []
+      },
+      {
+        "source": "cli:release-engineer",
+        "ok": true,
+        "violations": []
+      },
+      {
+        "source": "cli:community-operator",
+        "ok": true,
+        "violations": []
+      },
+      {
+        "source": "engine:doom_loop",
+        "ok": true,
+        "violations": []
+      },
+      {
+        "source": "engine:turn_budget_exceeded",
+        "ok": true,
+        "violations": []
+      },
+      {
+        "source": "engine:turn_budget_exceeded",
+        "ok": true,
+        "violations": []
+      },
+      {
+        "source": "engine:position_budget_exceeded",
+        "ok": true,
+        "violations": []
+      }
+    ],
+    "allConformant": true
+  },
+  "issue287": {
+    "orgApply": {
+      "contextTreeDigestBefore": "38e590cfdf99c74af7860992d071cbce9eb2e95f15948dd8b69e5ba1dd792101",
+      "contextTreeDigestAfter": "38e590cfdf99c74af7860992d071cbce9eb2e95f15948dd8b69e5ba1dd792101",
+      "contextPreserved": true,
+      "permissionScopeUnchanged": true,
+      "budgetUpdated": [
+        "repo-owner"
+      ],
+      "auditRecordedBudgetUpdate": true
+    },
+    "hireFailClosed": {
+      "exitCode": 1,
+      "expectedCode": "hire_request_missing_budget",
+      "codeObserved": true,
+      "orgStateUnchanged": true
+    }
+  },
+  "passed": true,
+  "failures": []
+}

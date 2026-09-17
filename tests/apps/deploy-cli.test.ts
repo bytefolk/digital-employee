@@ -2563,6 +2563,7 @@ test("HTTP runtime rejects mismatched immutable digest and port arguments before
   await assert.rejects(
     httpJson({ port, path: "/health", timeoutMs: 200 }),
   )
+  await lockHandle.close()
 })
 
 test("HTTP activation protocol fails closed across EOF, timeout, forged tuple, generation, and lock-fence faults", async (t) => {

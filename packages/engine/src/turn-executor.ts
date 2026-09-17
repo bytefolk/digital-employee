@@ -45,6 +45,7 @@ import {
   type ContextEntry,
 } from "./context-freshness.js"
 import { DoomLoopDetector, type DoomLoopConfig } from "./doom-loop.js"
+import type { InProcessMemoryRecallCache } from "./memory-recall-cache.js"
 import {
   resolveEscalationRouting,
   ESCALATION_RECORD_VERSION,
@@ -96,6 +97,11 @@ export interface EngineMemoryOptions {
   mode: "optional" | "required"
   adapterIdentity: string
   limit?: number
+  /**
+   * Optional in-process recall cache (#303). Absent keeps today's live
+   * recall path. The cache is never created implicitly.
+   */
+  recallCache?: InProcessMemoryRecallCache
 }
 
 /**
@@ -409,8 +415,10 @@ export async function* executeTurn(
       return
     }
     let recall: MemoryRecall | undefined
+    let cacheHit = false
+    let cacheAgeMs = 0
     try {
-      recall = await memoryOptions.port.recall({
+      const recallRequest = {
         workspaceInstanceId: memoryOptions.workspaceInstanceId,
         sessionId: memoryOptions.sessionId,
         positionId: request.positionId,
@@ -420,7 +428,19 @@ export async function* executeTurn(
         ...(memoryOptions.limit !== undefined
           ? { limit: memoryOptions.limit }
           : {}),
-      })
+      }
+      if (memoryOptions.recallCache) {
+        const cached = await memoryOptions.recallCache.recall(
+          memoryOptions.port,
+          recallRequest,
+          memoryOptions.adapterIdentity,
+        )
+        recall = cached.recall
+        cacheHit = cached.cacheHit
+        cacheAgeMs = cached.cacheAgeMs
+      } else {
+        recall = await memoryOptions.port.recall(recallRequest)
+      }
     } catch (error) {
       const portCode =
         error instanceof MemoryPortError ? error.code : undefined
@@ -493,6 +513,9 @@ export async function* executeTurn(
           provenanceDigest: digestProvenance(item.provenance),
         })),
         warnings: recall.warnings.map((warning) => ({ code: warning.code })),
+        ...(memoryOptions.recallCache
+          ? { cacheHit, cacheAgeMs }
+          : {}),
       }
     }
   }

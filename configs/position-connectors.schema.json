@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/position-connectors.schema.json",
+  "title": "Position connector declarations v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "channels",
+    "sources"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "position-connectors.v1"
+    },
+    "channels": {
+      "$ref": "#/$defs/bindings"
+    },
+    "sources": {
+      "$ref": "#/$defs/bindings"
+    }
+  },
+  "$defs": {
+    "envName": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{0,127}$"
+    },
+    "connectorId": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9._-]{0,127})$"
+    },
+    "envMap": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/envName"
+      },
+      "propertyNames": {
+        "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+        "maxLength": 64
+      },
+      "maxProperties": 16
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/connectorId"
+        },
+        "env": {
+          "$ref": "#/$defs/envMap"
+        }
+      }
+    },
+    "bindings": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "$ref": "#/$defs/binding"
+      }
+    }
+  }
+}

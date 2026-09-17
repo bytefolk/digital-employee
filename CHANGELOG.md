@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add a default-disabled in-process MemoryPort.recall cache keyed by the
+  pinned scope tuple with a 30s TTL, digest-only `cacheHit`/`cacheAgeMs`
+  evidence, and no cross-position reuse (#303).
 - Validate optional `positions/<id>/connectors.json` (`position-connectors.v1`)
   at `org apply` against the live CLI connector registry vocabulary, with
   env-name-only config and no derived-artifact change (#310).

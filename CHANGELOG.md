@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Validate optional `positions/<id>/connectors.json` (`position-connectors.v1`)
+  at `org apply` against the live CLI connector registry vocabulary, with
+  env-name-only config and no derived-artifact change (#310).
 - Add an optional `skills` declaration channel on the employee package:
   reference-only skill units (name, version, content digest, optional
   locality) validated fail-closed, with no engine loading or Host `skills`

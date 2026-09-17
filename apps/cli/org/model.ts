@@ -54,6 +54,16 @@ import {
   inspectEmployeePackage,
 } from "../employee-package.js"
 import type { EmployeePackageManifest } from "../../../packages/core/src/employee-package.js"
+import {
+  POSITION_CONNECTORS_FILE,
+  PositionConnectorsError,
+  validatePositionConnectors,
+} from "../../../packages/core/src/position-connectors.js"
+import type {
+  ConnectorVocabulary,
+  PositionConnectorsDeclaration,
+} from "../../../packages/core/src/position-connectors.js"
+import { createBuiltInRegistry } from "../registry.js"
 
 export const ORG_STATE_DIR = ".digital-employee"
 export const ORG_MODEL_FILE = "org.json"
@@ -63,6 +73,7 @@ export const ORGANIZATION_FILE = "organization.v1alpha1.json"
 export const POSITIONS_DIR = "positions"
 export const POSITION_MANIFEST_FILE = "employee.json"
 export const POSITION_BUDGET_FILE = "budget.json"
+export { POSITION_CONNECTORS_FILE }
 
 export const ORG_AUDIT_SCHEMA_VERSION = "org-audit.v1"
 export const ORG_TREE_SCHEMA_VERSION = "org-tree.v1"
@@ -226,6 +237,7 @@ export interface PositionDeclaration {
   manifest: EmployeePackageManifest
   budget: PositionBudget
   digest: string
+  connectors?: PositionConnectorsDeclaration
 }
 
 /**
@@ -233,8 +245,40 @@ export interface PositionDeclaration {
  * A position without a fully allocated budget fails closed before any
  * change takes effect (#157 REQ-005, AC-005).
  */
+async function readOptionalConnectors(
+  position: ScannedPosition,
+  vocabulary: ConnectorVocabulary,
+): Promise<PositionConnectorsDeclaration | undefined> {
+  const connectorsPath = path.join(position.directory, POSITION_CONNECTORS_FILE)
+  let connectorsStat
+  try {
+    connectorsStat = await lstat(connectorsPath)
+  } catch (error) {
+    if (fileErrorCode(error) === "ENOENT") return undefined
+    throw error
+  }
+  if (connectorsStat.isSymbolicLink() || !connectorsStat.isFile()) {
+    throw new TypeError(`position_connectors_invalid:${position.id}`)
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(await readFile(connectorsPath, "utf8")) as unknown
+  } catch {
+    throw new TypeError(`position_connectors_invalid:${position.id}`)
+  }
+  try {
+    return validatePositionConnectors(parsed, vocabulary)
+  } catch (error) {
+    if (error instanceof PositionConnectorsError) {
+      throw new TypeError(error.code)
+    }
+    throw error
+  }
+}
+
 export async function readPositionDeclaration(
   position: ScannedPosition,
+  vocabulary: ConnectorVocabulary,
 ): Promise<PositionDeclaration> {
   const budgetPath = path.join(position.directory, POSITION_BUDGET_FILE)
   let budgetStat
@@ -258,11 +302,13 @@ export async function readPositionDeclaration(
   const budget = validatePositionBudget(position.id, parsed)
   const inspection = await inspectEmployeePackage(position.directory)
   const digest = await computeEmployeePackageDirectoryDigest(position.directory)
+  const connectors = await readOptionalConnectors(position, vocabulary)
   return {
     position,
     manifest: inspection.manifest,
     budget,
     digest,
+    ...(connectors ? { connectors } : {}),
   }
 }
 
@@ -534,9 +580,10 @@ export async function applyOrganization(
   const paths = orgPaths(workspace)
   const { model: current, bootstrapped } = await loadOrgModel(paths.workspace)
   const scanned = await scanPositionsTree(paths.workspace)
+  const registry = await createBuiltInRegistry()
   const declarations: PositionDeclaration[] = []
   for (const position of scanned) {
-    declarations.push(await readPositionDeclaration(position))
+    declarations.push(await readPositionDeclaration(position, registry))
   }
   const changes = diffOrganization(current, declarations)
   const model = buildAppliedOrganization(

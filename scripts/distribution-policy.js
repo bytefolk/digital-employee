@@ -19,6 +19,7 @@ export const DISTRIBUTION_ASSET_MAPPINGS = Object.freeze([
   ["configs/employee-package.schema.json", "dist/configs/employee-package.schema.json"],
   ["configs/hire-request.schema.json", "dist/configs/hire-request.schema.json"],
   ["configs/org-tree.schema.json", "dist/configs/org-tree.schema.json"],
+  ["configs/position-connectors.schema.json", "dist/configs/position-connectors.schema.json"],
   ["configs/profile.schema.json", "dist/configs/profile.schema.json"],
   ["configs/schema.json", "dist/configs/schema.json"],
   ["configs/turn-envelope.schema.json", "dist/configs/turn-envelope.schema.json"],

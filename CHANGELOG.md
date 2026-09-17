@@ -23,6 +23,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Align employee network policy declarations with the Host transport by adding
+  bounded `allowlist` hosts and requiring verified `network_policy` support for
+  every mode; unsatisfiable non-deny policies now fail before Host execution
+  (#308).
 - The Codex default-deny audit probe accepts an explicit `--expect-version`
   instead of requiring an edit to the pinned `AUDITED_CODEX_VERSION`, and both
   the flag and the `codex --version` extraction derive from one shared semver

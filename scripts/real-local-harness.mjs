@@ -147,14 +147,20 @@ cleanups.push(() => memCompose(["down", "-v"]))
 memCompose(["up", "-d", "--wait", "postgres", "minio"])
 memCompose(["run", "--rm", "minio-init"])
 
-log("building and starting pinned memd")
-run("go", ["build", "-trimpath", "-o", path.join(workDir, "memd"), "./cmd/memd"], {
-  cwd: path.join(memRepo, "server"),
-})
+log("starting pinned memd (go run, per the matrix startCommand)")
+// Started via `go run` instead of a `go build` artifact: some macOS hosts
+// silently SIGKILL freshly built standalone binaries (observed against the
+// f1cc9eb pin; see #294 and docs/evidence/w1-acceptance/mem-recall-e2e.md
+// §0), and the matrix startCommand already documents `go run`. `detached`
+// gives memd its own process group so teardown kills the server, not just
+// the go-run wrapper.
 const memdLog = path.join(workDir, "memd.log")
-memdChild = spawn(path.join(workDir, "memd"), [], {
+memdChild = spawn("go", ["run", "./cmd/memd"], {
+  cwd: path.join(memRepo, "server"),
+  detached: true,
   env: {
     PATH: process.env.PATH,
+    HOME: process.env.HOME,
     MEM_HTTP_ADDR: `127.0.0.1:${memHttpPort}`,
     MEM_DB_URL: `postgres://mem:mem@127.0.0.1:${memPgPort}/${memDbName}?sslmode=disable`,
     MEM_REDIS_URL: "",
@@ -175,15 +181,31 @@ memdChild = spawn(path.join(workDir, "memd"), [], {
   memdChild.on("exit", () => writeFileSync(memdLog, Buffer.concat(chunks)))
 }
 cleanups.push(() => {
-  if (memdChild && memdChild.exitCode === null) memdChild.kill("SIGKILL")
-})
-await waitFor("memd", async () => {
-  if (memdChild.exitCode !== null) {
-    fail(`memd exited early; diagnostics in ${memdLog}`)
+  if (memdChild && memdChild.exitCode === null && memdChild.signalCode === null) {
+    try {
+      process.kill(-memdChild.pid, "SIGKILL")
+    } catch {
+      memdChild.kill("SIGKILL")
+    }
   }
-  const { status } = await httpJson(`${memBaseUrl}${memPin.healthEndpoint}`)
-  return status === 200
 })
+await waitFor(
+  "memd",
+  async () => {
+    // A signal-killed child has a null exitCode; check both so a host-level
+    // kill fails fast with diagnostics instead of polling to the timeout.
+    if (memdChild.exitCode !== null || memdChild.signalCode !== null) {
+      fail(
+        `memd exited early (exit=${memdChild.exitCode} signal=${memdChild.signalCode}); diagnostics in ${memdLog}`,
+      )
+    }
+    const { status } = await httpJson(`${memBaseUrl}${memPin.healthEndpoint}`)
+    return status === 200
+  },
+  // go run compiles before serving; a cold module cache can exceed the
+  // default window.
+  300_000,
+)
 
 // --- 3. Seed mem: users, tokens, memories, durable-context grants ----------
 

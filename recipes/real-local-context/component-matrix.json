@@ -4,7 +4,7 @@
     {
       "name": "mem",
       "repository": "https://github.com/bytefolk/mem",
-      "commit": "3335ebea211d7fb65a8ea0e5ea2285b2cbc2d0bd",
+      "commit": "f1cc9eb06a9b3b7143331d53515e274ceb8e6c3d",
       "contract": "durable-context.v1",
       "startCommand": "make test-env-up && go run ./server/cmd/memd (see scripts/real-local-harness.mjs)",
       "healthEndpoint": "/healthz",

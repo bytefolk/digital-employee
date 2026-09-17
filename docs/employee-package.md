@@ -208,7 +208,7 @@ live-response benchmarks.
 | `host.requiredCapabilities` | Additional role-specific features; security requirements are derived from policy |
 | `entrypoints.skill` | Canonical portable Skill instructions |
 | `entrypoints.inputSchema` / `outputSchema` | Public task and result contracts |
-| `entrypoints.mcp` | Optional stdio/HTTPS MCP declaration with environment-variable secret references only |
+| `entrypoints.mcp` | Optional stdio/HTTPS MCP declaration with environment-variable secret references only; operator-trust boundary per [#210 Finding 2](#mcp-manifest-trust-boundary-210-finding-2) |
 | `policy` | Abstract filesystem, network, MCP and approval requirements; every MCP tool requests a maximum read/write mode |
 | `assets` | Explicit regular files shipped with the package |
 | `identity` | Optional human-facing identity segment (#194); `name` remains the machine identifier |
@@ -257,6 +257,45 @@ and model control plane; otherwise no cloud-model host could execute the
 employee. The runnable adapters enforce the data-plane meaning by exposing no
 shell, web, Agent or MCP tools. Qoder exposes only the attested read/search set;
 the three context-only adapters expose no native tools at all.
+
+## MCP manifest trust boundary (#210 Finding 2)
+
+An `entrypoints.mcp` declaration is package-author-supplied configuration.
+Like every capability in this repository, it is a request, never a grant:
+validation bounds its shape; the operator decides whether to trust it.
+
+What package validation enforces over the
+[`employee-mcp.v1alpha1`](../configs/employee-mcp.schema.json) declaration:
+
+- closed key sets and bounded fields — a stdio `transport.command` is a bounded
+  string (at most 1024 characters) with a separate `args` list, never a shell
+  fragment; consumers spawn it as an argument array with no shell;
+- secret references are environment-variable **names** only; inline credential
+  values are rejected;
+- HTTP transports must be plain `https:` URLs — embedded userinfo and
+  fragments are rejected.
+
+What no layer verifies, by recorded decision:
+
+- **the trustworthiness of the declared server itself.** Per the #210 Finding 2
+  ruling (2026-08-29), this is an operator judgment and is deliberately not
+  code-enforced: there is **no allowlist registry** (it would break legitimate
+  custom servers) and **no signature or attestation check** (explicitly
+  deferred; any future hardening is its own recorded decision). A package's MCP
+  manifest must be operator-verified trusted configuration **before** the
+  package is applied or deployed; an untrusted manifest must not be applied.
+
+Current runtime consumption: the bundled runnable adapters fail a turn on any
+employee MCP binding (`qoder.mcp_binding_unsupported` and adapter
+equivalents), so no shipped path spawns a package-declared server today. The
+first real consumer is the engine-owned MCP loading slice (#219 → #301), which
+inherits this boundary rather than replacing it: a load-time digest check over
+the declared manifest, tools entering a turn only as the Authority-Scope
+allowlist projection through the shared capability-negotiation seam (#300),
+and per-turn loading evidence. When that slice lands, the operator's exposure
+narrows from "trust the whole manifest at spawn time" to "trust the declared
+manifest, bounded by the projected allowlist and recorded in evidence" — the
+trust decision itself remains the operator's.
 
 ## Host projection
 

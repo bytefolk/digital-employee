@@ -123,6 +123,7 @@ test("save then load round-trips a full config", async (t) => {
     await readFile(path.join(home, ".digital-employee", "config.json"), "utf8"),
   )
   assert.deepEqual(raw, READY_HTTP_CONFIG)
+  await lock.release()
 })
 
 test("saveConfig persists an empty config", async (t) => {
@@ -131,6 +132,7 @@ test("saveConfig persists an empty config", async (t) => {
   t.after(() => lock.release())
   await saveConfig({}, { expected: { kind: "missing" }, lock })
   assert.deepEqual(await loadConfig(), {})
+  await lock.release()
 })
 
 test("loadConfig returns {} when no config exists", async (t) => {
@@ -197,6 +199,7 @@ test("saveConfig rejects when the config generation changed", async (t) => {
     (entry) => entry.startsWith(".config."),
   )
   assert.deepEqual(leftovers, [])
+  await lock.release()
 })
 
 test("saveConfig rejects when the lock is not owned", async (t) => {
@@ -218,4 +221,5 @@ test("hasExistingDeployment keys off outcome", async (t) => {
   assert.equal(await hasExistingDeployment(), false)
   await saveConfig(pendingConsoleConfig(), { expected: empty, lock })
   assert.equal(await hasExistingDeployment(), true)
+  await lock.release()
 })

@@ -86,11 +86,11 @@ Agent-native usage:
   digital-employee task delegate [workspace] --stdin --history-file <workspace-local-path>
   digital-employee hire validate <file> [--json]
   digital-employee deploy [package-path] [--package path] --channel <id> --engine <id> --runtime agent-native|standalone-v1 [options]
-  digital-employee doctor [--engine claude-code|qoder|codex|qwen-code|codebuddy] [--json]
+  digital-employee doctor [--engine claude-code|qoder|codex|qwen-code|codebuddy|gemini] [--json]
   digital-employee init <directory> [--recipe minimal-answer.v1|structured-action.v1] [--name employee-name] [--author author]
-  digital-employee validate [directory] [--engine claude-code|qoder|codex|qwen-code|codebuddy] [--json]
+  digital-employee validate [directory] [--engine claude-code|qoder|codex|qwen-code|codebuddy|gemini] [--json]
   digital-employee eval [directory] [--json]
-  digital-employee run [directory] --engine claude-code|qoder|qwen-code|codebuddy (--stdin | --input-file path | --question "..." | --input '{"message":"..."}') [--json]
+  digital-employee run [directory] --engine claude-code|qoder|qwen-code|codebuddy|gemini (--stdin | --input-file path | --question "..." | --input '{"message":"..."}') [--json]
   digital-employee stdio-host <config.json> [--question "..."] [--json]
 
 Standalone-v1 compatibility:

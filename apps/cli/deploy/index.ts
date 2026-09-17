@@ -76,6 +76,7 @@ const AGENT_NATIVE_ENGINES = [
   "qoder",
   "qwen-code",
   "codebuddy",
+  "gemini",
 ] as const
 const STANDALONE_ENGINES = ["extractive", "openai-compatible"] as const
 const VALID_ENGINES = [...AGENT_NATIVE_ENGINES, ...STANDALONE_ENGINES] as const

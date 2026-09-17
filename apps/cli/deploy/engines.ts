@@ -18,6 +18,7 @@ const DEPLOY_ELIGIBLE_HOSTS: BuiltInAgentHostId[] = [
   "claude-code",
   "qwen-code",
   "codebuddy",
+  "gemini",
 ]
 
 const DISPLAY_NAMES: Record<BuiltInAgentHostId, string> = {
@@ -26,6 +27,7 @@ const DISPLAY_NAMES: Record<BuiltInAgentHostId, string> = {
   codex: "Codex CLI",
   "qwen-code": "Qwen Code",
   codebuddy: "CodeBuddy",
+  gemini: "Gemini CLI",
 }
 
 /**

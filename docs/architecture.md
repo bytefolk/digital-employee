@@ -31,7 +31,7 @@ boundary is recorded in [ADR 0002](decisions/0002-runner-execution-boundary.md).
 flowchart LR
   U["User or channel"] --> O["Digital Employee outer runtime"]
   O --> H["AgentHostAdapter"]
-  H --> A["Claude Code · Qoder CLI · Qwen Code · CodeBuddy Code<br/>Codex probe-only"]
+  H --> A["Claude Code · Qoder CLI · Qwen Code · CodeBuddy Code · Gemini CLI<br/>Codex probe-only"]
   A --> T["Native tools · Skills · MCP"]
   O -. target service .-> G["Queue · policy · audit · escalation"]
   P["Portable employee package"] --> O

@@ -22,6 +22,7 @@ export const BUILT_IN_AGENT_HOST_IDS = [
   "codex",
   "qwen-code",
   "codebuddy",
+  "gemini",
 ] as const
 
 export type BuiltInAgentHostId = (typeof BUILT_IN_AGENT_HOST_IDS)[number]
@@ -171,6 +172,20 @@ const CLI_AGENT_HOST_DEFINITIONS: Record<
       "sandbox",
       "cancellation",
       "usage_events",
+    ]),
+  },
+  gemini: {
+    id: "gemini",
+    displayName: "Gemini CLI",
+    command: "gemini",
+    versionArgs: ["--version"],
+    capabilities: documentedCapabilities([
+      "non_interactive_run",
+      "structured_output",
+      "tool_allowlist",
+      "filesystem_scope",
+      "network_policy",
+      "cancellation",
     ]),
   },
 }

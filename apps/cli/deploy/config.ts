@@ -496,7 +496,7 @@ function sanitizeConfig(value: unknown): DeployConfig {
     invalidConfig("deploy_config_incomplete")
   }
   const channels = ["dingtalk", "lark", "wecom", "console", "http"]
-  const agentEngines = ["claude-code", "qoder", "qwen-code", "codebuddy"]
+  const agentEngines = ["claude-code", "qoder", "qwen-code", "codebuddy", "gemini"]
   if (!channels.includes(result.channel)) {
     invalidConfig("deploy_config_channel_unsupported")
   }

@@ -124,6 +124,7 @@ test("HTTP runtime environment contains only the selected engine credentials", (
     CODEBUDDY_MODEL: "codebuddy-model",
     CODEBUDDY_BASE_URL: "https://codebuddy.example.test",
     CODEBUDDY_INTERNET_ENVIRONMENT: "internal",
+    GEMINI_API_KEY: "gemini-sentinel",
     DIGITAL_EMPLOYEE_HTTP_TOKEN: "http-token-sentinel",
     AWS_SECRET_ACCESS_KEY: "unrelated-sentinel",
   }
@@ -137,6 +138,7 @@ test("HTTP runtime environment contains only the selected engine credentials", (
       "CODEBUDDY_BASE_URL",
       "CODEBUDDY_INTERNET_ENVIRONMENT",
     ],
+    gemini: ["GEMINI_API_KEY"],
   }
   for (const [engine, engineKeys] of Object.entries(expected)) {
     const environment = buildHttpRuntimeEnvironment({

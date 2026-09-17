@@ -41,14 +41,17 @@ test("built-in Agent hosts have stable CLI identities", () => {
     "codex",
     "qwen-code",
     "codebuddy",
+    "gemini",
   ])
   assert.equal(isBuiltInAgentHostId("qoder"), true)
   assert.equal(isBuiltInAgentHostId("qwen-code"), true)
   assert.equal(isBuiltInAgentHostId("codebuddy"), true)
+  assert.equal(isBuiltInAgentHostId("gemini"), true)
   assert.equal(isBuiltInAgentHostId("workbuddy"), false)
   assert.equal(getCliAgentHostDefinition("codex").command, "codex")
   assert.equal(getCliAgentHostDefinition("qwen-code").command, "qwen")
   assert.equal(getCliAgentHostDefinition("codebuddy").command, "codebuddy")
+  assert.equal(getCliAgentHostDefinition("gemini").command, "gemini")
 })
 
 test("host probe is side-effect free beyond a bounded version command", async () => {

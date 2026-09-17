@@ -12,6 +12,7 @@ import {
 import type { BuiltInAgentHostId } from "./agent-hosts.js"
 import { createClaudeAgentHostAdapter } from "./claude-agent-host.js"
 import { createCodeBuddyAgentHostAdapter } from "./codebuddy-agent-host.js"
+import { createGeminiAgentHostAdapter } from "./gemini-agent-host.js"
 import { createQoderAgentHostAdapter } from "./qoder-agent-host.js"
 import { createQwenAgentHostAdapter } from "./qwen-agent-host.js"
 
@@ -28,6 +29,7 @@ const BUILT_IN_ALIASES: Readonly<
   codex: ["codex-cli"],
   "qwen-code": ["qwen"],
   codebuddy: ["codebuddy-code"],
+  gemini: ["gemini-cli"],
 }
 
 const BUILT_IN_ADAPTER_FACTORIES: Readonly<
@@ -37,6 +39,7 @@ const BUILT_IN_ADAPTER_FACTORIES: Readonly<
   qoder: () => createQoderAgentHostAdapter(),
   "qwen-code": () => createQwenAgentHostAdapter(),
   codebuddy: () => createCodeBuddyAgentHostAdapter(),
+  gemini: () => createGeminiAgentHostAdapter(),
 }
 
 /**
@@ -54,6 +57,12 @@ export function createBuiltInAgentHostRegistry(
       ? () =>
           hostId === "qoder"
             ? createQoderAgentHostAdapter({
+                ...(options.environment
+                  ? { environment: options.environment }
+                  : {}),
+              })
+            : hostId === "gemini"
+            ? createGeminiAgentHostAdapter({
                 ...(options.environment
                   ? { environment: options.environment }
                   : {}),

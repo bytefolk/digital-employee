@@ -8,7 +8,7 @@
 
 `digital-employee` 不实现另一套通用 Agent loop。模型推理、上下文窗口、原生工具循环和宿主会话由 Agent Host 负责；本项目负责员工包、Host Adapter、能力协商、策略、标准事件，以及后续的通道、队列、审计和人工接力。
 
-当前源码中有四条版本锁定的 **runnable** 路径：Qoder CLI 1.1.x、Claude Code `>=2.1.214 <2.2.0`、Qwen Code `0.17.1` 和 CodeBuddy Code `2.106.4`。它们都是 one-shot、无状态、POSIX 本机/单租户技术预览；Qoder 只获得最小只读文件投影，另外三个是不暴露原生工具的 context-only Adapter。四条路径都不支持 MCP、附件、会话恢复、写工具或审批回调，也都没有使用真实模型权益验收。Windows 在本里程碑 **NOT VERIFIED**，作为治理记录中的**已命名限制（named limit）**暂缓，等 Job Object 进程树清理 + win32 leak-oracle fixture 落地后解锁，详见 [Windows status](architecture.md#windows-status)。Codex 仍是 **probe-only**：Codex CLI 0.148.0 无法可靠移除所有模型可见的内建工具，其中包括 `apply_patch`，详见 [0.148.0 复审](research/codex-cli-0.148.0-default-deny-audit.md)。
+当前源码中有五条 **runnable** 路径：Qoder CLI 1.1.x、Claude Code `>=2.1.214 <2.2.0`、Qwen Code `0.17.1`、CodeBuddy Code `2.106.4` 和 Gemini CLI。它们都是 one-shot、无状态、POSIX 本机/单租户技术预览；Qoder 只获得最小只读文件投影，其他路径是不暴露原生工具的 context-only Adapter。Gemini CLI 在隔离的 `HOME` 中通过临时 supplemental admin policy 对 `*` 工具全局拒绝，以便把工具从模型可见面移除；它需要操作方显式提供 `GEMINI_API_KEY`，且不继承用户登录态、配置或扩展。各路径都不支持 MCP、附件、会话恢复、写工具或审批回调，也都没有使用真实模型权益验收。Windows 在本里程碑 **NOT VERIFIED**，作为治理记录中的**已命名限制（named limit）**暂缓，等 Job Object 进程树清理 + win32 leak-oracle fixture 落地后解锁，详见 [Windows status](architecture.md#windows-status)。Codex 仍是 **probe-only**：Codex CLI 0.148.0 无法可靠移除所有模型可见的内建工具，其中包括 `apply_patch`，详见 [0.148.0 复审](research/codex-cli-0.148.0-default-deny-audit.md)。
 
 官方产品文档只能证明某个宿主值得适配，不能把 `documented` 提升为本仓库的 `supported`。只有版本锁定、Adapter 实现和仓库内 Adapter 专用确定性 fixture 全部通过后，一项能力才能参与运行前兼容性判断。
 

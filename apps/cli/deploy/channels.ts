@@ -403,6 +403,7 @@ export function buildHttpRuntimeEnvironment(
       "CODEBUDDY_BASE_URL",
       "CODEBUDDY_INTERNET_ENVIRONMENT",
     ],
+    gemini: ["GEMINI_API_KEY"],
   }
   const selected = config.engine ? engineVariables[config.engine] : undefined
   if (!selected) throw new TypeError("http_runtime_engine_invalid")

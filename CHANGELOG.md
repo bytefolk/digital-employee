@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Pin tsx 4.23.13 and c8 12.0.0 for development coverage, keep the 85/65/80
+  thresholds and source/build include domains, and add source-map accounting
+  regressions (#261).
 - Restore the frozen `agent-host.v1` probe keys for older strict consumers.
   Keep Qoder command selection local to each run and report it through bounded,
   scrubbed `issues[]` messages; probe and preflight results no longer expose

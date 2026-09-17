@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "employee-evals.v1alpha1",
+  "cases": [
+    {
+      "id": "dedupe-before-filing",
+      "input": {
+        "message": "帮我把这个 bug 直接提成 issue。"
+      },
+      "expectedOutput": {
+        "status": "escalated",
+        "answer": "先查重：给出 search/issues 的关键词组合与结果，说明为什么不是重复，再按模板登记。",
+        "citations": [
+          {
+            "label": "作业流程",
+            "uri": "./knowledge/README.md"
+          }
+        ]
+      }
+    }
+  ]
+}

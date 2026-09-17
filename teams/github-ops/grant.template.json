@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "capability-grant.v1",
+  "grantedBy": "operator",
+  "grants": [
+    {
+      "server": "github-cli",
+      "mode": "write",
+      "scopes": [
+        {
+          "principal": "__AUTHOR_MERGER_IDENTITY__",
+          "workspace": "__TARGET_REPOSITORY__"
+        }
+      ]
+    },
+    {
+      "server": "github-cli",
+      "mode": "read",
+      "scopes": [
+        {
+          "principal": "__REVIEWER_IDENTITY__",
+          "workspace": "__TARGET_REPOSITORY__"
+        }
+      ]
+    }
+  ]
+}

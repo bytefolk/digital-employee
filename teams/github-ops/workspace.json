@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/workspace.schema.json",
+  "schemaVersion": "workspace.v1alpha1",
+  "name": "github-ops",
+  "description": "GitHub 运营团队：提交、评审、合并分属不同岗位；评审使用独立身份，提交与合并共享身份。",
+  "template": "github-ops-zh",
+  "createdAt": "2026-09-17T01:10:00.000Z",
+  "organization": "./organization.v1alpha1.json",
+  "positions": "./positions",
+  "context": "./context"
+}

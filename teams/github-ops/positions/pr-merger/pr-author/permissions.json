@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "workbench-permissions.v1",
+  "model": "chmod-inspired",
+  "defaultEffect": "deny",
+  "tools": [
+    "Read",
+    "Write",
+    "Edit",
+    "Grep",
+    "Glob",
+    "Bash"
+  ],
+  "rules": [
+    {
+      "scope": "workspace",
+      "resource": "./knowledge/**",
+      "actions": [
+        "read"
+      ]
+    },
+    {
+      "scope": "workspace",
+      "resource": "./context/**",
+      "actions": [
+        "read"
+      ]
+    }
+  ],
+  "skills": [],
+  "mcpServers": []
+}

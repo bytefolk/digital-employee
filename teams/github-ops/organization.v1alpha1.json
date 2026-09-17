@@ -1,0 +1,140 @@
+{
+  "$schema": "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/workspace-org.schema.json",
+  "schemaVersion": "workspace-org.v1",
+  "business": "github-ops",
+  "description": "GitHub 运营团队：提交、评审、合并分属不同岗位；评审使用独立身份，提交与合并共享身份。",
+  "owner": "pr-merger",
+  "roles": [
+    {
+      "id": "pr-merger",
+      "name": "合并",
+      "description": "在「评审身份已批准 + 必需检查针对该 head 全绿」的前提下 squash 合并他人的 PR；不写代码、不提 PR、不批准任何 PR。",
+      "reportTo": null,
+      "package": {
+        "name": "pr-merger",
+        "version": "0.1.0",
+        "digest": "sha256:4a285a157f916159d0106df3a834f1e07b1cebf8bb9fbd5667529fdc162d020b",
+        "localReference": "./positions/pr-merger"
+      },
+      "mode": "approval_required",
+      "memoryScope": "/",
+      "toolAllow": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "toolDeny": [],
+      "metadata": {},
+      "budget": {
+        "perTask": {
+          "tokens": 40000,
+          "iterations": 12
+        },
+        "perDay": {
+          "tokens": 400000,
+          "iterations": 96
+        }
+      }
+    },
+    {
+      "id": "pr-reviewer",
+      "name": "评审",
+      "description": "独立评审他人 PR 并给出批准或变更请求；只审判不合并，所用凭据不具备写基分支的能力。",
+      "reportTo": "pr-merger",
+      "package": {
+        "name": "pr-reviewer",
+        "version": "0.1.0",
+        "digest": "sha256:3e1c54c1703e13001a8fff41fb8ffb25897d1ad659fe561dd7182c4146ff1baa",
+        "localReference": "./positions/pr-merger/pr-reviewer"
+      },
+      "mode": "approval_required",
+      "memoryScope": "/",
+      "toolAllow": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "toolDeny": [],
+      "metadata": {},
+      "budget": {
+        "perTask": {
+          "tokens": 20000,
+          "iterations": 8
+        },
+        "perDay": {
+          "tokens": 200000,
+          "iterations": 64
+        }
+      }
+    },
+    {
+      "id": "pr-author",
+      "name": "提交",
+      "description": "按 issue 实现改动、推分支并开 PR，按评审意见修改到通过；不批准、不合并任何 PR。",
+      "reportTo": "pr-merger",
+      "package": {
+        "name": "pr-author",
+        "version": "0.1.0",
+        "digest": "sha256:95d3cc5ce1b54ebe97da8902637a29ccbe9e4c395639b40c6ca55a174db7f9a9",
+        "localReference": "./positions/pr-merger/pr-author"
+      },
+      "mode": "approval_required",
+      "memoryScope": "/",
+      "toolAllow": [
+        "Read",
+        "Write",
+        "Edit",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "toolDeny": [],
+      "metadata": {},
+      "budget": {
+        "perTask": {
+          "tokens": 20000,
+          "iterations": 8
+        },
+        "perDay": {
+          "tokens": 200000,
+          "iterations": 64
+        }
+      }
+    },
+    {
+      "id": "issue-triage",
+      "name": "问题调研",
+      "description": "查重、复现并分流 issue，按目标仓库自己的模板创建新 issue 并给出证据分级。",
+      "reportTo": "pr-merger",
+      "package": {
+        "name": "issue-triage",
+        "version": "0.1.0",
+        "digest": "sha256:524c14e3c2c81ae01744bad3f1ca5d8fe2ea0fea922f1b4391d769921d96cb15",
+        "localReference": "./positions/pr-merger/issue-triage"
+      },
+      "mode": "approval_required",
+      "memoryScope": "/",
+      "toolAllow": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Bash"
+      ],
+      "toolDeny": [],
+      "metadata": {},
+      "budget": {
+        "perTask": {
+          "tokens": 20000,
+          "iterations": 8
+        },
+        "perDay": {
+          "tokens": 200000,
+          "iterations": 64
+        }
+      }
+    }
+  ],
+  "updatedAt": "2026-09-17T01:10:00.000Z"
+}

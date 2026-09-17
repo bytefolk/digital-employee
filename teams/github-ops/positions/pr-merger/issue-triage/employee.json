@@ -1,0 +1,37 @@
+{
+  "$schema": "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/employee-package.schema.json",
+  "schemaVersion": "employee-package.v1alpha1",
+  "name": "issue-triage",
+  "version": "0.1.0",
+  "description": "查重、复现并分流 issue，按目标仓库自己的模板创建新 issue 并给出证据分级。",
+  "license": "Apache-2.0",
+  "authors": [
+    "bytefolk"
+  ],
+  "host": {
+    "protocol": "agent-host.v1",
+    "requiredCapabilities": []
+  },
+  "entrypoints": {
+    "skill": "./SKILL.md",
+    "inputSchema": "./schemas/input.schema.json",
+    "outputSchema": "./schemas/output.schema.json"
+  },
+  "policy": {
+    "mode": "approval_required",
+    "network": "host_policy",
+    "filesystem": {
+      "read": [
+        "./knowledge/**",
+        "./context/**"
+      ],
+      "write": []
+    },
+    "mcpTools": []
+  },
+  "assets": [
+    "./knowledge/README.md",
+    "./evals/cases.json",
+    "./permissions.json"
+  ]
+}

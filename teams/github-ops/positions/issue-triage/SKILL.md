@@ -18,7 +18,7 @@ description: 查重、复现并分流 issue，按目标仓库自己的模板创�
 | 身份 | 谁在用 | 细粒度 PAT 权限 | 结构性后果 |
 |---|---|---|---|
 | `reviewer` | 只 `pr-reviewer` | `Pull requests: Read and write`、`Contents: **Read only**`、`Issues: Read and write`、`Actions: Read`、`Metadata: Read` | **合不了**——合并要往基分支写提交，它没有 `Contents: write` |
-| `author-merger` | `pr-author`、`pr-merger`、`issue-triage` | `Contents: Read and write`、`Pull requests: Read and write`、`Issues: Read and write`、`Actions: Read`、`Metadata: Read` | 能推能合，但**批准不了自己提的 PR** |
+| `author` | `pr-author`、`issue-triage` | `Contents: Read and write`、`Pull requests: Read and write`、`Issues: Read and write`、`Actions: Read`、`Metadata: Read` | 能推分支，但**批准不了自己提的 PR** |
 
 **为什么必须分开**：GitHub 不接受 PR 作者本人的批准（`gh pr review --approve` 对自己提的 PR 会直接失败，分支保护所需的审核数也不计作者自己）。若三拨人共用一个身份，`pr-author` 提的 PR 永远拿不到 `APPROVED`，合并闸门永远不成立——**一条 PR 都合不了**。
 

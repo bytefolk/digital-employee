@@ -209,6 +209,40 @@
     },
     "assets": {
       "$ref": "#/$defs/portablePathList"
+    },
+    "skills": {
+      "description": "Optional skill-unit references. Distinct from host.requiredCapabilities skills and from entrypoints.skill.",
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "version",
+          "digest"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "maxLength": 64
+          },
+          "version": {
+            "$ref": "#/$defs/semver"
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "locality": {
+            "enum": [
+              "package",
+              "workspace"
+            ]
+          }
+        }
+      }
     }
   },
   "allOf": [

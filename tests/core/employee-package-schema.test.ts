@@ -169,3 +169,33 @@ test("public package Schema and validator reject identity violations (#194)", as
     assert.throws(() => validateEmployeePackageManifest(input))
   }
 })
+
+test("#305 public Schema and validator accept skill-unit references", async () => {
+  const validateSchema = await schemaValidator()
+  const accepted = manifest()
+  accepted.skills = [
+    {
+      name: "lookup",
+      version: "1.0.0",
+      digest: `sha256:${"ab".repeat(32)}`,
+      locality: "package",
+    },
+  ]
+  assert.equal(validateSchema(accepted), true, JSON.stringify(validateSchema.errors))
+  assert.doesNotThrow(() => validateEmployeePackageManifest(accepted))
+
+  const absent = manifest()
+  assert.equal(validateSchema(absent), true, JSON.stringify(validateSchema.errors))
+  assert.equal("skills" in validateEmployeePackageManifest(absent), false)
+
+  for (const skills of [
+    [{ name: "../escape", version: "1.0.0", digest: `sha256:${"ab".repeat(32)}` }],
+    [{ name: "lookup", version: "1.0.0", digest: "sha256:deadbeef", extra: true }],
+    [{ name: "lookup", version: "1.0.0", digest: `SHA256:${"ab".repeat(32)}` }],
+  ]) {
+    const rejected = manifest()
+    rejected.skills = skills
+    assert.equal(validateSchema(rejected), false, JSON.stringify(skills))
+    assert.throws(() => validateEmployeePackageManifest(rejected))
+  }
+})

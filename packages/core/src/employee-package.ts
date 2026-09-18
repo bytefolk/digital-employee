@@ -15,6 +15,7 @@ const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.
 const LICENSE_PATTERN = /^[A-Za-z0-9.+-]{1,128}$/
 const PORTABLE_PATH_PATTERN = /^\.\/(?!.*\\)[^\u0000-\u001f\u007f]+$/
 const IDENTITY_ROLE_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/
+const NETWORK_HOST_PATTERN = /^(?:\*\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i
 const IDENTITY_KNOWN_FIELDS = ["displayName", "avatar", "persona", "roleId"]
 
 /**
@@ -58,7 +59,9 @@ export interface EmployeePackageManifest {
   policy: {
     mode: "read_only" | "approval_required"
     /** Employee tool/MCP data-plane egress, excluding the host control plane. */
-    network: "deny" | "host_policy"
+    network: "deny" | "host_policy" | "allowlist"
+    /** Present only for allowlist mode; host names never carry credentials. */
+    hosts?: string[]
     filesystem: {
       read: string[]
       write: string[]
@@ -86,7 +89,9 @@ export function deriveEmployeeHostRequirements(
   ) {
     required.add("filesystem_scope")
   }
-  if (manifest.policy.network === "deny") required.add("network_policy")
+  // Deny already required enforcement. #308 closes the asymmetric gap by
+  // requiring the same capability for host_policy and allowlist as well.
+  required.add("network_policy")
   if (manifest.entrypoints.mcp || manifest.policy.mcpTools.length > 0) {
     required.add("mcp")
   }
@@ -121,7 +126,10 @@ export function deriveEffectiveAgentHostPolicy(
       read: [...manifest.policy.filesystem.read],
       write: [...manifest.policy.filesystem.write],
     },
-    network: { mode: manifest.policy.network },
+    network: {
+      mode: manifest.policy.network,
+      ...(manifest.policy.hosts ? { hosts: [...manifest.policy.hosts] } : {}),
+    },
     approval: {
       mode: manifest.policy.mode === "approval_required" ? "required" : "never",
     },
@@ -284,6 +292,18 @@ function validateMcpTools(
   })
 }
 
+function validateNetworkHosts(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length > 64) {
+    throw packageError("employee_package_invalid_field:policy.hosts", {
+      field: "policy.hosts",
+    })
+  }
+  return uniqueStringList(value, "policy.hosts", {
+    pattern: NETWORK_HOST_PATTERN,
+    maxLength: 253,
+  })
+}
+
 /**
  * Validate the optional identity segment (#194). Unknown fields INSIDE
  * identity are additive: they are preserved and produce a collected warning
@@ -389,7 +409,7 @@ export function validateEmployeePackageManifest(
   )
   const policy = assertKnownKeys(
     manifest.policy,
-    ["mode", "network", "filesystem", "mcpTools"],
+    ["mode", "network", "hosts", "filesystem", "mcpTools"],
     "policy",
   )
   const filesystem = assertKnownKeys(
@@ -401,8 +421,17 @@ export function validateEmployeePackageManifest(
   if (policy.mode !== "read_only" && policy.mode !== "approval_required") {
     throw packageError("employee_package_invalid_field:policy.mode")
   }
-  if (policy.network !== "deny" && policy.network !== "host_policy") {
+  if (
+    policy.network !== "deny" &&
+    policy.network !== "host_policy" &&
+    policy.network !== "allowlist"
+  ) {
     throw packageError("employee_package_invalid_field:policy.network")
+  }
+  if (policy.hosts !== undefined && policy.network !== "allowlist") {
+    throw packageError("employee_package_network_hosts_require_allowlist", {
+      field: "policy.hosts",
+    })
   }
 
   const requiredCapabilities = validateRequiredCapabilities(
@@ -419,6 +448,8 @@ export function validateEmployeePackageManifest(
     portablePath,
   )
   const mcpTools = validateMcpTools(policy.mcpTools)
+  const hosts =
+    policy.hosts === undefined ? undefined : validateNetworkHosts(policy.hosts)
   if (policy.mode === "read_only" && writePaths.length > 0) {
     throw packageError("read_only_employee_cannot_request_write_paths")
   }
@@ -477,6 +508,7 @@ export function validateEmployeePackageManifest(
     policy: {
       mode: policy.mode,
       network: policy.network,
+      ...(hosts ? { hosts } : {}),
       filesystem: {
         read: readPaths,
         write: writePaths,

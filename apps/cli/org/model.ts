@@ -20,10 +20,12 @@
  */
 
 import { randomBytes } from "node:crypto"
+import { constants as fsConstants } from "node:fs"
 import {
   appendFile,
   lstat,
   mkdir,
+  open,
   readFile,
   readdir,
   rename,
@@ -240,6 +242,11 @@ export interface PositionDeclaration {
   connectors?: PositionConnectorsDeclaration
 }
 
+/** @internal Coordinates deterministic connector path-replacement tests. */
+export interface PositionConnectorsReadHooks {
+  beforeRead?: (connectorsPath: string) => void | Promise<void>
+}
+
 /**
  * Read and validate one position's declarations (employee package + budget).
  * A position without a fully allocated budget fails closed before any
@@ -248,21 +255,65 @@ export interface PositionDeclaration {
 async function readOptionalConnectors(
   position: ScannedPosition,
   vocabulary: ConnectorVocabulary,
+  hooks: PositionConnectorsReadHooks = {},
 ): Promise<PositionConnectorsDeclaration | undefined> {
   const connectorsPath = path.join(position.directory, POSITION_CONNECTORS_FILE)
-  let connectorsStat
+  let handle
   try {
-    connectorsStat = await lstat(connectorsPath)
+    handle = await open(
+      connectorsPath,
+      fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0),
+    )
   } catch (error) {
     if (fileErrorCode(error) === "ENOENT") return undefined
-    throw error
-  }
-  if (connectorsStat.isSymbolicLink() || !connectorsStat.isFile()) {
     throw new TypeError(`position_connectors_invalid:${position.id}`)
+  }
+  let raw: string
+  try {
+    await hooks.beforeRead?.(connectorsPath)
+    const opened = await handle.stat()
+    const publishedBeforeRead = await lstat(connectorsPath)
+    if (
+      !opened.isFile() ||
+      publishedBeforeRead.isSymbolicLink() ||
+      !publishedBeforeRead.isFile() ||
+      publishedBeforeRead.dev !== opened.dev ||
+      publishedBeforeRead.ino !== opened.ino ||
+      publishedBeforeRead.size !== opened.size ||
+      publishedBeforeRead.mtimeMs !== opened.mtimeMs ||
+      publishedBeforeRead.ctimeMs !== opened.ctimeMs
+    ) {
+      throw new TypeError(`position_connectors_invalid:${position.id}`)
+    }
+    const bytes = await handle.readFile()
+    const after = await handle.stat()
+    const published = await lstat(connectorsPath)
+    if (
+      bytes.length !== opened.size ||
+      after.dev !== opened.dev ||
+      after.ino !== opened.ino ||
+      after.size !== opened.size ||
+      after.mtimeMs !== opened.mtimeMs ||
+      after.ctimeMs !== opened.ctimeMs ||
+      published.isSymbolicLink() ||
+      !published.isFile() ||
+      published.dev !== after.dev ||
+      published.ino !== after.ino ||
+      published.size !== after.size ||
+      published.mtimeMs !== after.mtimeMs ||
+      published.ctimeMs !== after.ctimeMs
+    ) {
+      throw new TypeError(`position_connectors_invalid:${position.id}`)
+    }
+    raw = bytes.toString("utf8")
+  } catch {
+    throw new TypeError(`position_connectors_invalid:${position.id}`)
+  } finally {
+    await handle?.close()
   }
   let parsed: unknown
   try {
-    parsed = JSON.parse(await readFile(connectorsPath, "utf8")) as unknown
+    parsed = JSON.parse(raw) as unknown
   } catch {
     throw new TypeError(`position_connectors_invalid:${position.id}`)
   }
@@ -279,6 +330,7 @@ async function readOptionalConnectors(
 export async function readPositionDeclaration(
   position: ScannedPosition,
   vocabulary: ConnectorVocabulary,
+  hooks: PositionConnectorsReadHooks = {},
 ): Promise<PositionDeclaration> {
   const budgetPath = path.join(position.directory, POSITION_BUDGET_FILE)
   let budgetStat
@@ -302,7 +354,7 @@ export async function readPositionDeclaration(
   const budget = validatePositionBudget(position.id, parsed)
   const inspection = await inspectEmployeePackage(position.directory)
   const digest = await computeEmployeePackageDirectoryDigest(position.directory)
-  const connectors = await readOptionalConnectors(position, vocabulary)
+  const connectors = await readOptionalConnectors(position, vocabulary, hooks)
   return {
     position,
     manifest: inspection.manifest,

@@ -20,10 +20,12 @@
  */
 
 import { randomBytes } from "node:crypto"
+import { constants as fsConstants } from "node:fs"
 import {
   appendFile,
   lstat,
   mkdir,
+  open,
   readFile,
   readdir,
   rename,
@@ -260,9 +262,53 @@ async function readOptionalConnectors(
   if (connectorsStat.isSymbolicLink() || !connectorsStat.isFile()) {
     throw new TypeError(`position_connectors_invalid:${position.id}`)
   }
+  let handle
+  let raw: string
+  try {
+    handle = await open(
+      connectorsPath,
+      fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0),
+    )
+    const opened = await handle.stat()
+    if (
+      !opened.isFile() ||
+      opened.dev !== connectorsStat.dev ||
+      opened.ino !== connectorsStat.ino ||
+      opened.size !== connectorsStat.size ||
+      opened.mtimeMs !== connectorsStat.mtimeMs ||
+      opened.ctimeMs !== connectorsStat.ctimeMs
+    ) {
+      throw new TypeError(`position_connectors_invalid:${position.id}`)
+    }
+    const bytes = await handle.readFile()
+    const after = await handle.stat()
+    const published = await lstat(connectorsPath)
+    if (
+      bytes.length !== opened.size ||
+      after.dev !== opened.dev ||
+      after.ino !== opened.ino ||
+      after.size !== opened.size ||
+      after.mtimeMs !== opened.mtimeMs ||
+      after.ctimeMs !== opened.ctimeMs ||
+      published.isSymbolicLink() ||
+      !published.isFile() ||
+      published.dev !== after.dev ||
+      published.ino !== after.ino ||
+      published.size !== after.size ||
+      published.mtimeMs !== after.mtimeMs ||
+      published.ctimeMs !== after.ctimeMs
+    ) {
+      throw new TypeError(`position_connectors_invalid:${position.id}`)
+    }
+    raw = bytes.toString("utf8")
+  } catch {
+    throw new TypeError(`position_connectors_invalid:${position.id}`)
+  } finally {
+    await handle?.close()
+  }
   let parsed: unknown
   try {
-    parsed = JSON.parse(await readFile(connectorsPath, "utf8")) as unknown
+    parsed = JSON.parse(raw) as unknown
   } catch {
     throw new TypeError(`position_connectors_invalid:${position.id}`)
   }

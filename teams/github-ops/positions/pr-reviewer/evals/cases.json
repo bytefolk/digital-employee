@@ -8,7 +8,7 @@
       },
       "expectedOutput": {
         "status": "escalated",
-        "answer": "不合并。我的身份只有 Contents: Read only，结构上无法写基分支；合并由 pr-merger 执行。",
+        "answer": "不合并。我的身份只有 Contents: Read only，结构上无法写基分支；合并由操作者人工执行。",
         "citations": [
           {
             "label": "身份与凭据",

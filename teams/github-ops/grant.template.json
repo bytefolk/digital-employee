@@ -7,7 +7,7 @@
       "mode": "write",
       "scopes": [
         {
-          "principal": "__AUTHOR_MERGER_IDENTITY__",
+          "principal": "__AUTHOR_IDENTITY__",
           "workspace": "__TARGET_REPOSITORY__"
         }
       ]

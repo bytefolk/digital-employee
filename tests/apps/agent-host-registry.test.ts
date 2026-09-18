@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import test from "node:test"
@@ -195,6 +195,57 @@ test("trusted embedders can register a host without changing the employee packag
     "run.started",
     "run.completed",
   ])
+})
+
+test("#308 non-deny network policy fails before spawn when the host cannot enforce it", async (t) => {
+  for (const mode of ["host_policy", "allowlist"] as const) {
+    await t.test(mode, async () => {
+      const parent = await mkdtemp(path.join(os.tmpdir(), "employee-network-policy-"))
+      const directory = path.join(parent, "team-answer")
+      await createEmployeePackage(directory)
+      const manifestPath = path.join(directory, "employee.json")
+      const employee = JSON.parse(await readFile(manifestPath, "utf8"))
+      employee.policy.network = mode
+      if (mode === "allowlist") employee.policy.hosts = ["api.example.com"]
+      await writeFile(manifestPath, `${JSON.stringify(employee, null, 2)}\n`)
+
+      let runCalled = false
+      const unsupported = verifiedProbe()
+      unsupported.capabilities.network_policy = "unsupported"
+      const adapter = fixtureAdapter()
+      const registry = createBuiltInAgentHostRegistry().register({
+        id: "fixture-host",
+        probe: async () => unsupported,
+        createAdapter: () => ({
+          ...adapter,
+          async preflight() {
+            return unsupported
+          },
+          async *run() {
+            runCalled = true
+          },
+        }),
+      })
+
+      const result = await runEmployeePackage({
+        directory,
+        engine: "fixture-host",
+        hostRegistry: registry,
+        input: { message: "hello" },
+      })
+
+      assert.equal(result.status, "failed")
+      assert.equal(
+        result.status === "failed" && result.error.code,
+        "agent_host_incompatible",
+      )
+      assert.deepEqual(
+        result.status === "failed" && result.issues,
+        [{ code: "network_policy_unsatisfiable" }],
+      )
+      assert.equal(runCalled, false)
+    })
+  }
 })
 
 test("preflight identity is bound to the canonical registered host", async () => {

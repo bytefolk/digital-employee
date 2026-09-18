@@ -6,6 +6,12 @@ Thank you for helping make digital employees safer and easier to reuse.
 
 Requirements: Node.js 20 or newer and npm 10 or newer.
 
+The development coverage collector (`c8` 12.0.0) requires Node.js
+`^20.19.0 || ^22.12.0 || >=23`; use a maintained patch of the selected Node
+major for development. This does not change the package's runtime engine
+contract. See [coverage accounting](docs/coverage-accounting.md) for the
+measurement boundary and regression commands.
+
 ```bash
 npm ci
 npm run typecheck

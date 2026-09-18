@@ -252,31 +252,29 @@ async function readOptionalConnectors(
   vocabulary: ConnectorVocabulary,
 ): Promise<PositionConnectorsDeclaration | undefined> {
   const connectorsPath = path.join(position.directory, POSITION_CONNECTORS_FILE)
-  let connectorsStat
-  try {
-    connectorsStat = await lstat(connectorsPath)
-  } catch (error) {
-    if (fileErrorCode(error) === "ENOENT") return undefined
-    throw error
-  }
-  if (connectorsStat.isSymbolicLink() || !connectorsStat.isFile()) {
-    throw new TypeError(`position_connectors_invalid:${position.id}`)
-  }
   let handle
-  let raw: string
   try {
     handle = await open(
       connectorsPath,
       fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0),
     )
+  } catch (error) {
+    if (fileErrorCode(error) === "ENOENT") return undefined
+    throw new TypeError(`position_connectors_invalid:${position.id}`)
+  }
+  let raw: string
+  try {
     const opened = await handle.stat()
+    const publishedBeforeRead = await lstat(connectorsPath)
     if (
       !opened.isFile() ||
-      opened.dev !== connectorsStat.dev ||
-      opened.ino !== connectorsStat.ino ||
-      opened.size !== connectorsStat.size ||
-      opened.mtimeMs !== connectorsStat.mtimeMs ||
-      opened.ctimeMs !== connectorsStat.ctimeMs
+      publishedBeforeRead.isSymbolicLink() ||
+      !publishedBeforeRead.isFile() ||
+      publishedBeforeRead.dev !== opened.dev ||
+      publishedBeforeRead.ino !== opened.ino ||
+      publishedBeforeRead.size !== opened.size ||
+      publishedBeforeRead.mtimeMs !== opened.mtimeMs ||
+      publishedBeforeRead.ctimeMs !== opened.ctimeMs
     ) {
       throw new TypeError(`position_connectors_invalid:${position.id}`)
     }

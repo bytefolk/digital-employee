@@ -11,6 +11,14 @@
 | Extractive | model | Local process | Enabled in demo |
 | OpenAI-compatible | model | Environment-supplied API key | Optional |
 
+A position may declare optional `connectors.json` (`position-connectors.v1`)
+next to `employee.json`. `org apply` validates `channels` and `sources`
+against the CLI connector registry vocabulary. Bindings may carry only
+environment-variable names; inline credentials, traversal paths, unknown
+fields, and unregistered ids fail closed. An absent file changes nothing.
+This slice does not bind connectors at runtime or write them into derived
+org artifacts (#310).
+
 Connector contributions must document provider permissions, data sent across
 the boundary, retention behavior, time/size limits, and rejected input tests.
 See `CONTRIBUTING.md`.

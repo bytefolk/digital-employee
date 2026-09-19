@@ -85,6 +85,27 @@ test("public package Schema and semantic validator reject unsafe cross-field cas
   }
 })
 
+test("#308 public Schema and validator expose bounded allowlist hosts", async () => {
+  const validateSchema = await schemaValidator()
+  const accepted = manifest()
+  accepted.policy.network = "allowlist"
+  accepted.policy.hosts = ["api.example.com", "*.services.example.com"]
+  assert.equal(validateSchema(accepted), true, JSON.stringify(validateSchema.errors))
+  assert.doesNotThrow(() => validateEmployeePackageManifest(accepted))
+
+  for (const hosts of [
+    ["https://example.com"],
+    ["example.com:443"],
+    Array.from({ length: 65 }, (_, index) => `host-${index}.example.com`),
+  ]) {
+    const rejected = manifest()
+    rejected.policy.network = "allowlist"
+    rejected.policy.hosts = hosts
+    assert.equal(validateSchema(rejected), false, JSON.stringify(hosts))
+    assert.throws(() => validateEmployeePackageManifest(rejected))
+  }
+})
+
 function identityManifest(): Record<string, any> {
   const input = manifest()
   input.identity = {

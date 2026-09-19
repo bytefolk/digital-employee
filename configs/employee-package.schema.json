@@ -163,8 +163,21 @@
           "description": "Employee tool and MCP data-plane egress policy; the Agent host authentication/model control plane is out of scope.",
           "enum": [
             "deny",
-            "host_policy"
+            "host_policy",
+            "allowlist"
           ]
+        },
+        "hosts": {
+          "description": "Bounded data-plane egress host names; valid only with network=allowlist.",
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253,
+            "pattern": "^(?:\\*\\.)?(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$"
+          }
         },
         "filesystem": {
           "type": "object",
@@ -205,7 +218,21 @@
             }
           }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["hosts"]
+          },
+          "then": {
+            "properties": {
+              "network": {
+                "const": "allowlist"
+              }
+            }
+          }
+        }
+      ]
     },
     "assets": {
       "$ref": "#/$defs/portablePathList"

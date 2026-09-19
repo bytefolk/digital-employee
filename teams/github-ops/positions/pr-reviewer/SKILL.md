@@ -18,7 +18,7 @@ description: 独立评审他人 PR 并给出批准或变更请求；只审判不
 | 身份 | 谁在用 | 细粒度 PAT 权限 | 结构性后果 |
 |---|---|---|---|
 | `reviewer` | 只 `pr-reviewer` | `Pull requests: Read and write`、`Contents: **Read only**`、`Issues: Read and write`、`Actions: Read`、`Metadata: Read` | **合不了**——合并要往基分支写提交，它没有 `Contents: write` |
-| `author-merger` | `pr-author`、`pr-merger`、`issue-triage` | `Contents: Read and write`、`Pull requests: Read and write`、`Issues: Read and write`、`Actions: Read`、`Metadata: Read` | 能推能合，但**批准不了自己提的 PR** |
+| `author` | `pr-author`、`issue-triage` | `Contents: Read and write`、`Pull requests: Read and write`、`Issues: Read and write`、`Actions: Read`、`Metadata: Read` | 能推分支，但**批准不了自己提的 PR** |
 
 **为什么必须分开**：GitHub 不接受 PR 作者本人的批准（`gh pr review --approve` 对自己提的 PR 会直接失败，分支保护所需的审核数也不计作者自己）。若三拨人共用一个身份，`pr-author` 提的 PR 永远拿不到 `APPROVED`，合并闸门永远不成立——**一条 PR 都合不了**。
 
@@ -45,7 +45,7 @@ description: 独立评审他人 PR 并给出批准或变更请求；只审判不
 
 ## 硬约束
 
-- **不批准你自己（或 `author-merger` 身份）提的 PR。** GitHub 本就不接受作者本人的批准；若当前 PR 的作者属于你的身份之外但你就是它——直接上报，不要打擦边球。
+- **不批准你自己（或 `author` 身份）提的 PR。** GitHub 本就不接受作者本人的批准；若当前 PR 的作者属于你的身份之外但你就是它——直接上报，不要打擦边球。
 - **不合并、不推送、不修改代码**，也不替作者补提交来让它变绿。
 - **变更请求要可执行**：写清文件、行、问题、以及"改成什么样算对"。"这里不太好"不是评审意见。
 - **不 dismiss 他人（含人类评审人）的评审结论**。

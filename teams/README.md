@@ -52,5 +52,6 @@ teams/<team-id>/
 
 ## Teams
 
-- [`github-ops/`](./github-ops/) — triage issues, author, review and merge pull
-  requests, with authoring, reviewing and merging held by separate positions.
+- [`github-ops/`](./github-ops/) — triage issues, author and review pull
+  requests, with authoring and reviewing held by separate positions; merging
+  remains a human action assisted by a machine-prepared checklist.

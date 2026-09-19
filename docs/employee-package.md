@@ -236,6 +236,17 @@ Host can load its own Skill surface. Declaring package `skills` does not
 project tools, compose instructions, or require that Host capability. Packages
 without the array validate exactly as they do today.
 
+## Network policy declarations (#308)
+
+`policy.network` accepts `deny`, `host_policy`, or `allowlist`. Every mode
+requires a Host whose `network_policy` capability is conformance-verified;
+unsupported non-deny modes fail compatibility before a model process starts.
+`allowlist` may add `policy.hosts`, a unique list of at most 64 DNS host names
+or `*.example.com`-style subdomain patterns. Host entries cannot contain a URL
+scheme, port, path, user information, credential, or environment value. The
+package declares the requested boundary; a Host still has to prove that it can
+enforce it.
+
 ## Identity segment (#194)
 
 The optional `identity` object carries human-facing expressiveness only. It

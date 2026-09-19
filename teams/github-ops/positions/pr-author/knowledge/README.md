@@ -1,4 +1,4 @@
-# 已批准资料：合并（pr-merger）
+# 已批准资料：提交（pr-author）
 
 本目录是本岗位**唯一**的已批准知识来源。放进来即代表它已被审阅、可以依据。
 
@@ -20,7 +20,7 @@ gh api "repos/<owner>/<repo>/contents/.github/CODEOWNERS" -H "Accept: applicatio
 
 ## 本岗位的身份
 
-`author-merger`。开工前用 `gh api user` 确认，与岗位不符就停下并上报。详见 `SKILL.md` 的「身份与凭据」一节与团队 README 的权限表。
+`author`。开工前用 `gh api user` 确认，与岗位不符就停下并上报。详见 `SKILL.md` 的「身份与凭据」一节与团队 README 的权限表。
 
 ## 待补充
 

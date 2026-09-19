@@ -54,6 +54,61 @@ test("effective host requirements are derived from security policy", () => {
   })
 })
 
+test("#308 non-deny network policies require network capability and project allowlisted hosts", () => {
+  const hostPolicy = manifest()
+  hostPolicy.policy.network = "host_policy"
+  const hostPolicyResult = validateEmployeePackageManifest(hostPolicy)
+  assert.equal(
+    deriveEmployeeHostRequirements(hostPolicyResult).requiredCapabilities.includes(
+      "network_policy",
+    ),
+    true,
+  )
+
+  const allowlist = manifest()
+  allowlist.policy.network = "allowlist"
+  Object.assign(allowlist.policy, {
+    hosts: ["api.example.com", "*.services.example.com"],
+  })
+  const allowlistResult = validateEmployeePackageManifest(allowlist)
+  assert.deepEqual(deriveEffectiveAgentHostPolicy(allowlistResult).network, {
+    mode: "allowlist",
+    hosts: ["api.example.com", "*.services.example.com"],
+  })
+  assert.equal(
+    deriveEmployeeHostRequirements(allowlistResult).requiredCapabilities.includes(
+      "network_policy",
+    ),
+    true,
+  )
+})
+
+test("#308 allowlist hosts are strict, bounded and unavailable to other modes", () => {
+  for (const hosts of [
+    ["https://example.com"],
+    ["user:password@example.com"],
+    ["example.com:443"],
+    ["../example.com"],
+    ["example.com", "example.com"],
+    Array.from({ length: 65 }, (_, index) => `host-${index}.example.com`),
+  ]) {
+    const input = manifest()
+    input.policy.network = "allowlist"
+    Object.assign(input.policy, { hosts })
+    assert.throws(
+      () => validateEmployeePackageManifest(input),
+      /employee_package_(?:invalid_field|duplicate_value):policy\.hosts/,
+    )
+  }
+
+  const deny = manifest()
+  Object.assign(deny.policy, { hosts: ["example.com"] })
+  assert.throws(
+    () => validateEmployeePackageManifest(deny),
+    /employee_package_network_hosts_require_allowlist/,
+  )
+})
+
 test("approval-required packages still require a real tool allowlist", () => {
   const input = manifest()
   input.policy.mode = "approval_required"

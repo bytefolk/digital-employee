@@ -9,10 +9,15 @@ All notable changes to this project will be documented in this file.
 - Add a default-disabled in-process MemoryPort.recall cache keyed by the
   pinned scope tuple with a 30s TTL, digest-only `cacheHit`/`cacheAgeMs`
   evidence, and no cross-position reuse (#303).
-- Commit a GitHub-operations employee team under `teams/github-ops/` (#295). Four portable positions (`issue-triage`, `pr-author`, `pr-reviewer`, `pr-merger`) express a workflow where authoring, reviewing and merging are separate roles. The reviewer uses its own GitHub identity, because GitHub does not count a self-approval and a shared identity would make the approval gate unsatisfiable; its credential is scoped to `Contents: Read only` so it structurally cannot merge. The merger requires an `APPROVED` whose login differs from the author's, required checks green on that exact head, no unresolved threads, not a draft, and re-reads `headRefOid` immediately before a squash merge; admin bypass is forbidden. Expressed with the existing `workspace.v1alpha1` and `workspace-org.v1` contracts rather than a new manifest, with the grant template outside the package directories as `capability-grant.v1` requires.
+- Commit a GitHub-operations employee team under `teams/github-ops/` (#295). Three portable positions (`issue-triage`, `pr-author`, `pr-reviewer`) express a workflow where authoring and reviewing are separate roles. The reviewer uses its own GitHub identity, because GitHub does not count a self-approval and a shared identity would make the approval gate unsatisfiable; its credential is scoped to `Contents: Read only` so it structurally cannot merge. Merging remains a human action; the team supplies a six-point merge-readiness checklist (non-author APPROVED, required checks green on that exact head, no unresolved threads, not a draft, no release freeze, squash only). Expressed with the existing `workspace.v1alpha1` and `workspace-org.v1` contracts rather than a new manifest, with the grant template outside the package directories as `capability-grant.v1` requires.
 
 ### Fixed
 
+- Use pinned development-only c8 12.0.0 with tsx 4.23.13 to merge mixed TSX
+  and compiled subprocess source maps without order-dependent loss of executed
+  source lines. Retain all nine production domains and the 85/65/80 coverage
+  gates; reject empty reports, bound the collector to a 4 GiB heap for the full
+  capture set, and test real mixed captures and uncovered controls (#261).
 - Restore the frozen `agent-host.v1` probe keys for older strict consumers.
   Keep Qoder command selection local to each run and report it through bounded,
   scrubbed `issues[]` messages; probe and preflight results no longer expose
@@ -26,6 +31,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Align employee network policy declarations with the Host transport by adding
+  bounded `allowlist` hosts and requiring verified `network_policy` support for
+  every mode; unsatisfiable non-deny policies now fail before Host execution
+  (#308).
 - The Codex default-deny audit probe accepts an explicit `--expect-version`
   instead of requiring an edit to the pinned `AUDITED_CODEX_VERSION`, and both
   the flag and the `codex --version` extraction derive from one shared semver

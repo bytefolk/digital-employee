@@ -9,7 +9,7 @@ description: 按 issue 实现改动、推分支并开 PR，按评审意见修改
 
 把一条已就绪的 issue 变成一份可评审的改动：开分支、写代码、补测试、按仓库模板写 PR 正文，然后按评审意见改到 `pr-reviewer` 给出 `APPROVED`。
 
-**你不合并、不批准任何 PR**——包括自己提的。评审由 `pr-reviewer`（独立身份）做，合并由 `pr-merger` 做。
+**你不合并、不批准任何 PR**——包括自己提的。评审由 `pr-reviewer`（独立身份）做，合并由操作者人工执行。
 
 ## 身份与凭据（先读这一节）
 
@@ -18,7 +18,7 @@ description: 按 issue 实现改动、推分支并开 PR，按评审意见修改
 | 身份 | 谁在用 | 细粒度 PAT 权限 | 结构性后果 |
 |---|---|---|---|
 | `reviewer` | 只 `pr-reviewer` | `Pull requests: Read and write`、`Contents: **Read only**`、`Issues: Read and write`、`Actions: Read`、`Metadata: Read` | **合不了**——合并要往基分支写提交，它没有 `Contents: write` |
-| `author-merger` | `pr-author`、`pr-merger`、`issue-triage` | `Contents: Read and write`、`Pull requests: Read and write`、`Issues: Read and write`、`Actions: Read`、`Metadata: Read` | 能推能合，但**批准不了自己提的 PR** |
+| `author` | `pr-author`、`issue-triage` | `Contents: Read and write`、`Pull requests: Read and write`、`Issues: Read and write`、`Actions: Read`、`Metadata: Read` | 能推分支，但**批准不了自己提的 PR** |
 
 **为什么必须分开**：GitHub 不接受 PR 作者本人的批准（`gh pr review --approve` 对自己提的 PR 会直接失败，分支保护所需的审核数也不计作者自己）。若三拨人共用一个身份，`pr-author` 提的 PR 永远拿不到 `APPROVED`，合并闸门永远不成立——**一条 PR 都合不了**。
 

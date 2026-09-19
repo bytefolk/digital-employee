@@ -221,6 +221,15 @@ local account identifiers do not
 belong in a package; a deployment binds secret names through its host or
 service environment.
 
+`policy.network` accepts `deny`, `host_policy`, or `allowlist`. Every mode
+requires a Host whose `network_policy` capability is conformance-verified;
+unsupported non-deny modes fail compatibility before a model process starts.
+`allowlist` may add `policy.hosts`, a unique list of at most 64 DNS host names
+or `*.example.com`-style subdomain patterns. Host entries cannot contain a URL
+scheme, port, path, user information, credential, or environment value. The
+package declares the requested boundary; a Host still has to prove that it can
+enforce it.
+
 ## Identity segment (#194)
 
 The optional `identity` object carries human-facing expressiveness only. It

@@ -290,14 +290,20 @@ export function assessAgentHostCompatibility(
   }
   for (const capability of missing) {
     issues.push({
-      code: "required_capability_unsupported",
+      code:
+        capability === "network_policy"
+          ? "network_policy_unsatisfiable"
+          : "required_capability_unsupported",
       message: `${probe.displayName} does not support ${capability}`,
       blocking: true,
     })
   }
   for (const capability of unknown) {
     issues.push({
-      code: "required_capability_unverified",
+      code:
+        capability === "network_policy"
+          ? "network_policy_unsatisfiable"
+          : "required_capability_unverified",
       message: `${probe.displayName} has not verified ${capability}`,
       blocking: true,
     })

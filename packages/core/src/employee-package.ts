@@ -15,6 +15,9 @@ const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.
 const LICENSE_PATTERN = /^[A-Za-z0-9.+-]{1,128}$/
 const PORTABLE_PATH_PATTERN = /^\.\/(?!.*\\)[^\u0000-\u001f\u007f]+$/
 const IDENTITY_ROLE_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/
+const CONTENT_DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/
+const SKILL_LOCALITIES = ["package", "workspace"] as const
+const MAX_SKILL_UNITS = 32
 const NETWORK_HOST_PATTERN = /^(?:\*\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i
 const IDENTITY_KNOWN_FIELDS = ["displayName", "avatar", "persona", "roleId"]
 
@@ -35,6 +38,17 @@ export interface EmployeePackageIdentity {
    * with a collected warning instead of failing closed (#194 R4 freeze).
    */
   readonly [field: string]: unknown
+}
+
+/**
+ * Reference to a skill unit (#305). This is a package declaration channel,
+ * not the Host `skills` capability and not `entrypoints.skill`.
+ */
+export interface EmployeePackageSkillRef {
+  name: string
+  version: string
+  digest: string
+  locality?: (typeof SKILL_LOCALITIES)[number]
 }
 
 export interface EmployeePackageManifest {
@@ -72,6 +86,8 @@ export interface EmployeePackageManifest {
     }>
   }
   assets: string[]
+  /** Optional skill-unit references. Absent means today's package behaviour. */
+  skills?: EmployeePackageSkillRef[]
 }
 
 /** Security requirements are derived from policy, not trusted to the author. */
@@ -292,6 +308,57 @@ function validateMcpTools(
   })
 }
 
+function validateSkillUnits(value: unknown): EmployeePackageSkillRef[] {
+  if (!Array.isArray(value) || value.length > MAX_SKILL_UNITS) {
+    throw packageError("employee_package_invalid_field:skills", {
+      field: "skills",
+    })
+  }
+  const names = new Set<string>()
+  return value.map((item, index) => {
+    const label = `skills[${index}]`
+    const entry = assertKnownKeys(
+      item,
+      ["name", "version", "digest", "locality"],
+      label,
+    )
+    const name = requireString(entry.name, `${label}.name`, {
+      pattern: SKILL_NAME_PATTERN,
+      maxLength: 64,
+    })
+    if (names.has(name)) {
+      throw packageError("employee_package_duplicate_value:skills", {
+        field: `${label}.name`,
+      })
+    }
+    names.add(name)
+    const version = requireString(entry.version, `${label}.version`, {
+      pattern: SEMVER_PATTERN,
+      maxLength: 128,
+    })
+    const digest = requireString(entry.digest, `${label}.digest`, {
+      pattern: CONTENT_DIGEST_PATTERN,
+      maxLength: 71,
+    })
+    if (
+      entry.locality !== undefined &&
+      !SKILL_LOCALITIES.includes(entry.locality as (typeof SKILL_LOCALITIES)[number])
+    ) {
+      throw packageError(`employee_package_invalid_field:${label}.locality`, {
+        field: `${label}.locality`,
+      })
+    }
+    return {
+      name,
+      version,
+      digest,
+      ...(entry.locality
+        ? { locality: entry.locality as EmployeePackageSkillRef["locality"] }
+        : {}),
+    }
+  })
+}
+
 function validateNetworkHosts(value: unknown): string[] {
   if (!Array.isArray(value) || value.length > 64) {
     throw packageError("employee_package_invalid_field:policy.hosts", {
@@ -381,6 +448,7 @@ export function validateEmployeePackageManifest(
       "entrypoints",
       "policy",
       "assets",
+      "skills",
     ],
     "manifest",
   )
@@ -520,6 +588,9 @@ export function validateEmployeePackageManifest(
 
   if (manifest.identity !== undefined) {
     result.identity = validateIdentity(manifest.identity, assets, warnings)
+  }
+  if (manifest.skills !== undefined) {
+    result.skills = validateSkillUnits(manifest.skills)
   }
 
   if (result.authors.length === 0) {

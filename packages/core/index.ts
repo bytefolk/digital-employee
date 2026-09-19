@@ -221,6 +221,7 @@ export {
 export type {
   EmployeePackageIdentity,
   EmployeePackageManifest,
+  EmployeePackageSkillRef,
 } from "./src/employee-package.js"
 export {
   HIRE_REQUEST_SCHEMA_ID,

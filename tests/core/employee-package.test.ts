@@ -371,3 +371,96 @@ test("identity: reportTo is rejected outright (#194)", () => {
     /employee_package_unknown_field:identity\.reportTo/,
   )
 })
+
+function skillUnit(overrides: Record<string, unknown> = {}) {
+  return {
+    name: "lookup",
+    version: "1.0.0",
+    digest: `sha256:${"ab".repeat(32)}`,
+    ...overrides,
+  }
+}
+
+test("#305 packages without skills stay observationally identical", () => {
+  const result = validateEmployeePackageManifest(manifest())
+  assert.equal("skills" in result, false)
+  assert.equal(result.skills, undefined)
+})
+
+test("#305 skill-unit declarations are accepted by reference", () => {
+  const input = manifest()
+  Object.assign(input, {
+    skills: [
+      skillUnit(),
+      skillUnit({
+        name: "review",
+        version: "2.1.0",
+        digest: `sha256:${"cd".repeat(32)}`,
+        locality: "workspace",
+      }),
+    ],
+  })
+  const result = validateEmployeePackageManifest(input)
+  assert.deepEqual(result.skills, [
+    {
+      name: "lookup",
+      version: "1.0.0",
+      digest: `sha256:${"ab".repeat(32)}`,
+    },
+    {
+      name: "review",
+      version: "2.1.0",
+      digest: `sha256:${"cd".repeat(32)}`,
+      locality: "workspace",
+    },
+  ])
+  assert.equal(Object.isFrozen(result.skills), true)
+  assert.equal(
+    deriveEmployeeHostRequirements(result).requiredCapabilities.includes("skills"),
+    false,
+  )
+})
+
+test("#305 hostile skill declarations fail closed", () => {
+  const cases: Array<{ skills: unknown; pattern: RegExp }> = [
+    {
+      skills: [skillUnit({ name: "../escape" })],
+      pattern: /employee_package_invalid_field:skills\[0\]\.name/,
+    },
+    {
+      skills: [skillUnit({ name: "./skills/lookup" })],
+      pattern: /employee_package_invalid_field:skills\[0\]\.name/,
+    },
+    {
+      skills: [skillUnit({ digest: `SHA256:${"ab".repeat(32)}` })],
+      pattern: /employee_package_invalid_field:skills\[0\]\.digest/,
+    },
+    {
+      skills: [skillUnit({ digest: `sha256:${"ab".repeat(31)}` })],
+      pattern: /employee_package_invalid_field:skills\[0\]\.digest/,
+    },
+    {
+      skills: [skillUnit({ extra: true })],
+      pattern: /employee_package_unknown_field:skills\[0\]\.extra/,
+    },
+    {
+      skills: [skillUnit({ locality: "cdn" })],
+      pattern: /employee_package_invalid_field:skills\[0\]\.locality/,
+    },
+    {
+      skills: [skillUnit(), skillUnit()],
+      pattern: /employee_package_duplicate_value:skills/,
+    },
+    {
+      skills: Array.from({ length: 33 }, (_, index) =>
+        skillUnit({ name: `skill-${index}`, digest: `sha256:${index.toString(16).padStart(64, "0")}` }),
+      ),
+      pattern: /employee_package_invalid_field:skills/,
+    },
+  ]
+  for (const fixture of cases) {
+    const input = manifest()
+    Object.assign(input, { skills: fixture.skills })
+    assert.throws(() => validateEmployeePackageManifest(input), fixture.pattern)
+  }
+})

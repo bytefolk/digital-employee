@@ -211,6 +211,7 @@ live-response benchmarks.
 | `entrypoints.mcp` | Optional stdio/HTTPS MCP declaration with environment-variable secret references only; operator-trust boundary per [#210 Finding 2](#mcp-manifest-trust-boundary-210-finding-2) |
 | `policy` | Abstract filesystem, network, MCP and approval requirements; every MCP tool requests a maximum read/write mode |
 | `assets` | Explicit regular files shipped with the package |
+| `skills` | Optional skill-unit references (#305); name, SemVer, content digest, optional locality |
 | `identity` | Optional human-facing identity segment (#194); `name` remains the machine identifier |
 
 All file references use forward-slash `./` paths. Artifact paths and policy
@@ -220,6 +221,22 @@ containment check. File count and total size are bounded. Secret values and
 local account identifiers do not
 belong in a package; a deployment binds secret names through its host or
 service environment.
+
+## Skill-unit declarations (#305)
+
+The optional `skills` array is a **package declaration channel**. Each item
+names a skill unit by portable name, SemVer version, and `sha256:<hex>` content
+digest. `locality` may be `package` or `workspace`. Unknown fields, path-shaped
+names, duplicate names, and malformed digests fail closed.
+
+This array is not the Host `skills` capability in `host.requiredCapabilities`,
+and it is not `entrypoints.skill`. `entrypoints.skill` remains the canonical
+prose Skill file for this package. Host `skills` describes whether an Agent
+Host can load its own Skill surface. Declaring package `skills` does not
+project tools, compose instructions, or require that Host capability. Packages
+without the array validate exactly as they do today.
+
+## Network policy declarations (#308)
 
 `policy.network` accepts `deny`, `host_policy`, or `allowlist`. Every mode
 requires a Host whose `network_policy` capability is conformance-verified;

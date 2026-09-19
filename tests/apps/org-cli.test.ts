@@ -123,6 +123,13 @@ async function readAuditEntries(auditPath: string): Promise<Record<string, unkno
     .map((line) => JSON.parse(line) as Record<string, unknown>)
 }
 
+function normalizeOrgApplyTimestamp(bytes: string): string {
+  return bytes.replace(
+    /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z/g,
+    "<timestamp>",
+  )
+}
+
 /**
  * Craft a hire by cloning the issue-researcher package into a new position
  * directory, rewriting the package identity, and (optionally) writing a
@@ -216,6 +223,66 @@ test("org apply bootstraps the organization model, audit log, and permissions", 
   const positions = permissions.positions as Record<string, Record<string, unknown>>
   assert.equal(positions["repo-owner"]!.tier, "owner")
   assert.equal(positions["issue-researcher"]!.tier, "worker")
+})
+
+test("#310 AC-002: optional connectors keep org apply output and artifacts byte-identical", async (t) => {
+  const home = await freshHome(t)
+  const env = cliEnvironment(home)
+  const target = await initWorkspace(t, home, env)
+  const paths = statePaths(target)
+  const connectorsPath = path.join(
+    target,
+    "positions",
+    "repo-owner",
+    "connectors.json",
+  )
+  assert.equal(
+    (await readdir(path.dirname(connectorsPath))).includes("connectors.json"),
+    false,
+    "the compatibility baseline must have no connectors declaration",
+  )
+
+  const absentResult = runCli(["org", "apply", target, "--json"], env, home)
+  assert.equal(absentResult.status, 0, absentResult.stderr)
+  const absentArtifacts = await Promise.all([
+    readFile(paths.model, "utf8"),
+    readFile(paths.audit, "utf8"),
+    readFile(paths.permissions, "utf8"),
+  ])
+
+  await rm(paths.stateDir, { recursive: true, force: true })
+  await writeFile(
+    connectorsPath,
+    `${JSON.stringify(
+      {
+        schemaVersion: "position-connectors.v1",
+        channels: [{ id: "console" }],
+        sources: [
+          {
+            id: "filesystem",
+            env: { rootEnv: "FILESYSTEM_ROOT" },
+          },
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+  )
+
+  const declaredResult = runCli(["org", "apply", target, "--json"], env, home)
+  assert.equal(declaredResult.status, 0, declaredResult.stderr)
+  const declaredArtifacts = await Promise.all([
+    readFile(paths.model, "utf8"),
+    readFile(paths.audit, "utf8"),
+    readFile(paths.permissions, "utf8"),
+  ])
+
+  assert.equal(declaredResult.stdout, absentResult.stdout)
+  assert.equal(declaredResult.stderr, absentResult.stderr)
+  assert.deepEqual(
+    declaredArtifacts.map(normalizeOrgApplyTimestamp),
+    absentArtifacts.map(normalizeOrgApplyTimestamp),
+  )
 })
 
 test("org apply is idempotent on an unchanged tree", async (t) => {

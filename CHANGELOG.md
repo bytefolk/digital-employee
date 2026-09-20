@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add an optional `skills` declaration channel on the employee package:
+  reference-only skill units (name, version, content digest, optional
+  locality) validated fail-closed, with no engine loading or Host `skills`
+  capability coupling (#305).
 - Commit a GitHub-operations employee team under `teams/github-ops/` (#295). Three portable positions (`issue-triage`, `pr-author`, `pr-reviewer`) express a workflow where authoring and reviewing are separate roles. The reviewer uses its own GitHub identity, because GitHub does not count a self-approval and a shared identity would make the approval gate unsatisfiable; its credential is scoped to `Contents: Read only` so it structurally cannot merge. Merging remains a human action; the team supplies a six-point merge-readiness checklist (non-author APPROVED, required checks green on that exact head, no unresolved threads, not a draft, no release freeze, squash only). Expressed with the existing `workspace.v1alpha1` and `workspace-org.v1` contracts rather than a new manifest, with the grant template outside the package directories as `capability-grant.v1` requires.
 
 ### Fixed

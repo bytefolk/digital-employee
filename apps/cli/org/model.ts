@@ -48,6 +48,17 @@ import type {
   ValidatedOrganizationRole,
 } from "./budget.js"
 import { deriveOrganizationPermissions } from "./permissions.js"
+import {
+  readOptionalPositionConnectors,
+  type PositionConnectorsDeclaration,
+} from "./connectors-declaration.js"
+import { createBuiltInRegistry } from "../registry.js"
+
+let connectorRegistryPromise: Promise<import("../../../packages/core/index.js").RuntimeComponentRegistry> | undefined
+function connectorRegistry() {
+  connectorRegistryPromise ??= createBuiltInRegistry()
+  return connectorRegistryPromise
+}
 import type { OrganizationPermissions } from "./permissions.js"
 import {
   computeEmployeePackageDirectoryDigest,
@@ -226,6 +237,7 @@ export interface PositionDeclaration {
   manifest: EmployeePackageManifest
   budget: PositionBudget
   digest: string
+  connectors?: PositionConnectorsDeclaration
 }
 
 /**
@@ -258,11 +270,18 @@ export async function readPositionDeclaration(
   const budget = validatePositionBudget(position.id, parsed)
   const inspection = await inspectEmployeePackage(position.directory)
   const digest = await computeEmployeePackageDirectoryDigest(position.directory)
+  const registry = await connectorRegistry()
+  const connectors = await readOptionalPositionConnectors(
+    position.directory,
+    position.id,
+    registry,
+  )
   return {
     position,
     manifest: inspection.manifest,
     budget,
     digest,
+    ...(connectors !== undefined ? { connectors } : {}),
   }
 }
 

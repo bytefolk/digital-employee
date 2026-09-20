@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Optional `positions/<id>/connectors.json` (`position-connectors.v1`) validated
+  at org apply against the CLI connector registry (#310). Absent file leaves
+  apply unchanged. Credentials must stay as env names. Zero runtime effect.
+
 ### Changed
 
 - Replace former GitHub owner coordinates in shipped templates and examples

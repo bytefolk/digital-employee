@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/bytefolk/digital-employee/main/configs/position-connectors.schema.json",
+  "title": "Position connector declarations v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion"],
+  "properties": {
+    "schemaVersion": { "const": "position-connectors.v1" },
+    "channels": { "$ref": "#/$defs/bindings" },
+    "sources": { "$ref": "#/$defs/bindings" },
+    "models": { "$ref": "#/$defs/bindings" }
+  },
+  "$defs": {
+    "bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "env": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,127}$" }
+        }
+      }
+    }
+  }
+}

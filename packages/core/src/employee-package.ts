@@ -16,6 +16,22 @@ const LICENSE_PATTERN = /^[A-Za-z0-9.+-]{1,128}$/
 const PORTABLE_PATH_PATTERN = /^\.\/(?!.*\\)[^\u0000-\u001f\u007f]+$/
 const IDENTITY_ROLE_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/
 const IDENTITY_KNOWN_FIELDS = ["displayName", "avatar", "persona", "roleId"]
+const SKILL_UNIT_DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/
+const SKILL_UNIT_LOCALITIES = ["workspace", "package", "external"] as const
+const SKILL_UNIT_KNOWN_FIELDS = ["name", "version", "digest", "locality"] as const
+
+/**
+ * Optional package-level skill-unit declarations (#305). Reference-only:
+ * name + version + content digest, optional locality. Distinct from the
+ * host capability `"skills"` on `host.requiredCapabilities` and from
+ * `entrypoints.skill` (the package's own SKILL.md). Zero runtime effect.
+ */
+export interface EmployeeSkillUnitDeclaration {
+  name: string
+  version: string
+  digest: string
+  locality?: (typeof SKILL_UNIT_LOCALITIES)[number]
+}
 
 /**
  * Optional identity segment (#194). Human-facing expressiveness only: the
@@ -55,6 +71,11 @@ export interface EmployeePackageManifest {
     outputSchema: string
     mcp?: string
   }
+  /**
+   * Optional skill-unit references (#305). Absent means today's package
+   * behaviour byte-for-byte. Not a host Skill capability grant.
+   */
+  skills?: EmployeeSkillUnitDeclaration[]
   policy: {
     mode: "read_only" | "approval_required"
     /** Employee tool/MCP data-plane egress, excluding the host control plane. */
@@ -336,6 +357,62 @@ function validateIdentity(
   return identity as unknown as EmployeePackageIdentity
 }
 
+function validateSkillUnits(value: unknown): EmployeeSkillUnitDeclaration[] {
+  if (!Array.isArray(value)) {
+    throw packageError("employee_skill_declaration_invalid", { field: "skills" })
+  }
+  const units: EmployeeSkillUnitDeclaration[] = []
+  const names = new Set<string>()
+  for (const [index, entry] of value.entries()) {
+    const label = `skills[${index}]`
+    const unit = assertKnownKeys(entry, SKILL_UNIT_KNOWN_FIELDS, label)
+    const name = requireString(unit.name, `${label}.name`, {
+      pattern: IDENTIFIER_PATTERN,
+      maxLength: 128,
+    })
+    if (/[\\/]/.test(name) || name.includes("..")) {
+      throw packageError("employee_skill_declaration_traversal", {
+        field: `${label}.name`,
+      })
+    }
+    if (names.has(name)) {
+      throw packageError("employee_package_duplicate_value:skills.name", {
+        field: `${label}.name`,
+      })
+    }
+    names.add(name)
+    const digest = requireString(unit.digest, `${label}.digest`, {
+      maxLength: 80,
+    })
+    if (!SKILL_UNIT_DIGEST_PATTERN.test(digest)) {
+      throw packageError("employee_skill_declaration_digest_mismatch", {
+        field: `${label}.digest`,
+      })
+    }
+    const declared: EmployeeSkillUnitDeclaration = {
+      name,
+      version: requireString(unit.version, `${label}.version`, {
+        pattern: SEMVER_PATTERN,
+        maxLength: 128,
+      }),
+      digest,
+    }
+    if (unit.locality !== undefined) {
+      if (
+        typeof unit.locality !== "string" ||
+        !(SKILL_UNIT_LOCALITIES as readonly string[]).includes(unit.locality)
+      ) {
+        throw packageError("employee_skill_declaration_invalid", {
+          field: `${label}.locality`,
+        })
+      }
+      declared.locality = unit.locality as EmployeeSkillUnitDeclaration["locality"]
+    }
+    units.push(declared)
+  }
+  return units
+}
+
 function deepFreeze<T>(value: T): T {
   if (!value || typeof value !== "object" || Object.isFrozen(value)) return value
   for (const item of Object.values(value as UnknownRecord)) deepFreeze(item)
@@ -361,6 +438,7 @@ export function validateEmployeePackageManifest(
       "entrypoints",
       "policy",
       "assets",
+      "skills",
     ],
     "manifest",
   )
@@ -488,6 +566,9 @@ export function validateEmployeePackageManifest(
 
   if (manifest.identity !== undefined) {
     result.identity = validateIdentity(manifest.identity, assets, warnings)
+  }
+  if (manifest.skills !== undefined) {
+    result.skills = validateSkillUnits(manifest.skills)
   }
 
   if (result.authors.length === 0) {

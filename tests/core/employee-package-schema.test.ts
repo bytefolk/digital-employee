@@ -96,6 +96,51 @@ function identityManifest(): Record<string, any> {
   return input
 }
 
+test("public package Schema and validator accept optional skill-unit declarations (#305)", async () => {
+  const validateSchema = await schemaValidator()
+  const input = manifest()
+  input.skills = [
+    {
+      name: "issue-triage",
+      version: "1.0.0",
+      digest: `sha256:${"a".repeat(64)}`,
+      locality: "workspace",
+    },
+  ]
+  assert.equal(validateSchema(input), true, JSON.stringify(validateSchema.errors))
+  const validated = validateEmployeePackageManifest(input)
+  assert.equal(validated.skills?.[0]?.name, "issue-triage")
+})
+
+test("public package Schema and validator reject hostile skill-unit declarations (#305)", async () => {
+  const validateSchema = await schemaValidator()
+  const digest = `sha256:${"a".repeat(64)}`
+  const hostile = [
+    (() => {
+      const input = manifest()
+      input.skills = [{ name: "../escape", version: "1.0.0", digest }]
+      return input
+    })(),
+    (() => {
+      const input = manifest()
+      input.skills = [{ name: "ok", version: "1.0.0", digest: "md5:deadbeef", extra: true }]
+      return input
+    })(),
+    (() => {
+      const input = manifest()
+      input.skills = [{ name: "ok", version: "1.0.0", digest: "not-a-digest" }]
+      return input
+    })(),
+  ]
+  for (const input of hostile) {
+    assert.equal(validateSchema(input), false)
+    assert.throws(() => validateEmployeePackageManifest(input))
+  }
+  const absent = manifest()
+  assert.equal(validateSchema(absent), true)
+  assert.equal(validateEmployeePackageManifest(absent).skills, undefined)
+})
+
 test("public package Schema and validator accept the identity segment (#194)", async () => {
   const validateSchema = await schemaValidator()
 

@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Optional `skills` declarations on `employee-package.v1alpha1` (#305):
+  reference-only skill units (`name`, `version`, `sha256:` digest, optional
+  locality) validated at package validate time. Absent declarations leave
+  existing packages unchanged. Zero runtime effect.
+
 ### Changed
 
 - Replace former GitHub owner coordinates in shipped templates and examples

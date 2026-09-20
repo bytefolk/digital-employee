@@ -209,6 +209,39 @@
     },
     "assets": {
       "$ref": "#/$defs/portablePathList"
+    },
+    "skills": {
+      "description": "Optional skill-unit declarations by reference (#305). Distinct from host.requiredCapabilities skills and from entrypoints.skill. Absent preserves pre-#305 package behaviour.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "version",
+          "digest"
+        ],
+        "properties": {
+          "name": {
+            "$ref": "#/$defs/identifier"
+          },
+          "version": {
+            "$ref": "#/$defs/semver"
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "locality": {
+            "enum": [
+              "workspace",
+              "package",
+              "external"
+            ]
+          }
+        }
+      }
     }
   },
   "allOf": [

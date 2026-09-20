@@ -212,6 +212,7 @@ live-response benchmarks.
 | `policy` | Abstract filesystem, network, MCP and approval requirements; every MCP tool requests a maximum read/write mode |
 | `assets` | Explicit regular files shipped with the package |
 | `identity` | Optional human-facing identity segment (#194); `name` remains the machine identifier |
+| `skills` | Optional skill-unit *declarations by reference* (#305): `{ name, version, digest, locality? }`. This is not the host capability `"skills"` on `host.requiredCapabilities`, and it is not `entrypoints.skill` (the package's own `SKILL.md`). Absent `skills` preserves pre-#305 package behaviour byte-for-byte. The engine does not load these units yet (#306/#307). |
 
 All file references use forward-slash `./` paths. Artifact paths and policy
 globs are validated separately. Absolute paths, parent traversal, undeclared
@@ -220,6 +221,22 @@ containment check. File count and total size are bounded. Secret values and
 local account identifiers do not
 belong in a package; a deployment binds secret names through its host or
 service environment.
+
+## Skill-unit declarations (#305)
+
+The optional `skills` array is a **declaration channel** only. Each entry
+names a reusable skill unit by `name` + SemVer `version` + `sha256:` digest.
+`locality` may be `workspace`, `package`, or `external`. Hostile shapes
+(unknown fields, path traversal in `name`, digest not `sha256:` + 64 hex)
+fail closed with stable codes:
+
+- `employee_package_unknown_field:skills[i].…`
+- `employee_skill_declaration_invalid`
+- `employee_skill_declaration_traversal`
+- `employee_skill_declaration_digest_mismatch`
+
+Packages without a `skills` array validate exactly as before. Nothing in
+this field is consumed at runtime.
 
 ## Identity segment (#194)
 

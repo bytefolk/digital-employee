@@ -224,6 +224,18 @@ export type {
   EmployeePackageSkillRef,
 } from "./src/employee-package.js"
 export {
+  POSITION_CONNECTORS_FILE,
+  POSITION_CONNECTORS_SCHEMA_VERSION,
+  PositionConnectorsError,
+  validatePositionConnectors,
+} from "./src/position-connectors.js"
+export type {
+  ConnectorVocabulary,
+  PositionConnectorBinding,
+  PositionConnectorKind,
+  PositionConnectorsDeclaration,
+} from "./src/position-connectors.js"
+export {
   HIRE_REQUEST_SCHEMA_ID,
   HIRE_REQUEST_SCHEMA_VERSION,
   HireRequestError,

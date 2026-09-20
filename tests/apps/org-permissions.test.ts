@@ -23,6 +23,7 @@ import {
   normalizeContextPath,
   positionDirectorySegments,
 } from "../../apps/cli/org/permissions.js"
+import type { PositionConnectorsDeclaration } from "../../packages/core/src/position-connectors.js"
 
 const DIGEST = `sha256:${"a".repeat(64)}`
 
@@ -356,4 +357,44 @@ test("AC-011: a malformed mode fails org apply closed", () => {
       error instanceof TypeError &&
       error.message === "workspace_org_document_invalid:role_0_mode",
   )
+})
+
+test("#221 AC-001: declared connector IDs appear in derived permissions", () => {
+  const connectors: PositionConnectorsDeclaration = {
+    schemaVersion: "position-connectors.v1",
+    channels: [{ id: "slack-main" }],
+    sources: [{ id: "github-issues" }, { id: "jira-board" }],
+  }
+  const connectorsByPosition: Record<string, PositionConnectorsDeclaration> = {
+    "issue-researcher": connectors,
+  }
+  const permissions = deriveOrganizationPermissions(
+    BASE_MODEL,
+    connectorsByPosition,
+  )
+  // The declared position carries its connector IDs.
+  assert.deepEqual(permissions.positions["issue-researcher"]!.connectors, {
+    channels: [{ id: "slack-main" }],
+    sources: [{ id: "github-issues" }, { id: "jira-board" }],
+  })
+  // A position without a connectors declaration has no connectors field.
+  assert.equal(permissions.positions["repo-owner"]!.connectors, undefined)
+})
+
+test("#221 AC-001: absent connectors map derives identically to today", () => {
+  const withMap = deriveOrganizationPermissions(BASE_MODEL, {})
+  const withoutMap = deriveOrganizationPermissions(BASE_MODEL)
+  // Both produce identical output — the optional map is purely additive.
+  assert.deepEqual(withMap, withoutMap)
+  for (const id of Object.keys(withoutMap.positions)) {
+    assert.equal(withMap.positions[id]!.connectors, undefined)
+  }
+})
+
+test("#221 AC-002: backward compatibility — no connectors field passes validation", () => {
+  const permissions = deriveOrganizationPermissions(BASE_MODEL)
+  const serialized = JSON.parse(JSON.stringify(permissions))
+  // The artifact without connectors must remain valid (no connectors key).
+  assert.equal(serialized.positions["repo-owner"].connectors, undefined)
+  assert.equal(serialized.positions["issue-researcher"].connectors, undefined)
 })

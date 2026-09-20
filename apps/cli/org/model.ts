@@ -653,7 +653,13 @@ export async function applyOrganization(
       changes,
       positionCount: model.roles.length,
     })
-    const permissions = deriveOrganizationPermissions(model)
+    const connectorsByPosition: Record<string, PositionConnectorsDeclaration> = {}
+    for (const declaration of declarations) {
+      if (declaration.connectors) {
+        connectorsByPosition[declaration.position.id] = declaration.connectors
+      }
+    }
+    const permissions = deriveOrganizationPermissions(model, connectorsByPosition)
     await writePrivateFileAtomic(
       paths.permissionsPath,
       `${JSON.stringify(permissions, null, 2)}\n`,

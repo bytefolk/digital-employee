@@ -22,6 +22,7 @@ import type {
   ValidatedOrganizationRole,
 } from "./budget.js"
 import type { PositionMode } from "../../../packages/engine/src/org-permissions.js"
+import type { PositionConnectorsDeclaration } from "../../../packages/core/src/position-connectors.js"
 
 export const ORG_PERMISSIONS_SCHEMA_VERSION = "org-permissions.v1" as const
 
@@ -56,6 +57,11 @@ export interface PositionPermissions {
   /** Portable workspace-relative read scopes, e.g. "./positions/<path>/". */
   contextScope: { read: string[] }
   authorityScope: AuthorityScope
+  /** Informational connector binding carry (#221 REQ-002). No runtime consumption. */
+  connectors?: {
+    channels: Array<{ id: string }>
+    sources: Array<{ id: string }>
+  }
 }
 
 export interface OrganizationPermissions {
@@ -145,17 +151,26 @@ function deriveContextScope(
  */
 export function deriveOrganizationPermissions(
   model: ValidatedOrganizationDocument,
+  connectorsByPosition?: Record<string, PositionConnectorsDeclaration>,
 ): OrganizationPermissions {
   const positions: Record<string, PositionPermissions> = {}
   for (const role of model.roles) {
     const tier: PermissionTier = role.id === model.owner ? "owner" : "worker"
-    positions[role.id] = {
+    const entry: PositionPermissions = {
       position: role.id,
       tier,
       mode: role.mode,
       contextScope: deriveContextScope(model, role, tier),
       authorityScope: deriveAuthority(model, role, tier),
     }
+    const connectors = connectorsByPosition?.[role.id]
+    if (connectors) {
+      entry.connectors = {
+        channels: connectors.channels.map((c) => ({ id: c.id })),
+        sources: connectors.sources.map((s) => ({ id: s.id })),
+      }
+    }
+    positions[role.id] = entry
   }
   return {
     schemaVersion: ORG_PERMISSIONS_SCHEMA_VERSION,

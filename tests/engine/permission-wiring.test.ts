@@ -319,3 +319,74 @@ test("allowed turn carries a permission decision summary in evidence", async () 
   assert.equal(record.permissions!.summary.allowCount, 3)
   assert.deepEqual(record.permissions!.denials, [])
 })
+
+test("#221 AC-002: artifact validator accepts positions without connectors (backward compat)", () => {
+  const validated = validateOrganizationPermissionsArtifact(artifact())
+  assert.equal(validated.positions["repo-owner"]!.connectors, undefined)
+  assert.equal(validated.positions["issue-researcher"]!.connectors, undefined)
+})
+
+test("#221 AC-001: artifact validator accepts and carries informational connectors", () => {
+  const withConnectors: OrganizationPermissions = {
+    ...artifact(),
+    positions: {
+      ...artifact().positions,
+      "issue-researcher": {
+        ...artifact().positions["issue-researcher"]!,
+        connectors: {
+          channels: [{ id: "slack-main" }],
+          sources: [{ id: "github-issues" }],
+        },
+      },
+    },
+  }
+  const validated = validateOrganizationPermissionsArtifact(withConnectors)
+  assert.deepEqual(validated.positions["issue-researcher"]!.connectors, {
+    channels: [{ id: "slack-main" }],
+    sources: [{ id: "github-issues" }],
+  })
+  // Owner without connectors remains unaffected.
+  assert.equal(validated.positions["repo-owner"]!.connectors, undefined)
+})
+
+test("#221: artifact validator rejects malformed connectors", () => {
+  // connectors not an object
+  assert.throws(() =>
+    validateOrganizationPermissionsArtifact({
+      ...artifact(),
+      positions: {
+        ...artifact().positions,
+        "issue-researcher": {
+          ...(artifact().positions["issue-researcher"] as object),
+          connectors: "bad",
+        },
+      },
+    }),
+  )
+  // channels not an array
+  assert.throws(() =>
+    validateOrganizationPermissionsArtifact({
+      ...artifact(),
+      positions: {
+        ...artifact().positions,
+        "issue-researcher": {
+          ...(artifact().positions["issue-researcher"] as object),
+          connectors: { channels: "bad", sources: [] },
+        },
+      },
+    }),
+  )
+  // entry missing id
+  assert.throws(() =>
+    validateOrganizationPermissionsArtifact({
+      ...artifact(),
+      positions: {
+        ...artifact().positions,
+        "issue-researcher": {
+          ...(artifact().positions["issue-researcher"] as object),
+          connectors: { channels: [{}], sources: [] },
+        },
+      },
+    }),
+  )
+})

@@ -50,6 +50,11 @@ export interface PositionPermissions {
   /** Portable workspace-relative read scopes, e.g. "./positions/<path>/". */
   contextScope: { read: string[] }
   authorityScope: AuthorityScope
+  /** Informational connector binding carry (#221 REQ-002). No runtime consumption. */
+  connectors?: {
+    channels: Array<{ id: string }>
+    sources: Array<{ id: string }>
+  }
 }
 
 export interface OrganizationPermissions {
@@ -409,6 +414,40 @@ export function validateOrganizationPermissionsArtifact(
     ) {
       invalid(`delegation_escalate:${positionId}`)
     }
+    let connectors: PositionPermissions["connectors"] | undefined
+    if (p.connectors !== undefined) {
+      if (
+        p.connectors === null ||
+        typeof p.connectors !== "object" ||
+        Array.isArray(p.connectors)
+      ) {
+        invalid(`connectors:${positionId}`)
+      }
+      const conn = p.connectors as Record<string, unknown>
+      for (const key of ["channels", "sources"] as const) {
+        if (!Array.isArray(conn[key])) {
+          invalid(`connectors_${key}:${positionId}`)
+        }
+        for (const item of conn[key] as unknown[]) {
+          if (
+            item === null ||
+            typeof item !== "object" ||
+            Array.isArray(item) ||
+            typeof (item as Record<string, unknown>).id !== "string"
+          ) {
+            invalid(`connectors_${key}_entry:${positionId}`)
+          }
+        }
+      }
+      connectors = {
+        channels: (conn.channels as Array<{ id: string }>).map((c) => ({
+          id: c.id,
+        })),
+        sources: (conn.sources as Array<{ id: string }>).map((s) => ({
+          id: s.id,
+        })),
+      }
+    }
     validated[positionId] = {
       position: positionId,
       tier: p.tier as PermissionTier,
@@ -426,6 +465,7 @@ export function validateOrganizationPermissionsArtifact(
           escalateTo: delegationRecord.escalateTo as string | null,
         },
       },
+      ...(connectors !== undefined ? { connectors } : {}),
     }
   }
   return {

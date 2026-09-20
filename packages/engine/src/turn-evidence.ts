@@ -167,6 +167,10 @@ export interface TurnEvidenceRecord {
   terminal: TurnEvidenceTerminal
   escalationRef?: string
   approvalRef?: TurnEvidenceApprovalRef
+  /** Exact batch settled by this recovery turn. Present only for an atomic
+   * multi-approval recovery; keeping the legacy singular field preserves
+   * existing evidence readers. */
+  approvalRefs?: TurnEvidenceApprovalRef[]
   /** Permission decision summary + zero-content denial attempts (#159). */
   permissions?: TurnEvidencePermissions
   /** Digest-only memory-recall consumption evidence (#180 seam). */

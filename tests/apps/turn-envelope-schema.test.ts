@@ -149,6 +149,24 @@ test("#193 AC-005: malformed pendingApproval shapes reject before consumption", 
   }
 })
 
+test("#403: a sealed homogeneous pendingApprovals set is accepted, but mixed or duplicate members fail closed", () => {
+  const pendingApprovals = [
+    { approvalId: "appr-1", decision: "granted", decidedBy: "operator" },
+    { approvalId: "appr-2", decision: "granted", decidedBy: "operator", expiresAt: "2026-08-26T00:00:00.000Z" },
+  ]
+  const envelope = parseTurnEnvelope(sealedEnvelope({ pendingApprovals }))
+  assert.deepEqual(envelope.pendingApprovals?.map((pending) => pending.approvalId), ["appr-1", "appr-2"])
+  for (const invalid of [
+    [pendingApprovals[0], pendingApprovals[0]],
+    [pendingApprovals[0], { ...pendingApprovals[1], decision: "denied" }],
+  ]) {
+    assert.throws(
+      () => parseTurnEnvelope(sealedEnvelope({ pendingApprovals: invalid })),
+      (error: unknown) => (error as { code?: string }).code === "engine.input_invalid",
+    )
+  }
+})
+
 test("#205 AC-001: a legacy turn-envelope.v1 envelope parses byte-exactly", () => {
   const raw = sealedEnvelope({ schemaVersion: TURN_ENVELOPE_V1_VERSION })
   const envelope = parseTurnEnvelope(raw)

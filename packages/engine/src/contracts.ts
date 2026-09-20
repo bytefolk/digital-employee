@@ -185,6 +185,19 @@ export interface TurnPendingApprovalInput {
   expiresAt?: string
 }
 
+/**
+ * A sealed, all-or-nothing set of verdicts consumed by one recovery turn.
+ *
+ * This is deliberately a second field rather than overloading
+ * `pendingApproval`: old single-approval envelopes keep their exact shape.
+ * A batch is useful only when the control plane has already proved that the
+ * requests share one source and may safely resume together.  The engine
+ * validates the whole set before emitting any settlement event or consuming
+ * the model, so an expired or malformed member cannot produce a partial
+ * recovery.
+ */
+export type TurnPendingApprovalBatchInput = readonly TurnPendingApprovalInput[]
+
 export interface EngineTurnRequest {
   workspaceRef: string
   positionId: string
@@ -231,6 +244,8 @@ export interface EngineTurnRequest {
    * exclusive with approvalAction.
    */
   pendingApproval?: TurnPendingApprovalInput
+  /** Atomic multi-approval counterpart to `pendingApproval`; 2–32 members. */
+  pendingApprovals?: TurnPendingApprovalBatchInput
 }
 
 const MAX_ID_LENGTH = 256
@@ -384,11 +399,15 @@ function assertOptionalTimestamp(value: unknown, label: string): void {
  * rejects before any model consumption.
  */
 function validateApprovalRequestFields(request: EngineTurnRequest): void {
-  const { approvalAction, pendingApproval } = request
-  if (approvalAction !== undefined && pendingApproval !== undefined) {
+  const { approvalAction, pendingApproval, pendingApprovals } = request
+  if (
+    (approvalAction !== undefined &&
+      (pendingApproval !== undefined || pendingApprovals !== undefined)) ||
+    (pendingApproval !== undefined && pendingApprovals !== undefined)
+  ) {
     throw new EngineRequestError(
       "engine.input_invalid",
-      "approvalAction and pendingApproval are mutually exclusive within one turn",
+      "approvalAction, pendingApproval and pendingApprovals are mutually exclusive within one turn",
     )
   }
   if (approvalAction !== undefined) {
@@ -425,44 +444,75 @@ function validateApprovalRequestFields(request: EngineTurnRequest): void {
     assertBoundedId(preview.version, "approvalAction.preview.version")
     assertBoundedId(preview.state, "approvalAction.preview.state")
   }
-  if (pendingApproval !== undefined) {
-    assertBoundedId(pendingApproval.approvalId, "pendingApproval.approvalId")
+  const validatePendingApproval = (pending: TurnPendingApprovalInput, label: string): void => {
+    assertBoundedId(pending.approvalId, `${label}.approvalId`)
     if (
-      pendingApproval.decision !== "granted" &&
-      pendingApproval.decision !== "denied"
+      pending.decision !== "granted" &&
+      pending.decision !== "denied"
     ) {
       throw new EngineRequestError(
         "engine.input_invalid",
-        "pendingApproval.decision must be granted or denied",
+        `${label}.decision must be granted or denied`,
       )
     }
-    if (pendingApproval.decidedBy !== "operator") {
+    if (pending.decidedBy !== "operator") {
       throw new EngineRequestError(
         "engine.input_invalid",
-        "pendingApproval.decidedBy must be operator",
+        `${label}.decidedBy must be operator`,
       )
     }
     if (
-      pendingApproval.scope !== undefined &&
-      pendingApproval.scope !== "once" &&
-      pendingApproval.scope !== "run"
+      pending.scope !== undefined &&
+      pending.scope !== "once" &&
+      pending.scope !== "run"
     ) {
       throw new EngineRequestError(
         "engine.input_invalid",
-        "pendingApproval.scope must be once or run when present",
+        `${label}.scope must be once or run when present`,
       )
     }
-    if (pendingApproval.reason !== undefined) {
+    if (pending.reason !== undefined) {
       assertBoundedText(
-        pendingApproval.reason,
-        "pendingApproval.reason",
+        pending.reason,
+        `${label}.reason`,
         APPROVAL_DESCRIPTION_MAX_BYTES,
       )
     }
     assertOptionalTimestamp(
-      pendingApproval.expiresAt,
-      "pendingApproval.expiresAt",
+      pending.expiresAt,
+      `${label}.expiresAt`,
     )
+  }
+  if (pendingApproval !== undefined) {
+    validatePendingApproval(pendingApproval, "pendingApproval")
+  }
+  if (pendingApprovals !== undefined) {
+    if (!Array.isArray(pendingApprovals) || pendingApprovals.length < 2 || pendingApprovals.length > 32) {
+      throw new EngineRequestError(
+        "engine.input_invalid",
+        "pendingApprovals must contain 2 to 32 verdicts",
+      )
+    }
+    const ids = new Set<string>()
+    let decision: TurnPendingApprovalInput["decision"] | undefined
+    for (let index = 0; index < pendingApprovals.length; index += 1) {
+      const pending = pendingApprovals[index]!
+      validatePendingApproval(pending, `pendingApprovals[${index}]`)
+      if (ids.has(pending.approvalId)) {
+        throw new EngineRequestError(
+          "engine.input_invalid",
+          "pendingApprovals must not repeat an approvalId",
+        )
+      }
+      ids.add(pending.approvalId)
+      if (decision !== undefined && decision !== pending.decision) {
+        throw new EngineRequestError(
+          "engine.input_invalid",
+          "pendingApprovals must use one decision so recovery is atomic",
+        )
+      }
+      decision = pending.decision
+    }
   }
 }
 

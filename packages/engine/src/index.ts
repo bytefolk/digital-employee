@@ -19,6 +19,7 @@ export type {
   TurnApprovalPreviewRef,
   TurnBudget,
   TurnPendingApprovalInput,
+  TurnPendingApprovalBatchInput,
 } from "./contracts.js"
 
 export {

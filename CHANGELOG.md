@@ -10,6 +10,15 @@ All notable changes to this project will be documented in this file.
   reference-only skill units (name, version, content digest, optional
   locality) validated fail-closed, with no engine loading or Host `skills`
   capability coupling (#305).
+- Skill manifest validation (`skill-unit.v1` schema): strict, fail-closed
+  validator for `skill.json` files with content-addressing via SHA-256
+  digests. Rejects unknown fields, enforces name/version patterns, validates
+  portable asset paths, and supports `compositionRules.exclusiveWith` for
+  mutual exclusion constraints (#305).
+- Deterministic skill composer: composes validated skill units into a single
+  instruction block in declared order, detects `exclusiveWith` conflicts with
+  stable error codes, and enforces authority non-escalation by suppressing
+  tools outside the position's authority scope (#306).
 - Validate optional `positions/<id>/connectors.json` (`position-connectors.v1`)
   at `org apply` against the live CLI connector registry vocabulary, with
   env-name-only config and no derived-artifact change (#310).

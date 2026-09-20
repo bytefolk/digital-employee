@@ -624,3 +624,11 @@ export type {
 } from "./src/context-port.js"
 export { createContextCliAdapter } from "./src/context-cli-adapter.js"
 export type { ContextCliAdapterOptions } from "./src/context-cli-adapter.js"
+export {
+  SKILL_MANIFEST_FILE,
+  SKILL_MANIFEST_VERSION,
+  SkillManifestError,
+  validateSkillManifest,
+  computeSkillDigest,
+} from "./src/skill-manifest.js"
+export type { SkillManifest } from "./src/skill-manifest.js"

@@ -195,3 +195,13 @@ export type {
   PositionMode,
   PositionPermissions,
 } from "./org-permissions.js"
+export {
+  SkillCompositionError,
+  composeSkills,
+  computeSkillUnitDigest,
+} from "./skill-composer.js"
+export type {
+  SkillUnit,
+  SkillCompositionInput,
+  SkillCompositionResult,
+} from "./skill-composer.js"

@@ -123,6 +123,11 @@ function deriveAuthority(
   }
 }
 
+function isLegacyWholeWorkspaceScope(scope: string): boolean {
+  const trimmed = scope.trim()
+  return trimmed === "/" || trimmed === "./"
+}
+
 function deriveContextScope(
   model: ValidatedOrganizationDocument,
   role: ValidatedOrganizationRole,
@@ -133,9 +138,15 @@ function deriveContextScope(
     return { read: ["./"] }
   }
   const segments = positionDirectorySegments(model, role.id)
-  return {
-    read: [`./positions/${segments.join("/")}/`, "./context/"],
+  const read = [`./positions/${segments.join("/")}/`, "./context/"]
+  if (!isLegacyWholeWorkspaceScope(role.memoryScope)) {
+    const normalized = normalizeContextPath(role.memoryScope)
+    const territory = normalized.endsWith("/") ? normalized : `${normalized}/`
+    if (territory !== "./" && !read.includes(territory)) {
+      read.push(territory)
+    }
   }
+  return { read }
 }
 
 /**

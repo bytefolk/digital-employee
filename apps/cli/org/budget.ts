@@ -353,6 +353,16 @@ export function validateOrganizationDocument(
     if (memoryScope.length === 0) {
       throw invalidDocument(`role_${index}_memory_scope`)
     }
+    if (memoryScope !== "/" && memoryScope !== "./") {
+      if (
+        memoryScope.includes("\\") ||
+        memoryScope.includes("..") ||
+        /^[A-Za-z]:/.test(memoryScope) ||
+        (memoryScope.startsWith("/") && memoryScope !== "/")
+      ) {
+        throw invalidDocument(`role_${index}_memory_scope`)
+      }
+    }
     const readToolList = (
       key: "toolAllow" | "toolDeny",
     ): string[] => {

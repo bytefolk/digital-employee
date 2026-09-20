@@ -74,6 +74,40 @@ const BASE_MODEL = makeDocument([
   makeRole({ id: "issue-researcher", reportTo: "repo-owner" }),
 ])
 
+test("#335 AC-001: worker memoryScope / keeps today's derived read scope", () => {
+  const permissions = deriveOrganizationPermissions(BASE_MODEL)
+  const worker = permissions.positions["issue-researcher"]!
+  assert.deepEqual(worker.contextScope.read, [
+    "./positions/repo-owner/issue-researcher/",
+    "./context/",
+  ])
+})
+
+test("#335 AC-002: worker memoryScope work territory is appended to derived read scope", () => {
+  const model = makeDocument([
+    makeRole({ id: "repo-owner", reportTo: null }),
+    {
+      ...makeRole({ id: "issue-researcher", reportTo: "repo-owner" }),
+      memoryScope: "./work/issue-researcher/",
+    },
+  ])
+  const worker = deriveOrganizationPermissions(model).positions["issue-researcher"]!
+  assert.deepEqual(worker.contextScope.read, [
+    "./positions/repo-owner/issue-researcher/",
+    "./context/",
+    "./work/issue-researcher/",
+  ])
+})
+
+test("#335 AC-004: owner derivation stays whole-workspace regardless of memoryScope", () => {
+  const model = makeDocument([
+    { ...makeRole({ id: "repo-owner", reportTo: null }), memoryScope: "./work/repo-owner/" },
+    makeRole({ id: "issue-researcher", reportTo: "repo-owner" }),
+  ])
+  const owner = deriveOrganizationPermissions(model).positions["repo-owner"]!
+  assert.deepEqual(owner.contextScope.read, ["./"])
+})
+
 test("AC-001: owner and worker tiers differ in context breadth and delegation", () => {
   const permissions = deriveOrganizationPermissions(BASE_MODEL)
   const owner = permissions.positions["repo-owner"]!
@@ -255,6 +289,7 @@ function rawRole(overrides: {
   id: string
   reportTo: string | null
   mode?: string
+  memoryScope?: string
 }): Record<string, unknown> {
   const role: Record<string, unknown> = {
     id: overrides.id,
@@ -277,6 +312,7 @@ function rawRole(overrides: {
     },
   }
   if (overrides.mode !== undefined) role.mode = overrides.mode
+  if (overrides.memoryScope !== undefined) role.memoryScope = overrides.memoryScope
   return role
 }
 
@@ -356,4 +392,19 @@ test("AC-011: a malformed mode fails org apply closed", () => {
       error instanceof TypeError &&
       error.message === "workspace_org_document_invalid:role_0_mode",
   )
+})
+
+test("#335 AC-003: hostile memoryScope fails org apply closed", () => {
+  for (const memoryScope of ["../escape", "/abs/path", "C:/windows", "a\\b"]) {
+    assert.throws(
+      () =>
+        validateOrganizationDocument(
+          rawDocument([rawRole({ id: "repo-owner", reportTo: null, memoryScope })]),
+        ),
+      (error: unknown) =>
+        error instanceof TypeError &&
+        String(error.message).startsWith("workspace_org_document_invalid:role_0_memory_scope"),
+      memoryScope,
+    )
+  }
 })

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Worker Context Scope derivation now honours `memoryScope` as a work
+  territory (#335). `/` and `./` stay legacy no-ops. Templated workers default
+  to `./work/<positionId>/`; workspace init scaffolds `work/README.md`.
+
 ### Changed
 
 - Replace former GitHub owner coordinates in shipped templates and examples

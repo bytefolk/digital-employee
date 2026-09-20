@@ -106,7 +106,7 @@ export const OSS_MAINTAINER_TEMPLATE: WorkspaceTemplate = {
         "Triages issues and produces researched, evidence-backed summaries for the owner.",
       reportTo: "repo-owner",
       mode: "read_only",
-      memoryScope: "/",
+      memoryScope: "./work/issue-researcher/",
       toolAllow: [...READ_ONLY_TOOL_ALLOW],
       toolDeny: [],
       metadata: {},
@@ -119,7 +119,7 @@ export const OSS_MAINTAINER_TEMPLATE: WorkspaceTemplate = {
         "Prepares release notes, version bumps, and publish checklists for the owner.",
       reportTo: "repo-owner",
       mode: "read_only",
-      memoryScope: "/",
+      memoryScope: "./work/release-engineer/",
       toolAllow: [...READ_ONLY_TOOL_ALLOW],
       toolDeny: [],
       metadata: {},
@@ -132,7 +132,7 @@ export const OSS_MAINTAINER_TEMPLATE: WorkspaceTemplate = {
         "Summarizes community feedback and keeps contributor documentation current.",
       reportTo: "repo-owner",
       mode: "read_only",
-      memoryScope: "/",
+      memoryScope: "./work/community-operator/",
       toolAllow: [...READ_ONLY_TOOL_ALLOW],
       toolDeny: [],
       metadata: {},
@@ -166,7 +166,7 @@ export const OSS_MAINTAINER_ZH_TEMPLATE: WorkspaceTemplate = {
       description: "分流 issue，为负责人产出有据可查的调研摘要。",
       reportTo: "repo-owner",
       mode: "read_only",
-      memoryScope: "/",
+      memoryScope: "./work/issue-researcher/",
       toolAllow: [...READ_ONLY_TOOL_ALLOW],
       toolDeny: [],
       metadata: {},
@@ -178,7 +178,7 @@ export const OSS_MAINTAINER_ZH_TEMPLATE: WorkspaceTemplate = {
       description: "为负责人准备发布说明、版本号变更和发布检查清单。",
       reportTo: "repo-owner",
       mode: "read_only",
-      memoryScope: "/",
+      memoryScope: "./work/release-engineer/",
       toolAllow: [...READ_ONLY_TOOL_ALLOW],
       toolDeny: [],
       metadata: {},
@@ -190,7 +190,7 @@ export const OSS_MAINTAINER_ZH_TEMPLATE: WorkspaceTemplate = {
       description: "汇总社区反馈，持续维护贡献者文档。",
       reportTo: "repo-owner",
       mode: "read_only",
-      memoryScope: "/",
+      memoryScope: "./work/community-operator/",
       toolAllow: [...READ_ONLY_TOOL_ALLOW],
       toolDeny: [],
       metadata: {},
@@ -653,12 +653,33 @@ export function renderWorkspaceManifest(
  * needs package digests and is rendered separately by
  * `renderOrganizationFile`.
  */
+const WORK_README_EN = `# Work territories
+
+Each position writes under \`work/<positionId>/\`. \`positions/\` is the sealed
+definition plane and is not a work product directory.
+`
+
+const WORK_README_ZH = `# 工作领地
+
+每个岗位只在 \`work/<positionId>/\` 下落盘。\`positions/\` 是封印的定义平面，不是产出目录。
+`
+
+function workSkeleton(locale: WorkspaceTemplate["locale"]): WorkspaceFile {
+  return {
+    portablePath: "./work/README.md",
+    content: Buffer.from(locale === "zh" ? WORK_README_ZH : WORK_README_EN, "utf8"),
+  }
+}
+
 export function renderSkeletonFiles(
   template: WorkspaceTemplate,
   business: string,
   createdAt: string,
 ): WorkspaceFile[] {
-  const files: WorkspaceFile[] = [contextSkeleton(business, template.locale)]
+  const files: WorkspaceFile[] = [
+    contextSkeleton(business, template.locale),
+    workSkeleton(template.locale),
+  ]
   for (const role of template.roles) {
     files.push(...renderPositionPackageFiles(template, role))
   }

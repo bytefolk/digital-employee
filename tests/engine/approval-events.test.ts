@@ -10,6 +10,7 @@ import {
   createInMemoryEvidenceSink,
   executeTurn,
   isTerminalEngineEvent,
+  validateTurnEvidenceRecord,
 } from "../../packages/engine/src/index.js"
 import type {
   EngineEvent,
@@ -246,6 +247,7 @@ test("#403: a homogeneous approval batch settles atomically before model consump
     { approvalId: "approval-a", outcome: "granted" },
     { approvalId: "approval-b", outcome: "granted" },
   ])
+  assert.deepEqual(validateTurnEvidenceRecord(evidenceSink.records[0]).violations, [])
 })
 
 test("#403: a malformed, mixed, or expired batch emits no partial approval verdict", async () => {

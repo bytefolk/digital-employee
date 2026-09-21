@@ -17,7 +17,7 @@ The workspace model is the product, not a command collection:
 
 | Mapping | Meaning |
 | --- | --- |
-| One directory = one business | `workspace init` turns a local directory into a business workspace with an organization tree, positions, and a business Context area. |
+| One directory = one business | `workspace init` turns a local directory into a business workspace with an organization tree, positions, a shared `context/` area, and per-position `work/<positionId>/` territories. `positions/` is the digest-sealed definition plane. |
 | One position = one addressable digital employee | `chat @position` addresses a named position directly; the position id is the stable identity that survives sessions and Host changes. Every hired position carries a budget before the change takes effect. |
 | One conversation = work with position Context and permission boundary | A conversation loads only that position's Context slice and runs inside its Authority Scope; out-of-scope requests are refused, not silently widened. |
 | Organization hierarchy = business owner → digital employees | The owner sees the business whole, delegates work, and is accountable for the result; workers see only the slice their position is allowed to see. Budget-exceeded reports escalate along the reporting line — the reporting chain and budget governance share one escalation mechanism. |
@@ -117,7 +117,10 @@ remain private company-internal concerns.
   budget-exceeded reports escalate along the reporting line (#157);
 - position permission boundaries: Context Scope (which business slice a
   position can recall) and Authority Scope (which tools a position can call),
-  with owner/worker defaults and no silent inheritance;
+  with owner/worker defaults and no silent inheritance. Worker read scope is
+  `[./positions/<reporting-segments>/, ./context/, <memoryScope>]`; `/` and
+  `./` are legacy no-ops. The owner remains `["./"]`. Templated workers
+  default `memoryScope` to `./work/<positionId>/`;
 - long-term Context integration: `mem` R1-level memory plane writes and recalls
   plus rule-based `context` fact distillation, decoupling continuity from
   Host-native session resume;

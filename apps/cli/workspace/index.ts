@@ -2,8 +2,8 @@
  * Fail-closed workspace command orchestration.
  *
  * `workspace init <dir> --template <id>` materializes a workspace skeleton
- * (organization.v1alpha1.json, workspace.json, positions/, context/) into a
- * new or empty directory. The command reuses the deploy command's i18n,
+ * (organization.v1alpha1.json, workspace.json, positions/, context/, work/)
+ * into a new or empty directory. The command reuses the deploy command's i18n,
  * fail-closed code, and secret-safe write conventions: input is validated
  * before any effect, a non-empty target fails with exit 1 and a localized
  * recovery line, and generated state is written with ownership tracking so a
@@ -22,7 +22,7 @@ import {
   unlink,
   writeFile,
 } from "node:fs/promises"
-import { randomBytes } from "node:crypto"
+import { randomBytes, randomUUID } from "node:crypto"
 
 import {
   computeEmployeePackageDirectoryDigest,
@@ -473,7 +473,13 @@ async function workspaceInit(options: WorkspaceInitOptions): Promise<void> {
   }
 
   const createdAt = new Date().toISOString()
-  const skeletonFiles = renderSkeletonFiles(template, business, createdAt)
+  const workspaceInstanceId = randomUUID()
+  const skeletonFiles = renderSkeletonFiles(
+    template,
+    business,
+    createdAt,
+    workspaceInstanceId,
+  )
 
   // Stage the entire skeleton in a sibling temp directory so the target only
   // receives fully verified content.
@@ -555,10 +561,12 @@ async function workspaceInit(options: WorkspaceInitOptions): Promise<void> {
           directory: resolvedDirectory,
           business,
           template: template.id,
+          workspaceInstanceId,
           positions: template.roles.map((role) => role.id),
           organization: "./organization.v1alpha1.json",
           workspace: "./workspace.json",
           context: "./context",
+          work: "./work",
         }, null, 2)}\n`,
       )
       return
@@ -575,6 +583,7 @@ async function workspaceInit(options: WorkspaceInitOptions): Promise<void> {
       process.stdout.write(`${t("workspace.init_file", { path: `positions/${role.id}` })}\n`)
     }
     process.stdout.write(`${t("workspace.init_file", { path: "context/" })}\n`)
+    process.stdout.write(`${t("workspace.init_file", { path: "work/" })}\n`)
     process.stdout.write(`${t("workspace.init_file", { path: "organization.v1alpha1.json" })}\n`)
     process.stdout.write(`${t("workspace.init_file", { path: "workspace.json" })}\n`)
     process.stdout.write(`${t("workspace.init_next_steps")}\n`)

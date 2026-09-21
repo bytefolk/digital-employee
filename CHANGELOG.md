@@ -4,6 +4,94 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Wire org `memoryScope` into worker Context Scope derivation and adopt
+  per-position `work/<positionId>/` territories. Worker read scope is
+  `[./positions/<segments>/, ./context/, <memoryScope>]`; `/` and `./` stay
+  legacy no-ops. Invalid paths fail closed at org apply. Owner derivation
+  remains `["./"]`. Templated workers default to `./work/<positionId>/`, and
+  `workspace init` scaffolds `work/` (#335).
+- Add an optional `skills` declaration channel on the employee package:
+  reference-only skill units (name, version, content digest, optional
+  locality) validated fail-closed, with no engine loading or Host `skills`
+  capability coupling (#305).
+- Validate optional `positions/<id>/connectors.json` (`position-connectors.v1`)
+  at `org apply` against the live CLI connector registry vocabulary, with
+  env-name-only config and no derived-artifact change (#310).
+- Commit a GitHub-operations employee team under `teams/github-ops/` (#295). Three portable positions (`issue-triage`, `pr-author`, `pr-reviewer`) express a workflow where authoring and reviewing are separate roles. The reviewer uses its own GitHub identity, because GitHub does not count a self-approval and a shared identity would make the approval gate unsatisfiable; its credential is scoped to `Contents: Read only` so it structurally cannot merge. Merging remains a human action; the team supplies a six-point merge-readiness checklist (non-author APPROVED, required checks green on that exact head, no unresolved threads, not a draft, no release freeze, squash only). Expressed with the existing `workspace.v1alpha1` and `workspace-org.v1` contracts rather than a new manifest, with the grant template outside the package directories as `capability-grant.v1` requires.
+
+### Fixed
+
+- Use pinned development-only c8 12.0.0 with tsx 4.23.13 to merge mixed TSX
+  and compiled subprocess source maps without order-dependent loss of executed
+  source lines. Retain all nine production domains and the 85/65/80 coverage
+  gates; reject empty reports, bound the collector to a 4 GiB heap for the full
+  capture set, and test real mixed captures and uncovered controls (#261).
+- Restore the frozen `agent-host.v1` probe keys for older strict consumers.
+  Keep Qoder command selection local to each run and report it through bounded,
+  scrubbed `issues[]` messages; probe and preflight results no longer expose
+  `resolvedCommand`. Registry and wire validators reject that extra field.
+- Reject Qoder turns on Windows before spawning any command-resolution probe.
+- Use the shared Qoder command probe for `turn run`, including CN-only PATH
+  discovery. Explicit command overrides now fail closed; only an absent
+  default command permits fallback to the next supported command name (#253).
+- Check deployment-lock watchdog signals per helper attempt/PID, with real
+  two-watchdog retry and strict signal/cleanup regressions (#267).
+
+### Changed
+
+- Align employee network policy declarations with the Host transport by adding
+  bounded `allowlist` hosts and requiring verified `network_policy` support for
+  every mode; unsatisfiable non-deny policies now fail before Host execution
+  (#308).
+- The Codex default-deny audit probe accepts an explicit `--expect-version`
+  instead of requiring an edit to the pinned `AUDITED_CODEX_VERSION`, and both
+  the flag and the `codex --version` extraction derive from one shared semver
+  grammar so they cannot drift apart. Full-version equality is enforced,
+  including prerelease and build-metadata suffixes: a prerelease is auditable
+  under its real version and can no longer be admitted under, and recorded as,
+  its release prefix. The pinned default is unchanged at `0.148.0` and the
+  probe still fails closed on a mismatch, so prior records stay reproducible.
+- Codex default-deny research is re-audited against stable Codex CLI 0.153.4:
+  the offline Responses fixture still observes model-visible `apply_patch`,
+  the same four candidate removal surfaces are rejected by `--strict-config`
+  as unknown fields, and observed event types are unchanged from 0.148.0. The
+  verdict stays NO-GO / probe-only, recorded in
+  `docs/research/codex-cli-0.153.4-default-deny-audit.md`. Upstream
+  openai/codex#8161 remains closed NOT_PLANNED and openai/codex#6049 remains
+  open with no landed switch, so a version bump alone no longer justifies a
+  fresh audit.
+
+### Fixed
+
+- Run the required OpenSSF Scorecard analysis on pull requests targeting main
+  with read-only permissions and a local report artifact, preserving the
+  separate default-branch reporting workflow (#262).
+
+## [0.6.1] - 2026-09-11
+
+### Added
+
+- Add a workspace-level `workspace-memory.v1` configuration entry for the
+  first-party mem adapter. `turn run` can now resolve a position-scoped,
+  revision-pinned MemoryPort from environment-variable names, recall before
+  model consumption, and persist a bounded terminal task-state projection
+  without placing credentials in workspace files.
+- Add a shared Qoder executable resolver (`DIGITAL_EMPLOYEE_QODER_COMMAND`
+  override with a fixed candidate order and shell/control-character rejection)
+  used by the built-in Agent Host and the `turn run` model port.
+- Add a digest-only file evidence sink for the built-in `oss-maintainer`
+  showcase. Each `turn run` turn persists one record at
+  `.digital-employee/evidence/<positionId>/<turnId>.json` with private file
+  permissions, holding hashes, bounded counters, permissions and terminal state
+  only — never the prompt, completion, chain-of-thought or credentials.
+- Verify the built-in `oss-maintainer` showcase end-to-end `turn run` path for
+  all four materialized packages in this source checkout: package validation
+  and digest pinning, `SKILL.md`/`knowledge/` projection into the engine, one
+  trusted terminal per turn, and zero external Host, credential or network
+  access.
+
 ### Changed
 
 - Replace former GitHub owner coordinates in shipped templates and examples
@@ -12,6 +100,18 @@ All notable changes to this project will be documented in this file.
 - Prepare GitHub repository and GHCR coordinates for the ByteFolk organization
   handle cutover while retaining published JSON Schema identities and the
   existing npm compatibility namespace.
+
+### Added
+
+- Add a workspace-level `workspace-memory.v1` configuration entry for the
+  first-party mem adapter. `turn run` can now resolve a position-scoped,
+  revision-pinned MemoryPort from environment-variable names, recall before
+  model consumption, and persist a bounded terminal task-state projection
+  without placing credentials in workspace files.
+- Add a documented opt-in released-mem acceptance gate with explicit isolation,
+  artifact checksum and version prerequisites, plus a configuration-only built
+  CLI turn. Real-service acceptance remains unverified until a compatible mem
+  server artifact is published and the gate is actually run.
 
 ## [0.6.1] - 2026-08-31
 

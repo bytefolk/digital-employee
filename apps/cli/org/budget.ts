@@ -24,6 +24,8 @@
  * validators agree on the same sample set.
  */
 
+import { workerMemoryScopeReadEntry } from "./permissions.js"
+
 export const WORKSPACE_ORG_SCHEMA_VERSION = "workspace-org.v1" as const
 
 export const WORKSPACE_ORG_SCHEMA_ID =
@@ -351,6 +353,13 @@ export function validateOrganizationDocument(
       `role_${index}_memory_scope`,
     )
     if (memoryScope.length === 0) {
+      throw invalidDocument(`role_${index}_memory_scope`)
+    }
+    try {
+      // `/` and `./` are legacy no-ops; every other value must normalize
+      // (#335). Fail closed at org apply, not at turn time.
+      workerMemoryScopeReadEntry(memoryScope)
+    } catch {
       throw invalidDocument(`role_${index}_memory_scope`)
     }
     const readToolList = (

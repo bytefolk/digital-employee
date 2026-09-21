@@ -149,6 +149,30 @@ The normalized `agent-host.v1` event contract includes run lifecycle,
 assistant deltas, tool lifecycle, approval, usage, completion and failure
 events. Native event formats remain inside each adapter.
 
+## Workspace layout
+
+A workspace directory is one business. `workspace init` materializes this
+top-level layout:
+
+```text
+organization.v1alpha1.json    Organization model (workspace-org.v1)
+workspace.json                Workspace manifest
+positions/                    Digest-sealed position definition plane
+context/                      Shared, distilled business context
+work/<positionId>/            Per-position work territory
+```
+
+`positions/` holds employee packages. It is the definition plane: no position
+may write there. Work products belong under `work/<positionId>/`.
+
+Worker Context Scope is derived from the org model as
+`[./positions/<reporting-segments>/, ./context/, <memoryScope>]`. `/` and `./`
+are legacy no-ops so existing documents keep today's worker read set. Any other
+`memoryScope` must pass `normalizeContextPath` at org apply (fail-closed; not
+at turn time). Templated worker roles default `memoryScope` to
+`./work/<positionId>/`. The owner tier stays `["./"]` regardless of
+`memoryScope`.
+
 ## Current migration state
 
 The new Agent-host foundation ships these non-model commands:

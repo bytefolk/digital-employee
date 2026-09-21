@@ -123,6 +123,13 @@ async function readAuditEntries(auditPath: string): Promise<Record<string, unkno
     .map((line) => JSON.parse(line) as Record<string, unknown>)
 }
 
+function normalizeOrgApplyTimestamp(bytes: string): string {
+  return bytes.replace(
+    /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z/g,
+    "<timestamp>",
+  )
+}
+
 /**
  * Craft a hire by cloning the issue-researcher package into a new position
  * directory, rewriting the package identity, and (optionally) writing a
@@ -218,6 +225,66 @@ test("org apply bootstraps the organization model, audit log, and permissions", 
   assert.equal(positions["issue-researcher"]!.tier, "worker")
 })
 
+test("#310 AC-002: optional connectors keep org apply output and artifacts byte-identical", async (t) => {
+  const home = await freshHome(t)
+  const env = cliEnvironment(home)
+  const target = await initWorkspace(t, home, env)
+  const paths = statePaths(target)
+  const connectorsPath = path.join(
+    target,
+    "positions",
+    "repo-owner",
+    "connectors.json",
+  )
+  assert.equal(
+    (await readdir(path.dirname(connectorsPath))).includes("connectors.json"),
+    false,
+    "the compatibility baseline must have no connectors declaration",
+  )
+
+  const absentResult = runCli(["org", "apply", target, "--json"], env, home)
+  assert.equal(absentResult.status, 0, absentResult.stderr)
+  const absentArtifacts = await Promise.all([
+    readFile(paths.model, "utf8"),
+    readFile(paths.audit, "utf8"),
+    readFile(paths.permissions, "utf8"),
+  ])
+
+  await rm(paths.stateDir, { recursive: true, force: true })
+  await writeFile(
+    connectorsPath,
+    `${JSON.stringify(
+      {
+        schemaVersion: "position-connectors.v1",
+        channels: [{ id: "console" }],
+        sources: [
+          {
+            id: "filesystem",
+            env: { rootEnv: "FILESYSTEM_ROOT" },
+          },
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+  )
+
+  const declaredResult = runCli(["org", "apply", target, "--json"], env, home)
+  assert.equal(declaredResult.status, 0, declaredResult.stderr)
+  const declaredArtifacts = await Promise.all([
+    readFile(paths.model, "utf8"),
+    readFile(paths.audit, "utf8"),
+    readFile(paths.permissions, "utf8"),
+  ])
+
+  assert.equal(declaredResult.stdout, absentResult.stdout)
+  assert.equal(declaredResult.stderr, absentResult.stderr)
+  assert.deepEqual(
+    declaredArtifacts.map(normalizeOrgApplyTimestamp),
+    absentArtifacts.map(normalizeOrgApplyTimestamp),
+  )
+})
+
 test("org apply is idempotent on an unchanged tree", async (t) => {
   const home = await freshHome(t)
   const env = cliEnvironment(home)
@@ -274,6 +341,7 @@ test("AC-004: adding a position directory with a valid package and budget hires 
   )
   // Hire default-deny posture: no tools granted until declared (#159).
   assert.deepEqual(hired.toolAllow, [])
+  assert.equal(hired.memoryScope, "./work/support-engineer/")
 
   // The audit entry records the full hired position (budget included).
   const audit = await readAuditEntries(paths.audit)
@@ -645,6 +713,31 @@ test("org tree/apply reject multiple directory arguments", async (t) => {
   )
 })
 
+test("#335 AC-003: hostile memoryScope fails org apply closed", async (t) => {
+  const home = await freshHome(t)
+  const env = cliEnvironment(home)
+  const target = await initWorkspace(t, home, env)
+  const organizationPath = path.join(target, "organization.v1alpha1.json")
+  const organization = await readJson(organizationPath)
+  const roles = organization.roles as Array<Record<string, unknown>>
+  const worker = roles.find((role) => role.id === "issue-researcher")
+  assert.ok(worker)
+  worker.memoryScope = "../escape"
+  await writeFile(organizationPath, `${JSON.stringify(organization, null, 2)}\n`)
+
+  const result = runCli(["org", "apply", target, "--json"], env, home)
+  assert.equal(result.status, 1, result.stdout)
+  assert.equal(
+    (JSON.parse(result.stdout) as Record<string, unknown>).code,
+    "workspace_org_file_invalid",
+  )
+  assert.equal(
+    (await readdir(target)).includes(".digital-employee"),
+    false,
+    "invalid apply must not write org state",
+  )
+})
+
 test("#159 AC-001: org scope derives owner vs worker tiers from the org model", async (t) => {
   const home = await freshHome(t)
   const env = cliEnvironment(home)
@@ -676,7 +769,11 @@ test("#159 AC-001: org scope derives owner vs worker tiers from the org model", 
   const workerScope = JSON.parse(worker.stdout) as Record<string, unknown>
   assert.equal(workerScope.tier, "worker")
   assert.deepEqual(workerScope.contextScope, {
-    read: ["./positions/repo-owner/issue-researcher/", "./context/"],
+    read: [
+      "./positions/repo-owner/issue-researcher/",
+      "./context/",
+      "./work/issue-researcher/",
+    ],
   })
   const workerAuthority = workerScope.authorityScope as Record<string, unknown>
   assert.equal(workerAuthority.writes, "deny")
@@ -801,6 +898,41 @@ test("#159 AC-002: a worker asking owner-only context is rejected and pointed at
     home,
   )
   assert.equal(shared.status, 0, shared.stderr)
+
+  const ownWork = runCli(
+    [
+      "org",
+      "scope",
+      "issue-researcher",
+      target,
+      "--context",
+      "./work/issue-researcher/notes.md",
+      "--json",
+    ],
+    env,
+    home,
+  )
+  assert.equal(ownWork.status, 0, ownWork.stderr)
+  assert.equal((JSON.parse(ownWork.stdout) as Record<string, unknown>).status, "allowed")
+
+  const siblingWork = runCli(
+    [
+      "org",
+      "scope",
+      "issue-researcher",
+      target,
+      "--context",
+      "./work/release-engineer/notes.md",
+      "--json",
+    ],
+    env,
+    home,
+  )
+  assert.equal(siblingWork.status, 1)
+  assert.equal(
+    (JSON.parse(siblingWork.stdout) as Record<string, unknown>).code,
+    "workspace_org_context_denied",
+  )
 
   // The owner reads everything, including the organization state.
   const ownerRead = runCli(

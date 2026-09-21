@@ -6,6 +6,10 @@
  *
  * - Two default tiers: `owner` (the organization owner position) and
  *   `worker` (every other position).
+ * - Worker Context Scope is
+ *   `[./positions/<segments>/, ./context/, <memoryScope>]`. `/` and `./`
+ *   are legacy no-ops; other `memoryScope` values are normalized at org
+ *   apply. Owner Context Scope stays `["./"]` (#335).
  * - Read tools use explicit allowlists; write-capable tools stay out of the
  *   first release (`writes: "deny"` is the default for every tier).
  * - An owner never inherits subordinate declarations: derivation is purely
@@ -123,19 +127,45 @@ function deriveAuthority(
   }
 }
 
+/**
+ * Legacy org documents used `/` or `./` as a whole-workspace placeholder.
+ * Those values are derivation no-ops so existing documents keep today's
+ * worker read set (#335).
+ */
+export function isLegacyMemoryScopeNoOp(memoryScope: string): boolean {
+  const trimmed = memoryScope.trim()
+  return trimmed === "/" || trimmed === "./"
+}
+
+/**
+ * Directory-form Context Scope entry for a worker `memoryScope`.
+ * `/` and `./` are legacy no-ops. Any other value is normalized and given a
+ * trailing slash. Invalid paths fail closed via `normalizeContextPath`.
+ */
+export function workerMemoryScopeReadEntry(memoryScope: string): string | null {
+  if (isLegacyMemoryScopeNoOp(memoryScope)) return null
+  const normalized = normalizeContextPath(memoryScope)
+  if (normalized === "./") return null
+  return normalized.endsWith("/") ? normalized : `${normalized}/`
+}
+
 function deriveContextScope(
   model: ValidatedOrganizationDocument,
   role: ValidatedOrganizationRole,
   tier: PermissionTier,
 ): { read: string[] } {
   if (tier === "owner") {
-    // The owner sees the whole workspace, including the organization state.
+    // The owner sees the whole workspace, including the organization state,
+    // regardless of memoryScope (#335 AC-004).
     return { read: ["./"] }
   }
   const segments = positionDirectorySegments(model, role.id)
-  return {
-    read: [`./positions/${segments.join("/")}/`, "./context/"],
+  const read = [`./positions/${segments.join("/")}/`, "./context/"]
+  const extra = workerMemoryScopeReadEntry(role.memoryScope)
+  if (extra !== null && !read.includes(extra)) {
+    read.push(extra)
   }
+  return { read }
 }
 
 /**
@@ -237,8 +267,9 @@ export function normalizeContextPath(requested: string): string {
 
 /**
  * Evaluate a context read request against a position's Context Scope.
- * Workers see only their own position subtree and the shared context
- * directory; the owner sees the whole workspace (#159 user outcome).
+ * Workers see their own position subtree, the shared context directory, and
+ * any non-legacy `memoryScope`; the owner sees the whole workspace
+ * (#159 user outcome, #335).
  */
 export function evaluateContextAccess(
   permissions: OrganizationPermissions,

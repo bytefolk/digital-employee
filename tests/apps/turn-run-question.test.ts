@@ -144,11 +144,19 @@ test(
 test(
   "AC-Q2: --question is mutually exclusive with --stdin and --input-file",
   async () => {
+    const missingWorkspace = path.join(
+      process.cwd(),
+      ".digital-employee-test-missing-workspace",
+    )
+    const missingEnvelope = path.join(
+      process.cwd(),
+      ".digital-employee-test-missing-envelope.json",
+    )
     // Combined --question + --stdin
     await assert.rejects(
       turn({
         subcommand: "run",
-        args: ["/tmp/does-not-need-to-exist"],
+        args: [missingWorkspace],
         position: "repo-owner",
         stdin: true,
         question: "hello",
@@ -165,9 +173,9 @@ test(
     await assert.rejects(
       turn({
         subcommand: "run",
-        args: ["/tmp/does-not-need-to-exist"],
+        args: [missingWorkspace],
         position: "repo-owner",
-        inputFile: "/tmp/nope.json",
+        inputFile: missingEnvelope,
         question: "hello",
       }),
       (error: unknown) =>
@@ -184,7 +192,10 @@ test(
     await assert.rejects(
       turn({
         subcommand: "run",
-        args: ["/tmp/does-not-need-to-exist"],
+        args: [path.join(
+          process.cwd(),
+          ".digital-employee-test-missing-workspace",
+        )],
         position: "repo-owner",
       }),
       (error: unknown) =>

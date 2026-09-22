@@ -2,6 +2,10 @@
 
 [简体中文](README.zh-CN.md)
 
+**Next-direction proposal:** [Safety, trust and business ontology](docs/trust-ontology.md)
+connects sourced business objects and read-only decisions to authorized,
+verifiable actions. Design under review; not implemented.
+
 Digital Employee is a local-first, conversation-first digital-organization
 workspace. The long-term direction (tracked in
 [Epic #155](https://github.com/bytefolk/digital-employee/issues/155)):

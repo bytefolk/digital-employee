@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Document a proposed next direction joining safety, trustworthy results and
+  a minimal business ontology, with a read-only pilot, controlled-action gates,
+  ownership boundaries and measurable acceptance criteria (#346). Design only;
+  no runtime, permission or release capability is added.
+
 - Add an optional `skills` declaration channel on the employee package:
   reference-only skill units (name, version, content digest, optional
   locality) validated fail-closed, with no engine loading or Host `skills`

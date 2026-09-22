@@ -4,6 +4,9 @@
 
 **产品方向：**[产品策略](docs/strategy.zh-CN.md) · [路线图](docs/roadmap.zh-CN.md)
 
+**下一阶段提案：**[安全、可信与业务本体](docs/trust-ontology.zh-CN.md)——从有来源的业务
+对象与只读判断，逐步走向可授权、可核验的行动；设计待评审，尚未实现。
+
 Digital Employee 是一个本地优先、对话优先的数字组织工作区。长期方向（由
 [Epic #155](https://github.com/bytefolk/digital-employee/issues/155)
 跟踪）：把一个业务目录变成一支可直接点名的 AI 团队——一个目录 = 一项业务，一个岗位 =

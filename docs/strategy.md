@@ -7,6 +7,15 @@ This document is the authoritative product contract for the open
 direction into milestones and work items. Implementation status belongs in the
 [verification ledger](verification.md), not in product claims.
 
+### Next-direction design input (under review)
+
+The [safety, trust and business ontology proposal](trust-ontology.md) connects
+positions, Context, permissions and execution evidence into a reviewable
+business work loop: sourced objects and read-only advice first, then bounded
+actions behind separate authorization, approval, idempotency and readback
+gates. It is the design artifact for requirement #346 R1, adds no delivered
+capability, and changes none of the scope, W1 gates or milestone commitments below.
+
 ## North Star
 
 > Digital Employee is a local-first, conversation-first digital-organization

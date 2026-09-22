@@ -1,5 +1,8 @@
 import assert from "node:assert/strict"
+import { mkdtemp, rm } from "node:fs/promises"
 import type { AddressInfo } from "node:net"
+import os from "node:os"
+import path from "node:path"
 import test from "node:test"
 
 import {
@@ -26,9 +29,13 @@ function cookieFrom(response: Response): string {
 }
 
 test("#331 AC-001/AC-002: same-origin Workbench lists positions and executes the existing sealed turn contract", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "workbench-server-"))
+  t.after(() => rm(workspace, { recursive: true, force: true }))
   const calls: Array<Record<string, unknown>> = []
   const executeTurn: WorkbenchTurnExecutor = async (input) => {
     const envelope = parseTurnEnvelope(JSON.parse(input.envelopeText))
+    assert.equal(input.workspace, workspace)
+    assert.equal(envelope.workspaceRef, workspace)
     calls.push({ ...input, envelope })
     input.writeEvent(JSON.stringify({
       schemaVersion: "engine.v1",
@@ -58,7 +65,7 @@ test("#331 AC-001/AC-002: same-origin Workbench lists positions and executes the
     return { exitCode: 0, terminalEmitted: true }
   }
   const server = createWorkbenchServer({
-    workspace: "/tmp/example-workspace",
+    workspace,
     positions,
     executeTurn,
     newId: (() => {
@@ -130,6 +137,8 @@ test("#331 AC-001/AC-002: same-origin Workbench lists positions and executes the
 })
 
 test("#331 AC-003: Workbench fails closed on auth, origin, position, input, and duplicate conversation turns", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "workbench-server-"))
+  t.after(() => rm(workspace, { recursive: true, force: true }))
   let release!: () => void
   const gate = new Promise<void>((resolve) => { release = resolve })
   let modelCalls = 0
@@ -152,7 +161,7 @@ test("#331 AC-003: Workbench fails closed on auth, origin, position, input, and 
     return { exitCode: 0, terminalEmitted: true }
   }
   const server = createWorkbenchServer({
-    workspace: "/tmp/example-workspace",
+    workspace,
     positions,
     executeTurn,
   })
@@ -190,10 +199,12 @@ test("#331 AC-003: Workbench fails closed on auth, origin, position, input, and 
   assert.equal((await first).status, 200)
 })
 
-test("#331 AC-003: Workbench refuses non-loopback listener addresses", () => {
+test("#331 AC-003: Workbench refuses non-loopback listener addresses", async (t) => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "workbench-server-"))
+  t.after(() => rm(workspace, { recursive: true, force: true }))
   assert.throws(
     () => createWorkbenchServer({
-      workspace: "/tmp/example-workspace",
+      workspace,
       positions,
       executeTurn: async () => ({ exitCode: 1, terminalEmitted: false }),
       host: "0.0.0.0",

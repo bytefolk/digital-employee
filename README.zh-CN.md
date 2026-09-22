@@ -27,9 +27,10 @@ Agent 框架（Claude Code、Qoder、Qwen Code、CodeBuddy、Codex……）回�
 
 我们正在靠拢的卖点：**门槛很低、不用敲命令**——业务负责人不需要写 prompt 模板、不需要
 手动配置 Agent Host；说一句话、喊一个岗位名，就能拿到带出处的结果，整个组织仍由负责人
-兜底。**完整的无命令 Workbench 方向仍在规划中**。公开 `0.6.0` 已把
-`workspace init`、`org tree` 与 `org apply` 作为预览能力发布；`0.6.1` 源码树另含下文所述
-的可选工作区 mem 接入。`chat @岗位` 与持久化 Workbench 集成仍在规划中（见下方状态表）。
+兜底。`0.6.1` 源码树现已包含一个有边界的纯本机 Workbench 预览：运行
+`digital-employee workbench <workspace>` 后，会在 loopback 上提供同源的岗位选择与单轮对话
+界面，并复用既有 `turn-envelope.v1alpha2` / `runTurn` 后端。公开 `0.6.0` 不包含这项源码预览；
+持久化浏览器会话与完整桌面 Workbench 仍在规划中。
 
 ## 能力状态
 
@@ -46,7 +47,7 @@ Agent 框架（Claude Code、Qoder、Qwen Code、CodeBuddy、Codex……）回�
 | `workspace init`（oss-maintainer 模板） | 公开 `0.6.0` 的**已发布预览**（最初随 `0.5.0` 发布，#156） |
 | `org tree` / `org apply` | 公开 `0.6.0` 的**已发布预览**（最初随 `0.5.0` 发布）；应用权限失败关闭 |
 | 负责人 → 一个直接下属的显式委派 | 公开 `0.6.0` 的**已发布预览** / deterministic E3（最初随 `0.5.0` 发布）；Workbench 持久化/UI 与逐 Host E4 尚未验证（见[边界](docs/delegation.md)） |
-| `chat @岗位` | **规划中**的 Workbench 集成（Epic #155 第一里程碑） |
+| `chat @岗位` | `0.6.1` **源码预览**：`digital-employee workbench <workspace>` 提供纯 loopback 的岗位选择与有界单轮对话；持久化浏览器历史和桌面集成仍在规划中 |
 | 可选 Memory/Context 召回与权限强制 | `0.6.0` **已发布预览**：绑定 scope 的引擎接缝，源码树另有默认关闭的工作区 mem 接入，不代表持久化产品闭环 |
 | 持久长期 Context、Workbench 连续性与 context 蒸馏 | **规划中**；未随 v0.6.0 召回接缝发布 |
 | 内建执行引擎 | 已通过安装后 root 包的 `./engine` 导出与 `turn run` **发布预览**；源码树另有默认关闭的工作区 mem 配置接入；完整默认 Host Workbench 旅程仍在规划中（Epic #165） |
@@ -123,6 +124,21 @@ node ./dist/apps/cli/bin.js init ./my-employee \
 node ./dist/apps/cli/bin.js validate ./my-employee
 node ./dist/apps/cli/bin.js eval ./my-employee --json
 ```
+
+### 打开本地 Workbench（源码预览）
+
+创建并应用工作区后，启动只监听 loopback 的对话界面：
+
+```bash
+node ./dist/apps/cli/bin.js workspace init ./my-business --template oss-maintainer
+node ./dist/apps/cli/bin.js org apply ./my-business
+DIGITAL_EMPLOYEE_ENGINE_MODEL=claude-local \
+  node ./dist/apps/cli/bin.js workbench ./my-business
+```
+
+打开命令输出的 `http://127.0.0.1:4317/`，选择岗位并发送一轮任务。浏览器不会取得模型凭据或
+本地员工包路径；请求复用既有密封 turn envelope、权限检查和证据写入。可用 `--port` 修改
+默认端口；非 loopback 监听地址会被拒绝。
 
 ### 试一下 setup 命令
 
@@ -416,7 +432,7 @@ DWS 的安装、授权和完整能力请查看
 | `workspace init`（oss-maintainer 模板） | 最初随 `0.5.0` 发布预览；包含于公开 `0.6.0`（#156） |
 | `org tree` / `org apply` | 最初随 `0.5.0` 发布预览；包含于公开 `0.6.0` |
 | 负责人 → 一个直接下属的显式委派 | 最初随 `0.5.0` 发布 deterministic E3 预览；包含于公开 `0.6.0`，未 live-qualified |
-| `chat @岗位` 与持久化 Workbench 集成 | 规划中；Epic #155 第一里程碑 |
+| `chat @岗位` 与持久化 Workbench 集成 | `0.6.1` 源码树提供纯 loopback 的单轮 Workbench 预览；持久化历史与完整桌面集成仍在规划中 |
 | 可选 Memory/Context 召回与岗位权限强制 | `0.6.0` 已发布引擎接缝预览；默认关闭，不代表持久化产品闭环 |
 | 持久长期 Context、Workbench 连续性与 context 蒸馏 | 规划中；未随 v0.6.0 召回接缝发布 |
 | 内建执行引擎 | `0.5.0` 起发布 `./engine` 与 `turn run` 预览；完整默认 Host Workbench 旅程仍在规划中 |

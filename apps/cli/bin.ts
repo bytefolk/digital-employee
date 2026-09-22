@@ -32,6 +32,7 @@ import { turn } from "./turn/index.js";
 import { task } from "./task/index.js";
 import { hire } from "./hire.js";
 import { setup } from "./setup.js";
+import { workbench } from "./workbench/index.js";
 import {
   detectSystemLocale,
   getAvailableLocales,
@@ -78,6 +79,7 @@ function usage() {
 
 Agent-native usage:
   digital-employee setup [directory] [--name employee-name] [--recipe minimal-answer.v1|structured-action.v1] [--json]
+  digital-employee workbench [workspace] [--host 127.0.0.1] [--port 4317]
   digital-employee workspace init <directory> --template oss-maintainer [--json]
   digital-employee org tree [workspace] [--json]
   digital-employee org apply [workspace] [--json]
@@ -639,6 +641,13 @@ async function main() {
     json: values.json,
     name: values.name,
     recipe: values.recipe,
+  });
+  if (command === "workbench") return workbench({
+    workspace: positionals[0],
+    extraWorkspaces: positionals.slice(1),
+    host: values.host,
+    port: providedOptions.has("port") ? values.port : undefined,
+    help: values.help,
   });
   if (command === "deploy") return deploy({
     packagePath: providedOptions.has("package")

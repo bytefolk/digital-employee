@@ -35,11 +35,12 @@ of orchestrating tools by hand.
 The pitch we are moving toward: the barrier to entry is low — a business owner
 does not need to write prompts or wire up an Agent Host by hand. Name a
 position, get an answer with its source, and the owner stays accountable for
-the whole organization. **The complete no-command Workbench direction remains
-planned**. Public `0.6.0` includes `workspace init`, `org tree`, and `org
-apply` as preview surfaces; the `0.6.1` source tree additionally contains the
-opt-in workspace mem binding described below. `chat @position` and its durable
-Workbench integration remain planned (see the status table below).
+the whole organization. The `0.6.1` source tree now includes a bounded,
+loopback-only local Workbench preview: `digital-employee workbench <workspace>`
+serves a same-origin position picker and one-turn conversation surface over the
+existing `turn-envelope.v1alpha2` / `runTurn` backend. Public `0.6.0` does not
+include this source preview. Durable browser history and the complete desktop
+Workbench journey remain planned.
 
 ## Capability status
 
@@ -57,7 +58,7 @@ Workbench integration remain planned (see the status table below).
 | `workspace init` (oss-maintainer template) | **Released preview** in public `0.6.0` (first published in `0.5.0`, #156) |
 | `org tree` / `org apply` | **Released preview** in public `0.6.0` (first published in `0.5.0`); applied permissions fail closed |
 | Explicit owner → one direct-report delegation | **Released preview / deterministic E3** in public `0.6.0` (first published in `0.5.0`); Workbench persistence/UI and per-Host E4 remain unverified ([boundary](docs/delegation.md)) |
-| `chat @position` | **Planned** Workbench integration (Epic #155 first milestone) |
+| `chat @position` | **Source preview** in `0.6.1`: `digital-employee workbench <workspace>` provides a loopback-only position picker and bounded one-turn chat over the existing engine; durable browser history and desktop integration remain planned |
 | Opt-in Memory/Context recall and permission enforcement | **Released preview** in `0.6.0` as scope-bound engine seams; the source tree now also has a workspace-configured mem binding, disabled by default |
 | Durable long-term Context, Workbench continuity, and context distillation | **Planned**; not shipped by the v0.6.0 recall seams |
 | Built-in execution engine | **Released preview** through the installed root package's `./engine` export and `turn run`; the complete default-Host Workbench journey remains planned (Epic #165) |
@@ -137,6 +138,24 @@ node ./dist/apps/cli/bin.js init ./my-employee \
 node ./dist/apps/cli/bin.js validate ./my-employee
 node ./dist/apps/cli/bin.js eval ./my-employee --json
 ```
+
+### Open the local Workbench (source-tree preview)
+
+After creating and applying a workspace, start the loopback-only conversation
+surface:
+
+```bash
+node ./dist/apps/cli/bin.js workspace init ./my-business --template oss-maintainer
+node ./dist/apps/cli/bin.js org apply ./my-business
+DIGITAL_EMPLOYEE_ENGINE_MODEL=claude-local \
+  node ./dist/apps/cli/bin.js workbench ./my-business
+```
+
+Open the printed `http://127.0.0.1:4317/` URL, choose a position, and send one
+bounded turn. The browser never receives model credentials or local package
+paths; requests reuse the existing sealed turn envelope, permission checks,
+and evidence sink. The default port can be changed with `--port`; non-loopback
+bind addresses are rejected.
 
 ### Try the setup command
 

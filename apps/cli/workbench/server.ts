@@ -2,7 +2,10 @@ import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto"
 import { createServer } from "node:http"
 import type { IncomingMessage, Server, ServerResponse } from "node:http"
 
-import { buildQuestionEnvelope } from "../turn/index.js"
+import {
+  computeEnvelopeDigest,
+  TURN_ENVELOPE_VERSION,
+} from "../turn/envelope.js"
 import { runTurn } from "../turn/turn-run.js"
 import type { TurnRunResult } from "../turn/turn-run.js"
 
@@ -286,13 +289,19 @@ export function createWorkbenchServer(options: {
       }
       activeConversations.add(body.conversationRef)
       try {
-        const envelope = buildQuestionEnvelope({
-          workspace: options.workspace,
+        const envelopeBody: Record<string, unknown> = {
+          schemaVersion: TURN_ENVELOPE_VERSION,
+          workspaceRef: options.workspace,
           positionId: body.positionId,
-          question: body.message.trim(),
           turnId: newId(),
+          input: { message: body.message.trim() },
+          budget: { maxIterations: 12 },
           conversationRef: body.conversationRef,
-        })
+        }
+        const envelope = {
+          ...envelopeBody,
+          envelopeDigest: computeEnvelopeDigest(envelopeBody),
+        }
         const events: Record<string, unknown>[] = []
         const diagnostics: string[] = []
         const result = await executeTurn({

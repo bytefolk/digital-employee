@@ -106,7 +106,6 @@ export function buildQuestionEnvelope(input: {
   positionId: string
   question: string
   turnId?: string
-  conversationRef?: string
 }): Record<string, unknown> {
   const body: Record<string, unknown> = {
     schemaVersion: TURN_ENVELOPE_VERSION,
@@ -115,9 +114,6 @@ export function buildQuestionEnvelope(input: {
     turnId: input.turnId ?? randomUUID(),
     input: { message: input.question },
     budget: { maxIterations: TURN_QUESTION_DEFAULT_MAX_ITERATIONS },
-    ...(input.conversationRef !== undefined
-      ? { conversationRef: input.conversationRef }
-      : {}),
   }
   return { ...body, envelopeDigest: computeEnvelopeDigest(body) }
 }

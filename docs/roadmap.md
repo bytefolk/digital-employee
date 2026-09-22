@@ -137,6 +137,13 @@ guarantees.
 
 ## M2–M3 — Context depth, org lifecycle and engine harness
 
+**Design input under review:** [Safety, trust and business ontology](trust-ontology.md)
+(#346 R1) proposes D0 baseline → D1 minimal ontology contract → D2 trustworthy
+read-only loop → D3 controlled-action foundations → D4 bounded write pilot.
+D0/D1 can begin as design; D2 aligns with this stage. D3/D4 require separately
+approved write requirements and qualification evidence. This adds no schedule
+or accepted dependency and changes no W1 commitment, existing owner or gate.
+
 **User outcome:** the workspace keeps learning: session text is distilled into
 a rule-based entity graph, `org apply` becomes the trusted way to change the
 organization, and the engine grows a harness layer above the read-only core.

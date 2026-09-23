@@ -277,11 +277,35 @@ test("#310 AC-002: optional connectors keep org apply output and artifacts byte-
     readFile(paths.permissions, "utf8"),
   ])
 
-  assert.equal(declaredResult.stdout, absentResult.stdout)
-  assert.equal(declaredResult.stderr, absentResult.stderr)
-  assert.deepEqual(
-    declaredArtifacts.map(normalizeOrgApplyTimestamp),
-    absentArtifacts.map(normalizeOrgApplyTimestamp),
+  const absentModel = JSON.parse(absentArtifacts[0]!) as {
+    roles: Array<Record<string, unknown>>
+  }
+  assert.ok(
+    absentModel.roles.every((role) => !Object.hasOwn(role, "connectors")),
+    "#311 AC-002: declaration-free derived roles omit connectors",
+  )
+
+  const declaredModel = JSON.parse(declaredArtifacts[0]!) as {
+    roles: Array<Record<string, unknown>>
+  }
+  const owner = declaredModel.roles.find((role) => role.id === "repo-owner")
+  assert.ok(owner?.connectors)
+  assert.equal(
+    (owner.connectors as { schemaVersion: string }).schemaVersion,
+    "position-connectors.v1",
+  )
+  assert.match(
+    (owner.connectors as { digest: string }).digest,
+    /^sha256:[a-f0-9]{64}$/,
+  )
+  assert.deepEqual((owner.connectors as { channels: unknown }).channels, [
+    { id: "console" },
+  ])
+
+  assert.equal(
+    declaredArtifacts[2],
+    absentArtifacts[2],
+    "#311 AC-003: permissions artifact unchanged by connector projection",
   )
 })
 

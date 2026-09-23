@@ -164,6 +164,16 @@ export interface ValidatedOrganizationRole {
   toolDeny: string[]
   metadata: Record<string, string>
   budget: PositionBudget
+  /**
+   * Optional derived projection of `positions/<id>/connectors.json` (#311).
+   * Absent declaration → field omitted, never null or {}.
+   */
+  connectors?: {
+    schemaVersion: "position-connectors.v1"
+    digest: string
+    channels: Array<{ id: string; env?: Record<string, string> }>
+    sources: Array<{ id: string; env?: Record<string, string> }>
+  }
 }
 
 export interface ValidatedOrganizationDocument {
@@ -187,6 +197,59 @@ function requireString(
   const value = container[key]
   if (typeof value !== "string") throw invalidDocument(detail)
   return value
+}
+
+function validateConnectorBindingList(
+  value: unknown,
+  detail: string,
+): Array<{ id: string; env?: Record<string, string> }> {
+  if (!Array.isArray(value)) throw invalidDocument(detail)
+  return value.map((item, index) => {
+    if (!isPlainObject(item)) throw invalidDocument(`${detail}_${index}`)
+    for (const key of Object.keys(item)) {
+      if (!["id", "env"].includes(key)) {
+        throw invalidDocument(`${detail}_${index}_unknown_key`)
+      }
+    }
+    const id = requireString(item, "id", `${detail}_${index}_id`)
+    if (item.env === undefined) return { id }
+    if (!isPlainObject(item.env)) throw invalidDocument(`${detail}_${index}_env`)
+    const env: Record<string, string> = {}
+    for (const [envKey, envValue] of Object.entries(item.env)) {
+      if (typeof envValue !== "string") {
+        throw invalidDocument(`${detail}_${index}_env`)
+      }
+      env[envKey] = envValue
+    }
+    return { id, env }
+  })
+}
+
+function validateOptionalRoleConnectors(
+  value: unknown,
+  detail: string,
+): ValidatedOrganizationRole["connectors"] | undefined {
+  if (value === undefined) return undefined
+  if (!isPlainObject(value)) throw invalidDocument(detail)
+  for (const key of Object.keys(value)) {
+    if (!["schemaVersion", "digest", "channels", "sources"].includes(key)) {
+      throw invalidDocument(`${detail}_unknown_key`)
+    }
+  }
+  const schemaVersion = requireString(value, "schemaVersion", `${detail}_schema`)
+  if (schemaVersion !== "position-connectors.v1") {
+    throw invalidDocument(`${detail}_schema`)
+  }
+  const digest = requireString(value, "digest", `${detail}_digest`)
+  if (!/^sha256:[a-f0-9]{64}$/.test(digest)) {
+    throw invalidDocument(`${detail}_digest`)
+  }
+  return {
+    schemaVersion: "position-connectors.v1",
+    digest,
+    channels: validateConnectorBindingList(value.channels, `${detail}_channels`),
+    sources: validateConnectorBindingList(value.sources, `${detail}_sources`),
+  }
 }
 
 function validateName(value: string, detail: string): void {
@@ -266,6 +329,7 @@ export function validateOrganizationDocument(
           "toolDeny",
           "metadata",
           "budget",
+          "connectors",
         ].includes(key)
       ) {
         throw invalidDocument(`role_${index}_unknown_key`)
@@ -379,6 +443,10 @@ export function validateOrganizationDocument(
       metadata[metadataKey] = metadataEntry
     }
     const budget = validatePositionBudget(id, entry["budget"])
+    const connectors = validateOptionalRoleConnectors(
+      entry["connectors"],
+      `role_${index}_connectors`,
+    )
     roles.push({
       id,
       name,
@@ -396,6 +464,7 @@ export function validateOrganizationDocument(
       toolDeny,
       metadata,
       budget,
+      ...(connectors ? { connectors } : {}),
     })
   }
   if (!seen.has(owner)) throw invalidDocument("owner_not_a_role")
@@ -555,11 +624,50 @@ export function buildWorkspaceOrgSchema(): Record<string, unknown> {
               additionalProperties: { type: "string" },
             },
             budget: { $ref: "#/$defs/positionBudget" },
+            connectors: {
+              type: "object",
+              additionalProperties: false,
+              required: ["schemaVersion", "digest", "channels", "sources"],
+              properties: {
+                schemaVersion: { const: "position-connectors.v1" },
+                digest: {
+                  type: "string",
+                  pattern: "^sha256:[a-f0-9]{64}$",
+                },
+                channels: { $ref: "#/$defs/connectorBindings" },
+                sources: { $ref: "#/$defs/connectorBindings" },
+              },
+            },
           },
         },
       },
       updatedAt: { type: "string", minLength: 1 },
     },
-    $defs: positionBudgetDefs(),
+    $defs: {
+      ...positionBudgetDefs(),
+      connectorBinding: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id"],
+        properties: {
+          id: {
+            type: "string",
+            pattern: "^[a-z0-9](?:[a-z0-9._-]{0,127})$",
+          },
+          env: {
+            type: "object",
+            additionalProperties: {
+              type: "string",
+              pattern: "^[A-Z][A-Z0-9_]{0,127}$",
+            },
+          },
+        },
+      },
+      connectorBindings: {
+        type: "array",
+        maxItems: 16,
+        items: { $ref: "#/$defs/connectorBinding" },
+      },
+    },
   }
 }

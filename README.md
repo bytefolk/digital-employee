@@ -64,7 +64,7 @@ Workbench integration remain planned (see the status table below).
 | `chat @position` | **Planned** Workbench integration (Epic #155 first milestone) |
 | Opt-in Memory/Context recall and permission enforcement | **Released preview** in `0.6.0` as scope-bound engine seams; the source tree now also has a workspace-configured mem binding, disabled by default |
 | Durable long-term Context, Workbench continuity, and context distillation | **Planned**; not shipped by the v0.6.0 recall seams |
-| Built-in execution engine | **Released preview** through the installed root package's `./engine` export and `turn run`; the complete default-Host Workbench journey remains planned (Epic #165) |
+| Built-in execution engine | **Released preview** through the installed root package's `./engine` export, `turn run`, and one-shot `chat --position`; the complete default-Host Workbench journey remains planned (Epic #165) |
 | oss-maintainer built-in showcase (source-tree E3 path) | **Verified in this source checkout** for all four packages through `turn run`; the no-command Workbench quickstart remains planned (Epic #155 M1) |
 | Channel expansion (Lark/WeCom) | **Planned later**; excluded from the first milestone |
 

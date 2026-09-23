@@ -28,7 +28,7 @@ import { evaluateEmployeePackage } from "./employee-eval.js";
 import { deploy, renderDeployParseFailure } from "./deploy/index.js";
 import { workspace, renderWorkspaceParseFailure } from "./workspace/index.js";
 import { org, renderOrgParseFailure } from "./org/index.js";
-import { turn } from "./turn/index.js";
+import { chat, turn } from "./turn/index.js";
 import { task } from "./task/index.js";
 import { hire } from "./hire.js";
 import { setup } from "./setup.js";
@@ -83,6 +83,7 @@ Agent-native usage:
   digital-employee org apply [workspace] [--json]
   digital-employee org scope <position> [workspace] [--tool <name> | --context <path>] [--json]
   digital-employee turn run [workspace] --position <id> (--stdin | --input-file <path> | --question "...")
+  digital-employee chat [workspace] --position <id> (--stdin | --input-file <path> | --question "...")
   digital-employee task delegate [workspace] --stdin --history-file <workspace-local-path>
   digital-employee hire validate <file> [--json]
   digital-employee deploy [package-path] [--package path] --channel <id> --engine <id> --runtime agent-native|standalone-v1 [options]
@@ -678,6 +679,15 @@ async function main() {
   if (command === "turn") return turn({
     subcommand: positionals[0],
     args: positionals.slice(1),
+    position: values.position,
+    stdin: values.stdin,
+    inputFile: values.inputFile,
+    question: values.question,
+    json: values.json,
+    help: values.help,
+  });
+  if (command === "chat") return chat({
+    args: positionals,
     position: values.position,
     stdin: values.stdin,
     inputFile: values.inputFile,

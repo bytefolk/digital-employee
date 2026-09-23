@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add one-shot `digital-employee chat --position` on the built-in engine,
+  aliasing the shipped `turn run` contract without a second session store
+  (#334).
+
 - Document a proposed next direction joining safety, trustworthy results and
   a minimal business ontology, with a read-only pilot, controlled-action gates,
   ownership boundaries and measurable acceptance criteria (#346). Design only;

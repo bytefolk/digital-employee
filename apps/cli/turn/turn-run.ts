@@ -524,6 +524,9 @@ export async function runTurn(options: TurnRunOptions): Promise<TurnRunResult> {
     ...(envelope.pendingApproval !== undefined
       ? { pendingApproval: envelope.pendingApproval }
       : {}),
+    ...(envelope.pendingApprovals !== undefined
+      ? { pendingApprovals: envelope.pendingApprovals }
+      : {}),
   }
 
   const escalationSink = createInMemoryEscalationSink()

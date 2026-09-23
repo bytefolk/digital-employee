@@ -84,6 +84,13 @@ export function buildTurnEnvelopeSchema(): Record<string, unknown> {
       dayKey: boundedIdSchema(),
       deadline: { type: "string" },
       pendingApproval: { $ref: "#/$defs/pendingApproval" },
+      pendingApprovals: {
+        type: "array",
+        minItems: 2,
+        maxItems: 32,
+        uniqueItems: true,
+        items: { $ref: "#/$defs/pendingApproval" },
+      },
       conversationRef: boundedIdSchema(),
       envelopeDigest: { type: "string", minLength: 1 },
     },

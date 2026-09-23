@@ -217,6 +217,7 @@ export async function* executeTurn(
   const startedAt = timestamp(now)
   let terminated = false
   let approvalRef: TurnEvidenceApprovalRef | undefined
+  let approvalRefs: TurnEvidenceApprovalRef[] | undefined
 
   const fail = (
     code: string,
@@ -729,6 +730,7 @@ export async function* executeTurn(
       terminal,
       ...(escalationRef !== undefined ? { escalationRef } : {}),
       ...(approvalRef !== undefined ? { approvalRef } : {}),
+      ...(approvalRefs !== undefined ? { approvalRefs } : {}),
       ...(permissionGate !== undefined
         ? {
             permissions: {
@@ -823,8 +825,62 @@ export async function* executeTurn(
   // a governed, operator-visible stop) and is distinguished by error code —
   // no new terminal reasons are introduced.
   const pendingApproval = request.pendingApproval
+  const pendingApprovals = request.pendingApprovals
   const approvalAction = request.approvalAction
-  if (pendingApproval !== undefined) {
+  if (pendingApprovals !== undefined) {
+    // Validate expiry for every member before emitting even the first verdict.
+    // That makes the batch gate atomic at the engine boundary: one expired
+    // member means no member is granted and the model never starts.
+    if (pendingApprovals.some((pending) => pendingApprovalExpired(pending, now().getTime()))) {
+      approvalRefs = pendingApprovals.map((pending) => ({ approvalId: pending.approvalId, outcome: "expired" }))
+      try {
+        await writeEvidence(
+          { status: "failed", reason: "cancelled", errorCode: APPROVAL_EXPIRED_CODE },
+          null,
+        )
+      } catch {
+        yield fail("engine.internal_error", "approval settlement side effects failed", "engine_internal_error", false)
+        return
+      }
+      yield fail(APPROVAL_EXPIRED_CODE, "one or more pending approval verdicts are expired or unusable; the batch was not settled", "cancelled", false)
+      return
+    }
+    if (pendingApprovals[0]!.decision === "denied") {
+      approvalRefs = pendingApprovals.map((pending) => ({ approvalId: pending.approvalId, outcome: "denied" }))
+      try {
+        await writeEvidence(
+          { status: "failed", reason: "cancelled", errorCode: APPROVAL_DENIED_CODE },
+          null,
+        )
+      } catch {
+        yield fail("engine.internal_error", "approval settlement side effects failed", "engine_internal_error", false)
+        return
+      }
+      for (const pending of pendingApprovals) {
+        yield {
+          type: "approval.denied",
+          runId,
+          timestamp: timestamp(now),
+          approvalId: pending.approvalId,
+          deniedBy: "operator",
+          ...(pending.reason !== undefined ? { reason: pending.reason } : {}),
+        }
+      }
+      yield fail(APPROVAL_DENIED_CODE, "operator denied the approval batch; the turn settles without retry", "cancelled", false)
+      return
+    }
+    approvalRefs = pendingApprovals.map((pending) => ({ approvalId: pending.approvalId, outcome: "granted" }))
+    for (const pending of pendingApprovals) {
+      yield {
+        type: "approval.granted",
+        runId,
+        timestamp: timestamp(now),
+        approvalId: pending.approvalId,
+        grantedBy: "operator",
+        scope: pending.scope ?? "once",
+      }
+    }
+  } else if (pendingApproval !== undefined) {
     if (pendingApprovalExpired(pendingApproval, now().getTime())) {
       approvalRef = {
         approvalId: pendingApproval.approvalId,

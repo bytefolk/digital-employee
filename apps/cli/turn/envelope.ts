@@ -71,6 +71,9 @@ export interface TurnEnvelope {
    * `TurnPendingApprovalInput` verbatim — no parallel vocabulary.
    */
   pendingApproval?: TurnPendingApprovalInput
+  /** #403: exactly one atomic recovery set, never combined with the legacy
+   * singular verdict. */
+  pendingApprovals?: TurnPendingApprovalInput[]
   /**
    * Optional conversation back-link (#205, v1alpha2 only): an opaque
    * workbench-generated conversation identifier, echoed verbatim on every
@@ -257,39 +260,38 @@ export function parseTurnEnvelope(raw: unknown): TurnEnvelope {
   // Operator verdict for the #187 approval gate (#193): first-gate,
   // fail-closed shape checks mirroring the engine's
   // validateApprovalRequestFields; engine validation remains the backstop.
-  let pendingApproval: TurnPendingApprovalInput | undefined
-  if (raw.pendingApproval !== undefined) {
-    if (!isRecord(raw.pendingApproval)) {
+  const parsePendingApproval = (rawPending: unknown, label: string): TurnPendingApprovalInput => {
+    if (!isRecord(rawPending)) {
       throw new TurnEnvelopeError(
         "engine.input_invalid",
-        "pendingApproval must be a JSON object",
+        `${label} must be a JSON object`,
       )
     }
     const approvalId = assertBoundedId(
-      raw.pendingApproval.approvalId,
-      "pendingApproval.approvalId",
+      rawPending.approvalId,
+      `${label}.approvalId`,
     )
-    const decision = raw.pendingApproval.decision
+    const decision = rawPending.decision
     if (decision !== "granted" && decision !== "denied") {
       throw new TurnEnvelopeError(
         "engine.input_invalid",
-        "pendingApproval.decision must be granted or denied",
+        `${label}.decision must be granted or denied`,
       )
     }
-    if (raw.pendingApproval.decidedBy !== "operator") {
+    if (rawPending.decidedBy !== "operator") {
       throw new TurnEnvelopeError(
         "engine.input_invalid",
-        "pendingApproval.decidedBy must be operator",
+        `${label}.decidedBy must be operator`,
       )
     }
-    const scope = raw.pendingApproval.scope
+    const scope = rawPending.scope
     if (scope !== undefined && scope !== "once" && scope !== "run") {
       throw new TurnEnvelopeError(
         "engine.input_invalid",
-        "pendingApproval.scope must be once or run when present",
+        `${label}.scope must be once or run when present`,
       )
     }
-    const reason = raw.pendingApproval.reason
+    const reason = rawPending.reason
     if (
       reason !== undefined &&
       (typeof reason !== "string" ||
@@ -298,26 +300,44 @@ export function parseTurnEnvelope(raw: unknown): TurnEnvelope {
     ) {
       throw new TurnEnvelopeError(
         "engine.input_invalid",
-        "pendingApproval.reason must be a non-empty string within the bounded size",
+        `${label}.reason must be a non-empty string within the bounded size`,
       )
     }
-    const expiresAt = raw.pendingApproval.expiresAt
+    const expiresAt = rawPending.expiresAt
     if (
       expiresAt !== undefined &&
       (typeof expiresAt !== "string" || Number.isNaN(Date.parse(expiresAt)))
     ) {
       throw new TurnEnvelopeError(
         "engine.input_invalid",
-        "pendingApproval.expiresAt must be a valid ISO 8601 timestamp",
+        `${label}.expiresAt must be a valid ISO 8601 timestamp`,
       )
     }
-    pendingApproval = {
+    return {
       approvalId,
       decision,
       decidedBy: "operator",
       ...(scope !== undefined ? { scope } : {}),
       ...(reason !== undefined ? { reason: reason as string } : {}),
       ...(expiresAt !== undefined ? { expiresAt } : {}),
+    }
+  }
+  if (raw.pendingApproval !== undefined && raw.pendingApprovals !== undefined) {
+    throw new TurnEnvelopeError("engine.input_invalid", "pendingApproval and pendingApprovals are mutually exclusive")
+  }
+  const pendingApproval = raw.pendingApproval === undefined
+    ? undefined
+    : parsePendingApproval(raw.pendingApproval, "pendingApproval")
+  let pendingApprovals: TurnPendingApprovalInput[] | undefined
+  if (raw.pendingApprovals !== undefined) {
+    if (!Array.isArray(raw.pendingApprovals) || raw.pendingApprovals.length < 2 || raw.pendingApprovals.length > 32) {
+      throw new TurnEnvelopeError("engine.input_invalid", "pendingApprovals must contain 2 to 32 verdicts")
+    }
+    pendingApprovals = raw.pendingApprovals.map((pending, index) => parsePendingApproval(pending, `pendingApprovals[${index}]`))
+    const ids = new Set(pendingApprovals.map((pending) => pending.approvalId))
+    if (ids.size !== pendingApprovals.length) throw new TurnEnvelopeError("engine.input_invalid", "pendingApprovals must not repeat an approvalId")
+    if (!pendingApprovals.every((pending) => pending.decision === pendingApprovals![0]!.decision)) {
+      throw new TurnEnvelopeError("engine.input_invalid", "pendingApprovals must use one decision so recovery is atomic")
     }
   }
 
@@ -347,6 +367,7 @@ export function parseTurnEnvelope(raw: unknown): TurnEnvelope {
       : {}),
     ...(raw.deadline !== undefined ? { deadline: raw.deadline as string } : {}),
     ...(pendingApproval !== undefined ? { pendingApproval } : {}),
+    ...(pendingApprovals !== undefined ? { pendingApprovals } : {}),
     ...(conversationRef !== undefined ? { conversationRef } : {}),
     envelopeDigest: raw.envelopeDigest,
   }

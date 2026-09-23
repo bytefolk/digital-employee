@@ -196,6 +196,30 @@ test("an approvalRef is validated against the outcome enum", () => {
   assert.ok(codes(bad.violations).includes("outcome_enum"))
 })
 
+test("approvalRefs accepts a conformant atomic batch and names invalid members", () => {
+  const good = validateTurnEvidenceRecord(
+    record({
+      terminal: { status: "failed", reason: "cancelled", errorCode: "engine.approval_denied" },
+      approvalRefs: [
+        { approvalId: "ap-1", outcome: "denied" },
+        { approvalId: "ap-2", previewId: "preview-2", outcome: "denied" },
+      ],
+    }),
+  )
+  assert.equal(good.ok, true)
+
+  const bad = validateTurnEvidenceRecord(
+    record({
+      approvalRefs: [{ approvalId: "", previewId: 1, outcome: "maybe" }] as never,
+    }),
+  )
+  assert.equal(bad.ok, false)
+  assert.ok(fields(bad.violations).includes("approvalRefs"))
+  assert.ok(fields(bad.violations).includes("approvalRefs[0].approvalId"))
+  assert.ok(fields(bad.violations).includes("approvalRefs[0].previewId"))
+  assert.ok(fields(bad.violations).includes("approvalRefs[0].outcome"))
+})
+
 test("permission denials are validated against the stable workspace_org_* codes", () => {
   const good = validateTurnEvidenceRecord(
     record({

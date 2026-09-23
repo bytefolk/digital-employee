@@ -167,6 +167,10 @@ export interface TurnEvidenceRecord {
   terminal: TurnEvidenceTerminal
   escalationRef?: string
   approvalRef?: TurnEvidenceApprovalRef
+  /** Exact batch settled by this recovery turn. Present only for an atomic
+   * multi-approval recovery; keeping the legacy singular field preserves
+   * existing evidence readers. */
+  approvalRefs?: TurnEvidenceApprovalRef[]
   /** Permission decision summary + zero-content denial attempts (#159). */
   permissions?: TurnEvidencePermissions
   /** Digest-only memory-recall consumption evidence (#180 seam). */
@@ -302,6 +306,7 @@ const ALLOWED_TOP_LEVEL_KEYS: ReadonlySet<string> = new Set([
   "terminal",
   "escalationRef",
   "approvalRef",
+  "approvalRefs",
   "permissions",
   "memory",
   "context",
@@ -497,6 +502,33 @@ export function validateTurnEvidenceRecord(
       if (typeof approval.outcome !== "string" || !APPROVAL_OUTCOMES.has(approval.outcome)) {
         add("approvalRef.outcome", "outcome_enum", `approvalRef.outcome must be one of requested|granted|denied|expired, got ${JSON.stringify(approval.outcome)}`)
       }
+    }
+  }
+
+  if (value.approvalRefs !== undefined) {
+    const approvals = value.approvalRefs
+    if (!Array.isArray(approvals)) {
+      add("approvalRefs", "array_required", "approvalRefs must be an array when present")
+    } else {
+      if (approvals.length < 2 || approvals.length > 32) {
+        add("approvalRefs", "array_length", "approvalRefs must contain between 2 and 32 members")
+      }
+      approvals.forEach((approval, index) => {
+        const field = `approvalRefs[${index}]`
+        if (!isRecord(approval)) {
+          add(field, "object_required", "each approvalRefs member must be an object")
+          return
+        }
+        if (typeof approval.approvalId !== "string" || approval.approvalId.length === 0) {
+          add(`${field}.approvalId`, "non_empty_string_required", `${field}.approvalId must be a non-empty string`)
+        }
+        if (approval.previewId !== undefined && typeof approval.previewId !== "string") {
+          add(`${field}.previewId`, "string_required", `${field}.previewId must be a string when present`)
+        }
+        if (typeof approval.outcome !== "string" || !APPROVAL_OUTCOMES.has(approval.outcome)) {
+          add(`${field}.outcome`, "outcome_enum", `${field}.outcome must be one of requested|granted|denied|expired, got ${JSON.stringify(approval.outcome)}`)
+        }
+      })
     }
   }
 

@@ -10,6 +10,7 @@ import {
   createInMemoryEvidenceSink,
   executeTurn,
   isTerminalEngineEvent,
+  validateTurnEvidenceRecord,
 } from "../../packages/engine/src/index.js"
 import type {
   EngineEvent,
@@ -212,6 +213,54 @@ test("#187 AC-003: granted verdict defaults scope to once", async () => {
     assert.equal(granted.scope, "once")
   } else {
     assert.fail("expected approval.granted")
+  }
+})
+
+test("#403: a homogeneous approval batch settles atomically before model consumption", async () => {
+  const evidenceSink = createInMemoryEvidenceSink()
+  const events: EngineEvent[] = []
+  const model = createDeterministicModelPort(["done"])
+  for await (const event of executeTurn(
+    baseRequest({
+      pendingApprovals: [
+        pendingApproval({ approvalId: "approval-a" }),
+        pendingApproval({ approvalId: "approval-b" }),
+      ],
+    }),
+    { model, now: FIXED_NOW, evidenceSink },
+  )) events.push(event)
+  const nonUsage = events.filter((event) => event.type !== "usage")
+  assert.deepEqual(nonUsage.map((event) => event.type), [
+    "run.started",
+    "approval.granted",
+    "approval.granted",
+    "model.delta",
+    "run.completed",
+  ])
+  assert.deepEqual(
+    nonUsage.filter((event) => event.type === "approval.granted").map((event) =>
+      event.type === "approval.granted" ? event.approvalId : "",
+    ),
+    ["approval-a", "approval-b"],
+  )
+  assert.deepEqual(evidenceSink.records[0]!.approvalRefs, [
+    { approvalId: "approval-a", outcome: "granted" },
+    { approvalId: "approval-b", outcome: "granted" },
+  ])
+  assert.deepEqual(validateTurnEvidenceRecord(evidenceSink.records[0]).violations, [])
+})
+
+test("#403: a malformed, mixed, or expired batch emits no partial approval verdict", async () => {
+  for (const pendingApprovals of [
+    [pendingApproval({ approvalId: "approval-a" }), pendingApproval({ approvalId: "approval-a" })],
+    [pendingApproval({ approvalId: "approval-a" }), pendingApproval({ approvalId: "approval-b", decision: "denied" })],
+    [pendingApproval({ approvalId: "approval-a" }), pendingApproval({ approvalId: "approval-b", expiresAt: "2026-08-22T23:59:59.000Z" })],
+  ]) {
+    const { events } = await collect(baseRequest({ pendingApprovals }), ["must not run"])
+    assert.equal(events.some((event) => event.type === "approval.granted" || event.type === "approval.denied"), false)
+    assert.equal(events.some((event) => event.type === "model.delta"), false)
+    const terminal = events.find(isTerminalEngineEvent)
+    assert.equal(terminal?.type, "run.failed")
   }
 })
 

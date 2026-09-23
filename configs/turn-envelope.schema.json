@@ -84,6 +84,15 @@
     "pendingApproval": {
       "$ref": "#/$defs/pendingApproval"
     },
+    "pendingApprovals": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/pendingApproval"
+      }
+    },
     "conversationRef": {
       "type": "string",
       "minLength": 1,

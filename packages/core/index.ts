@@ -151,6 +151,18 @@ export {
 } from "./src/agent-host-stdio-config.js"
 export type { StdioAdapterConfig } from "./src/agent-host-stdio-config.js"
 export {
+  ENGINE_CAPABILITY_CODES,
+  intersectEffectiveSurface,
+} from "./src/effective-surface.js"
+export type {
+  AuthorityScopeInput,
+  CapabilityKind,
+  DeclaredCapability,
+  DeniedCapability,
+  EffectiveSurface,
+  EngineCapabilityCode,
+} from "./src/effective-surface.js"
+export {
   CAPABILITY_GRANT_SCHEMA_VERSION,
   MCP_CONFORMANCE_CODES,
   SYNTHETIC_DOC_SERVER,

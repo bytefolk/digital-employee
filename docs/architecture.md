@@ -45,6 +45,13 @@ The inner Agent host owns:
 - native Skills, MCP, tools, sandbox and approval behavior;
 - streaming, cancellation and provider usage when available.
 
+The built-in engine route shares one capability-negotiation seam
+(`intersectEffectiveSurface`): declared MCP tools, skill tools, and network
+mode intersect the position Authority Scope. The result never widens the
+declared set. Public `mcp_*` conformance codes stay; additive codes live in
+the same export. MCP loading, network projection, and skill tools consume this
+function instead of forking copies (#300).
+
 The outer Digital Employee runtime owns:
 
 - the portable employee package and host projection;

@@ -1,4 +1,17 @@
 export {
+  ENGINE_CAPABILITY_CODES,
+  intersectEffectiveSurface,
+} from "../../core/src/effective-surface.js"
+export type {
+  AuthorityScopeInput,
+  CapabilityKind,
+  DeclaredCapability,
+  DeniedCapability,
+  EffectiveSurface,
+  EngineCapabilityCode,
+} from "../../core/src/effective-surface.js"
+
+export {
   ENGINE_ERROR_CODE_PATTERN,
   ENGINE_ID,
   ENGINE_PROTOCOL_VERSION,

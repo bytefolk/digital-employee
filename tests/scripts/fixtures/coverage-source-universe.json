@@ -91,7 +91,6 @@
   "packages/core/src/job-runner.ts",
   "packages/core/src/lexical-retriever.ts",
   "packages/core/src/mcp-conformance.ts",
-  "packages/core/src/effective-surface.ts",
   "packages/core/src/mem-http-memory-adapter.ts",
   "packages/core/src/memory-port.ts",
   "packages/core/src/profile-manifest.ts",

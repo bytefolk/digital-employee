@@ -385,7 +385,11 @@ async function loadPositionContext(
     },
     budget: role.budget,
   })
-  return { instructions, spec }
+  return {
+    instructions,
+    spec,
+    networkPolicy: inspection.manifest.policy.network,
+  }
 }
 
 function boundedDiagnostic(line: string): string {
@@ -440,12 +444,20 @@ export async function runTurn(options: TurnRunOptions): Promise<TurnRunResult> {
   }
 
   let positionContext: EngineTurnRequest["position"] | undefined
+  let networkPolicy: EngineTurnRequest["networkPolicy"]
   try {
-    positionContext = await loadPositionContext(
+    const loadedPosition = await loadPositionContext(
       options.workspace,
       options.positionId,
       loadedOrgModel,
     )
+    if (loadedPosition) {
+      positionContext = {
+        instructions: loadedPosition.instructions,
+        spec: loadedPosition.spec,
+      }
+      networkPolicy = loadedPosition.networkPolicy
+    }
   } catch (error) {
     if (error instanceof TurnSpawnError) {
       return failSpawn(error.code, error.message)
@@ -527,6 +539,7 @@ export async function runTurn(options: TurnRunOptions): Promise<TurnRunResult> {
     ...(envelope.pendingApprovals !== undefined
       ? { pendingApprovals: envelope.pendingApprovals }
       : {}),
+    ...(networkPolicy !== undefined ? { networkPolicy } : {}),
   }
 
   const escalationSink = createInMemoryEscalationSink()

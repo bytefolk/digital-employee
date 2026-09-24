@@ -40,6 +40,7 @@ import {
   type TerminalReason,
 } from "./contracts.js"
 import { assembleContext } from "./context-assembler.js"
+import { projectS1NetworkEvidence } from "./network-projection.js"
 import {
   filterFreshContext,
   type ContextEntry,
@@ -341,6 +342,7 @@ export async function* executeTurn(
             errorCode: deniedCode,
           },
           permissions: { summary, denials },
+          network: projectS1NetworkEvidence(rawRequest.networkPolicy),
           assemblyManifestDigest: NO_ASSEMBLY_DIGEST,
           timeBounds: { startedAt, completedAt: timestamp(now) },
         }
@@ -741,6 +743,7 @@ export async function* executeTurn(
         : {}),
       ...(memoryEvidence !== undefined ? { memory: memoryEvidence } : {}),
       ...(contextEvidence !== undefined ? { context: contextEvidence } : {}),
+      network: projectS1NetworkEvidence(request.networkPolicy),
       assemblyManifestDigest: assembled.manifest.digest,
       timeBounds: { startedAt, completedAt: timestamp(now) },
     }

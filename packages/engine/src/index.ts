@@ -70,6 +70,14 @@ export {
 } from "./output-schema-guard.js"
 export type { PreparedTerminalSchema } from "./output-schema-guard.js"
 
+export {
+  projectS1NetworkEvidence,
+} from "./network-projection.js"
+export type {
+  DeclaredNetworkMode,
+  TurnEvidenceNetwork,
+} from "./network-projection.js"
+
 export { CONTEXT_BUDGET_EXCEEDED_CODE, executeTurn } from "./turn-executor.js"
 export type {
   EngineContextOptions,

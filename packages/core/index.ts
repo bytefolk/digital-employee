@@ -212,6 +212,11 @@ export type {
   AgentHostStdioRequestKind,
 } from "./src/agent-host-stdio.js"
 export {
+  composeSkillUnits,
+  resolveSkillPromptSurface,
+} from "./src/skill-composer.js"
+export type { SkillComposition } from "./src/skill-composer.js"
+export {
   EMPLOYEE_PACKAGE_MANIFEST_NAME,
   EMPLOYEE_PACKAGE_SCHEMA_VERSION,
   deriveEffectiveAgentHostPolicy,

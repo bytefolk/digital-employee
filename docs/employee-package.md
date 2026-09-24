@@ -236,6 +236,12 @@ Host can load its own Skill surface. Declaring package `skills` does not
 project tools, compose instructions, or require that Host capability. Packages
 without the array validate exactly as they do today.
 
+A later pure composer (`composeSkillUnits`, #306) turns a validated
+declaration set into ordered prompt blocks and a digest. Duplicate names fail
+closed. Packages without `skills` keep the current `entrypoints.skill` prose
+bytes. Engine slots, evidence, and a workspace registry are out of this
+function.
+
 ## Network policy declarations (#308)
 
 `policy.network` accepts `deny`, `host_policy`, or `allowlist`. Every mode

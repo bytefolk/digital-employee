@@ -74,9 +74,9 @@ test("help leads with Agent-native commands while standalone stays explicit", ()
   assert.match(help.stdout, /Agent-native usage:/)
   assert.match(
     help.stdout,
-    /run \[directory\] --engine claude-code\|qoder\|qwen-code\|codebuddy/,
+    /run \[directory\] --engine claude-code\|qoder\|codex\|qwen-code\|codebuddy/,
   )
-  assert.match(help.stdout, /Codex is probe-only/)
+  assert.match(help.stdout, /Codex is a fail-closed Adapter/)
   assert.match(help.stdout, /digital-employee legacy <ask\|sync\|start\|serve>/)
   assert.match(help.stdout, /bounded local '<host> --version' probe/)
   assert.match(help.stdout, /does not attempt authentication, invoke a model/)
@@ -348,8 +348,8 @@ for (const [engine, command, fixturePath, configuration] of [
   })
 }
 
-test("run keeps Codex probe-only and never falls back to another runtime", async () => {
-  const parent = await mkdtemp(path.join(os.tmpdir(), "employee-codex-probe-only-"))
+test("run fail-closes Codex without falling back to another runtime", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "employee-codex-fail-closed-"))
   const packageDirectory = path.join(parent, "team-answer")
   await createEmployeePackage(packageDirectory)
 
@@ -369,5 +369,11 @@ test("run keeps Codex probe-only and never falls back to another runtime", async
   const output = JSON.parse(result.stdout)
   assert.equal(output.status, "failed")
   assert.equal(output.engine, "codex")
-  assert.equal(output.error.code, "agent_host_adapter_not_runnable")
+  assert.ok(
+    output.error.code === "agent_host_incompatible" ||
+      output.error.code === "host_executable_not_found" ||
+      output.error.code === "codex_live_hold_no_receipt" ||
+      output.error.code === "codex_version_ineligible",
+    output.error.code,
+  )
 })

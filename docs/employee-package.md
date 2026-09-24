@@ -61,7 +61,8 @@ or `CODEBUDDY_API_KEY` plus `CODEBUDDY_MODEL` for CodeBuddy. Optional
 `ANTHROPIC_BASE_URL` for Claude, `OPENAI_BASE_URL` for Qwen and
 `CODEBUDDY_BASE_URL` for CodeBuddy are deployment configuration. Preflight does not
 spend credits or verify model entitlement; that remains untested until a real
-`run`. Codex remains probe-only.
+`run`. Codex is a fail-closed Adapter: `--version` is not entitlement, and
+live Codex stays HOLD without a named receipt.
 
 `eval` is a credential-free contract eval. It first performs the same static
 package validation, then checks declared input and expected-output fixtures
@@ -392,7 +393,7 @@ platform/pricing phase.
 | `deploy [package-path]` | Implemented in source for one local package-bound slot; HTTP alone can become Ready after live readback |
 | `run --engine qoder` | Implemented for Qoder CLI 1.1.x; stateless, read-only, no MCP/attachments |
 | `run --engine claude-code|qwen-code|codebuddy` | Implemented for the exact version gates above; stateless, context-only, no MCP/attachments |
-| `run --engine codex` | Probe-only; blocked on reliable removal of all model-visible built-in tools |
+| `run --engine codex` | Fail-closed Adapter; doctor/run share readiness; `--version` is not entitlement; live HOLD without a named receipt |
 | `project --engine` | Planned: generates host-specific files |
 | `package` | Planned: deterministic archive, integrity and signing metadata |
 

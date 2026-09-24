@@ -19,7 +19,7 @@
  * recomputation into `.digital-employee/permissions.json` (#159 seam).
  */
 
-import { randomBytes } from "node:crypto"
+import { createHash, randomBytes } from "node:crypto"
 import { constants as fsConstants } from "node:fs"
 import {
   appendFile,
@@ -468,33 +468,61 @@ export function diffOrganization(
   return changes
 }
 
+function projectConnectors(
+  declaration: PositionConnectorsDeclaration,
+): NonNullable<ValidatedOrganizationRole["connectors"]> {
+  const canonical = {
+    schemaVersion: declaration.schemaVersion,
+    channels: declaration.channels,
+    sources: declaration.sources,
+  }
+  const digest = `sha256:${createHash("sha256")
+    .update(JSON.stringify(canonical), "utf8")
+    .digest("hex")}`
+  return { ...canonical, digest }
+}
+
+function withProjectedConnectors(
+  role: ValidatedOrganizationRole,
+  declaration: PositionDeclaration,
+): ValidatedOrganizationRole {
+  const rest: ValidatedOrganizationRole = { ...role }
+  delete rest.connectors
+  return declaration.connectors
+    ? { ...rest, connectors: projectConnectors(declaration.connectors) }
+    : rest
+}
+
 function buildRoleRecord(
   declaration: PositionDeclaration,
 ): ValidatedOrganizationRole {
   const { position, manifest, budget, digest } = declaration
-  return {
-    id: position.id,
-    name: manifest.name,
-    description: manifest.description,
-    reportTo: position.reportTo,
-    package: {
+  return withProjectedConnectors(
+    {
+      id: position.id,
       name: manifest.name,
-      version: manifest.version,
-      digest,
-      localReference: position.directory,
+      description: manifest.description,
+      reportTo: position.reportTo,
+      package: {
+        name: manifest.name,
+        version: manifest.version,
+        digest,
+        localReference: position.directory,
+      },
+      mode: manifest.policy.mode,
+      // Fail-closed defaults for a fresh hire: the position sees its own
+      // package slice only and declares no tools until granted (#159).
+      memoryScope: "./",
+      toolAllow: [],
+      toolDeny: [],
+      metadata: {},
+      budget: {
+        perTask: { ...budget.perTask },
+        perDay: { ...budget.perDay },
+      },
     },
-    mode: manifest.policy.mode,
-    // Fail-closed defaults for a fresh hire: the position sees its own
-    // package slice only and declares no tools until granted (#159).
-    memoryScope: "./",
-    toolAllow: [],
-    toolDeny: [],
-    metadata: {},
-    budget: {
-      perTask: { ...budget.perTask },
-      perDay: { ...budget.perDay },
-    },
-  }
+    declaration,
+  )
 }
 
 /** The applied organization file (workspace-org.v1 with $schema ref). */
@@ -527,15 +555,18 @@ export function buildAppliedOrganization(
       if (!existing) {
         return buildRoleRecord(declaration)
       }
-      return {
-        ...existing,
-        reportTo: position.reportTo,
-        package: freshPackage,
-        budget: {
-          perTask: { ...budget.perTask },
-          perDay: { ...budget.perDay },
+      return withProjectedConnectors(
+        {
+          ...existing,
+          reportTo: position.reportTo,
+          package: freshPackage,
+          budget: {
+            perTask: { ...budget.perTask },
+            perDay: { ...budget.perDay },
+          },
         },
-      }
+        declaration,
+      )
     },
   )
   return {

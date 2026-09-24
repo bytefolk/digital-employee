@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Carry validated `position-connectors.v1` declarations into the derived
+  workspace-org artifact as an optional role `connectors` field with a digest;
+  declaration-free workspaces omit the field (#311). Permissions.json is
+  unchanged.
+
 - Document a proposed next direction joining safety, trustworthy results and
   a minimal business ontology, with a read-only pilot, controlled-action gates,
   ownership boundaries and measurable acceptance criteria (#346). Design only;

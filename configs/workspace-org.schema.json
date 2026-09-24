@@ -138,6 +138,31 @@
           },
           "budget": {
             "$ref": "#/$defs/positionBudget"
+          },
+          "connectors": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "schemaVersion",
+              "digest",
+              "channels",
+              "sources"
+            ],
+            "properties": {
+              "schemaVersion": {
+                "const": "position-connectors.v1"
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "channels": {
+                "$ref": "#/$defs/connectorBindings"
+              },
+              "sources": {
+                "$ref": "#/$defs/connectorBindings"
+              }
+            }
           }
         }
       }
@@ -179,6 +204,33 @@
           "exclusiveMinimum": 0,
           "maximum": 1000000000
         }
+      }
+    },
+    "connectorBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9](?:[a-z0-9._-]{0,127})$"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]{0,127}$"
+          }
+        }
+      }
+    },
+    "connectorBindings": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "$ref": "#/$defs/connectorBinding"
       }
     }
   }

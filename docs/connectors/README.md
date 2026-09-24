@@ -16,8 +16,9 @@ next to `employee.json`. `org apply` validates `channels` and `sources`
 against the CLI connector registry vocabulary. Bindings may carry only
 environment-variable names; inline credentials, traversal paths, unknown
 fields, and unregistered ids fail closed. An absent file changes nothing.
-This slice does not bind connectors at runtime or write them into derived
-org artifacts (#310).
+This slice does not bind connectors at runtime (#310). A later derived-artifact
+revision (#311) may copy a validated declaration onto the role as optional
+`connectors` plus digest; an absent file still omits the field.
 
 Connector contributions must document provider permissions, data sent across
 the boundary, retention behavior, time/size limits, and rejected input tests.

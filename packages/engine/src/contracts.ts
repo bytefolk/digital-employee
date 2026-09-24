@@ -107,6 +107,30 @@ export type EngineEvent =
       deniedBy: "operator"
       reason?: string
     })
+  // Tool loop vocabulary (#302). Naming aligned with agent-host.v1 without
+  // copying Host semantics. These events are never a trusted terminal.
+  | (EngineEventBase & {
+      type: "tool.requested"
+      toolCallId: string
+      toolName: string
+    })
+  | (EngineEventBase & {
+      type: "tool.started"
+      toolCallId: string
+      toolName: string
+    })
+  | (EngineEventBase & {
+      type: "tool.completed"
+      toolCallId: string
+      toolName: string
+      outputDigest: string
+    })
+  | (EngineEventBase & {
+      type: "tool.failed"
+      toolCallId: string
+      toolName: string
+      code: string
+    })
 
 export function isTerminalEngineEvent(
   event: EngineEvent,

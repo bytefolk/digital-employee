@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add a bounded `tool.*` loop: calls stay inside the projected allowlist,
+  advertised surface may only narrow, and tool events are never a trusted
+  terminal (#302).
+
 - Add an engine-owned MCP stdio supervisor: load-time digest check, restart
   budget of 2, and allowlist projection as declared tools ∩ Authority Scope.
   Discovery extras never widen the allowlist (#301).

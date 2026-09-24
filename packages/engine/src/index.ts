@@ -84,6 +84,14 @@ export {
 export type { PreparedTerminalSchema } from "./output-schema-guard.js"
 
 export {
+  executeToolCalls,
+  effectiveToolAllowlist,
+  TOOL_ADVERTISED_NARROWED_CODE,
+  TOOL_OUT_OF_ALLOWLIST_CODE,
+} from "./tool-loop.js"
+export type { ToolCallRequest } from "./tool-loop.js"
+
+export {
   loadMcpAllowlist,
   MCP_MANIFEST_DRIFT_CODE,
   MCP_RESTART_BUDGET,

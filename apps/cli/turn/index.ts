@@ -118,6 +118,30 @@ export function buildQuestionEnvelope(input: {
   return { ...body, envelopeDigest: computeEnvelopeDigest(body) }
 }
 
+function chatUsage(): string {
+  return `digital-employee chat [workspace] --position <id>
+    (--stdin | --input-file <path> | --question "<text>")
+
+One-shot built-in engine turn (#334). Same spawn surface as turn run:
+exactly one trusted terminal, NDJSON engine.v1 on stdout, no --json,
+no TTY REPL, no second session store.
+`
+}
+
+/**
+ * One-shot `digital-employee chat --position` (#334 R2). Same spawn surface
+ * as `turn run`; no second session store, no TTY REPL.
+ */
+export async function chat(
+  options: Omit<TurnOptions, "subcommand">,
+): Promise<void> {
+  if (options.help) {
+    process.stdout.write(chatUsage())
+    return
+  }
+  return turn({ ...options, subcommand: "run" })
+}
+
 export async function turn(options: TurnOptions): Promise<void> {
   if (options.help) {
     process.stdout.write(turnUsage())

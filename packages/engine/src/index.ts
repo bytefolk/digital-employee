@@ -46,6 +46,12 @@ export type {
   ContextSlot,
   ContextWindowLimits,
 } from "./context-assembler.js"
+export {
+  composePositionSkills,
+  registerWorkspaceSkillUnit,
+  resetSkillRegistries,
+} from "./skill-slot.js"
+export type { SkillCompositionEvidence } from "./skill-slot.js"
 
 export { filterFreshContext } from "./context-freshness.js"
 export type {

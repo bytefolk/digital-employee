@@ -51,11 +51,8 @@ test("context bundle slot projects quoted untrusted data last (#179)", () => {
   )
   assert.ok(bundleBlock)
   assert.equal(bundleBlock!.text, "context item 1\ncontext item 2")
-  assert.equal(
-    withBundle.blocks[withBundle.blocks.length - 1]!.slot,
-    "context_bundle",
-  )
-  // Deterministic order places context_bundle after memory_recall.
+  // Deterministic order places context_bundle after memory_recall and
+  // before the additive skills slot (#307).
   assert.deepEqual(
     withBundle.blocks.map((block) => block.slot),
     [

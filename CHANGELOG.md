@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Extend context assembly with a trailing `skills` slot and workspace-local
+  composition evidence. Existing slot order is unchanged; undeclared packages
+  omit the slot (#307).
+
 - Add a deterministic pure-function skill composer that assembles declared
   skill units into prompt blocks with a stable digest, keeping declaration-free
   packages on the current `entrypoints.skill` prose path (#306).

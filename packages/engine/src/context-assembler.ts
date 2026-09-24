@@ -15,6 +15,7 @@ export type ContextSlot =
   | "turn_input"
   | "memory_recall"
   | "context_bundle"
+  | "skills"
 
 export const CONTEXT_SLOT_ORDER: readonly ContextSlot[] = [
   "position_instructions",
@@ -22,6 +23,7 @@ export const CONTEXT_SLOT_ORDER: readonly ContextSlot[] = [
   "turn_input",
   "memory_recall",
   "context_bundle",
+  "skills",
 ]
 
 export interface ContextBlock {
@@ -58,6 +60,8 @@ export interface AssembleContextInput {
   memoryRecall?: readonly string[]
   /** Workbench context-plane bundle item texts (#179), quoted untrusted. */
   contextBundle?: readonly string[]
+  /** Composed skill prompt blocks (#307). Omitted when undeclared. */
+  skills?: string
 }
 
 export interface ContextWindowLimits {
@@ -107,6 +111,7 @@ export function assembleContext(
     { slot: "turn_input", text: input.turnInput },
     { slot: "memory_recall", text: recall.length > 0 ? recall.join("\n") : undefined },
     { slot: "context_bundle", text: bundle.length > 0 ? bundle.join("\n") : undefined },
+    { slot: "skills", text: input.skills },
   ]
 
   const blocks: ContextBlock[] = []

@@ -15,6 +15,7 @@ import {
   createInMemoryEvidenceSink,
   evidenceRecordContainsForbiddenMaterial,
   executeTurn,
+  InProcessMemoryRecallCache,
 } from "../../packages/engine/src/index.js"
 import type {
   EngineEvent,
@@ -378,3 +379,76 @@ test("AC-002: missing or malformed adapter identity fails closed before any port
 function isTerminalEvent(event: EngineEvent): boolean {
   return event.type === "run.completed" || event.type === "run.failed"
 }
+
+test("#303 two turns within TTL reuse one adapter call", async () => {
+  const mock = mockPort((request) =>
+    makeRecall(request, [recallItem(1, "cached decision")]),
+  )
+  const cache = new InProcessMemoryRecallCache({
+    now: () => Date.parse("2026-08-27T00:00:00.000Z"),
+  })
+  const first = await run(baseRequest({ turnId: "turn-1" }), {
+    memory: memoryOptions(mock.port, { recallCache: cache }),
+  })
+  const second = await run(baseRequest({ turnId: "turn-2" }), {
+    memory: memoryOptions(mock.port, { recallCache: cache }),
+  })
+  assert.equal(mock.requests.length, 1)
+  assert.equal(first.evidence.records[0]!.memory!.cacheHit, false)
+  assert.equal(second.evidence.records[0]!.memory!.cacheHit, true)
+  assert.equal(second.evidence.records[0]!.memory!.cacheAgeMs, 0)
+  assert.equal(
+    evidenceRecordContainsForbiddenMaterial(second.evidence.records[0]!, [
+      "cached decision",
+    ]),
+    false,
+  )
+})
+
+test("#303 witness invalidation forces a live recall", async () => {
+  let version = 1
+  const mock = mockPort((request) => {
+    const item = recallItem(1, `note-v${version}`)
+    item.stateVersion = version
+    item.locator = `mem://memories/${item.memoryId}@${version}`
+    return makeRecall(request, [item])
+  })
+  const cache = new InProcessMemoryRecallCache({
+    now: () => Date.parse("2026-08-27T00:00:00.000Z"),
+  })
+  await run(baseRequest({ turnId: "turn-1" }), {
+    memory: memoryOptions(mock.port, { recallCache: cache }),
+  })
+  version = 2
+  cache.invalidate()
+  const second = await run(baseRequest({ turnId: "turn-2" }), {
+    memory: memoryOptions(mock.port, { recallCache: cache }),
+  })
+  assert.equal(mock.requests.length, 2)
+  assert.equal(second.evidence.records[0]!.memory!.items[0]!.stateVersion, 2)
+  assert.equal(second.evidence.records[0]!.memory!.cacheHit, false)
+})
+
+test("#303 TTL expiry and cross-position keys never share an entry", async () => {
+  let now = Date.parse("2026-08-27T00:00:00.000Z")
+  const mock = mockPort((request) =>
+    makeRecall(request, [recallItem(1, `for-${request.positionId}`)]),
+  )
+  const cache = new InProcessMemoryRecallCache({ now: () => now })
+  await run(baseRequest({ turnId: "turn-1", positionId: "repo-owner" }), {
+    memory: memoryOptions(mock.port, { recallCache: cache }),
+  })
+  await run(baseRequest({ turnId: "turn-2", positionId: "issue-researcher" }), {
+    memory: memoryOptions(mock.port, {
+      recallCache: cache,
+      memoryScope:
+        "/workspaces/00000000-0000-4000-8000-000000000002/positions/issue-researcher",
+    }),
+  })
+  assert.equal(mock.requests.length, 2)
+  now += 30_001
+  await run(baseRequest({ turnId: "turn-3", positionId: "repo-owner" }), {
+    memory: memoryOptions(mock.port, { recallCache: cache }),
+  })
+  assert.equal(mock.requests.length, 3)
+})

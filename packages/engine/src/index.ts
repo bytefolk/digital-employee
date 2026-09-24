@@ -76,6 +76,12 @@ export type {
   EngineMemoryOptions,
   TurnExecutorOptions,
 } from "./turn-executor.js"
+export {
+  InProcessMemoryRecallCache,
+  MEMORY_RECALL_CACHE_TTL_MS,
+  memoryRecallCacheKey,
+  memoryRecallWitness,
+} from "./memory-recall-cache.js"
 
 export {
   MAX_BUDGET_CAP,

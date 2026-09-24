@@ -101,6 +101,9 @@ export interface TurnEvidenceMemory {
   totalBytes: number
   items: TurnEvidenceMemoryItem[]
   warnings: TurnEvidenceMemoryWarning[]
+  /** Present only when an in-process recall cache is configured (#303). */
+  cacheHit?: boolean
+  cacheAgeMs?: number
 }
 
 /**

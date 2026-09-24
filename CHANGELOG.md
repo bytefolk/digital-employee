@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add an opt-in `contextPort` workspace configuration (`workspace-context.v1`)
+  that enables the ContextPort CLI adapter from env-name bindings, the
+  counterpart of `workspace-memory.v1`. Absence keeps today's `turn run`
+  behaviour; required-mode outages fail closed (#304).
+
 - Document a proposed next direction joining safety, trustworthy results and
   a minimal business ontology, with a read-only pilot, controlled-action gates,
   ownership boundaries and measurable acceptance criteria (#346). Design only;

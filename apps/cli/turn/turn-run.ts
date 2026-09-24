@@ -61,6 +61,10 @@ import {
   WorkspaceMemoryConfigError,
 } from "./memory-config.js"
 import {
+  resolveWorkspaceContext,
+  WorkspaceContextConfigError,
+} from "./context-config.js"
+import {
   parseTurnEnvelope,
   TurnEnvelopeError,
   TURN_ENGINE_CLAUDE_COMMAND_ENV,
@@ -492,6 +496,36 @@ export async function runTurn(options: TurnRunOptions): Promise<TurnRunResult> {
     )
   }
 
+  let context: Awaited<ReturnType<typeof resolveWorkspaceContext>>
+  try {
+    context = await resolveWorkspaceContext({
+      workspace: options.workspace,
+      positionId: options.positionId,
+      env,
+    })
+  } catch (error) {
+    if (error instanceof WorkspaceContextConfigError) {
+      return failSpawn("engine.context_configuration_invalid", error.code)
+    }
+    return failSpawn(
+      "engine.context_configuration_invalid",
+      "workspace context configuration could not be resolved",
+    )
+  }
+  if (context.status === "disabled") {
+    if (context.reason === "optional_unusable") {
+      writeDiagnostic(
+        "digital-employee: warning: context binding unusable; continuing without ContextPort",
+      )
+    } else {
+      writeDiagnostic(`digital-employee: context disabled (${context.reason})`)
+    }
+  } else {
+    writeDiagnostic(
+      `digital-employee: context enabled (adapter ${context.adapterIdentity})`,
+    )
+  }
+
   let model: ModelPort
   try {
     model = options.model ?? await resolveModelPort(env)
@@ -555,6 +589,17 @@ export async function runTurn(options: TurnRunOptions): Promise<TurnRunResult> {
               mode: memory.mode,
               adapterIdentity: memory.adapterIdentity,
               ...(memory.limit === undefined ? {} : { limit: memory.limit }),
+            },
+          }
+        : {}),
+      ...(context.status === "enabled"
+        ? {
+            context: {
+              port: context.port,
+              enabled: true,
+              workspaceId: context.workspaceId,
+              mode: context.mode,
+              adapterIdentity: context.adapterIdentity,
             },
           }
         : {}),

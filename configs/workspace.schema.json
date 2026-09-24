@@ -14,16 +14,32 @@
     "positions",
     "context"
   ],
-  "if": {
-    "required": [
-      "memory"
-    ]
-  },
-  "then": {
-    "required": [
-      "workspaceInstanceId"
-    ]
-  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "memory"
+        ]
+      },
+      "then": {
+        "required": [
+          "workspaceInstanceId"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "contextPort"
+        ]
+      },
+      "then": {
+        "required": [
+          "workspaceInstanceId"
+        ]
+      }
+    }
+  ],
   "properties": {
     "$schema": {
       "type": "string"
@@ -60,6 +76,9 @@
     },
     "memory": {
       "$ref": "#/$defs/memory"
+    },
+    "contextPort": {
+      "$ref": "#/$defs/contextPort"
     }
   },
   "$defs": {
@@ -87,6 +106,14 @@
     "scopeEnvName": {
       "type": "string",
       "pattern": "^MEM_[A-Z0-9_]{1,100}_SCOPE$"
+    },
+    "contextTokenEnvName": {
+      "type": "string",
+      "pattern": "^CONTEXT_[A-Z0-9_]{1,100}_TOKEN$"
+    },
+    "contextScopeEnvName": {
+      "type": "string",
+      "pattern": "^CONTEXT_[A-Z0-9_]{1,100}_SCOPE$"
     },
     "memory": {
       "type": "object",
@@ -153,6 +180,68 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 20
+        }
+      }
+    },
+    "contextPort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "adapter",
+        "enabled",
+        "mode",
+        "contextWorkspaceIdEnv",
+        "pinnedRevisionEnv",
+        "bindings"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "workspace-context.v1"
+        },
+        "adapter": {
+          "const": "context-cli.v1"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": [
+            "optional",
+            "required"
+          ]
+        },
+        "commandEnv": {
+          "$ref": "#/$defs/envName"
+        },
+        "contextWorkspaceIdEnv": {
+          "$ref": "#/$defs/envName"
+        },
+        "pinnedRevisionEnv": {
+          "$ref": "#/$defs/envName"
+        },
+        "bindings": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/identifier"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "tokenEnv",
+              "contextScopeEnv"
+            ],
+            "properties": {
+              "tokenEnv": {
+                "$ref": "#/$defs/contextTokenEnvName"
+              },
+              "contextScopeEnv": {
+                "$ref": "#/$defs/contextScopeEnvName"
+              }
+            }
+          }
         }
       }
     }

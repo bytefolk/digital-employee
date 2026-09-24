@@ -83,6 +83,18 @@ export {
 } from "./output-schema-guard.js"
 export type { PreparedTerminalSchema } from "./output-schema-guard.js"
 
+export {
+  loadMcpAllowlist,
+  MCP_MANIFEST_DRIFT_CODE,
+  MCP_RESTART_BUDGET,
+  MCP_RESTART_EXHAUSTED_CODE,
+  McpSupervisorError,
+} from "./mcp-supervisor.js"
+export type {
+  DeclaredStdioServer,
+  McpLoadEvidence,
+} from "./mcp-supervisor.js"
+
 export { CONTEXT_BUDGET_EXCEEDED_CODE, executeTurn } from "./turn-executor.js"
 export type {
   EngineContextOptions,

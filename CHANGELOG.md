@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Add an engine-owned MCP stdio supervisor: load-time digest check, restart
+  budget of 2, and allowlist projection as declared tools ∩ Authority Scope.
+  Discovery extras never widen the allowlist (#301).
+
 - Export one engine-owned `intersectEffectiveSurface` function that computes
   the effective MCP/skill/network surface as `declared ∩ Authority Scope`
   (intersection-only, never widening) and a reconciled code namespace that

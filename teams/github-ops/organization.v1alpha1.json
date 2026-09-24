@@ -3,7 +3,7 @@
   "schemaVersion": "workspace-org.v1",
   "business": "github-ops",
   "description": "GitHub 运营团队：提交与评审分属不同岗位；评审使用独立身份，合并由操作者人工执行。",
-  "owner": null,
+  "owner": "issue-triage",
   "roles": [
     {
       "id": "issue-triage",

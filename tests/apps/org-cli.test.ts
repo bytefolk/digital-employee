@@ -285,6 +285,34 @@ test("#310 AC-002: optional connectors keep org apply output and artifacts byte-
   )
 })
 
+test("#295 committed github-ops team bootstraps with issue-triage as owner", async (t) => {
+  const home = await freshHome(t)
+  const env = cliEnvironment(home)
+  const target = path.join(home, "github-ops")
+  await cp(path.join(root, "teams", "github-ops"), target, { recursive: true })
+
+  const result = runCli(["org", "apply", target, "--json"], env, home)
+  assert.equal(result.status, 0, result.stderr)
+  const parsed = JSON.parse(result.stdout) as Record<string, unknown>
+  assert.equal(parsed.status, "applied")
+  assert.equal(parsed.bootstrapped, true)
+  assert.equal(parsed.positions, 3)
+
+  const model = await readJson(statePaths(target).model)
+  assert.equal(model.owner, "issue-triage")
+  assert.deepEqual(
+    (model.roles as Array<Record<string, unknown>>).map((role) => ({
+      id: role.id,
+      reportTo: role.reportTo,
+    })),
+    [
+      { id: "issue-triage", reportTo: null },
+      { id: "pr-author", reportTo: null },
+      { id: "pr-reviewer", reportTo: null },
+    ],
+  )
+})
+
 test("org apply is idempotent on an unchanged tree", async (t) => {
   const home = await freshHome(t)
   const env = cliEnvironment(home)

@@ -22,6 +22,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Restore `issue-triage` as the committed GitHub-operations team's owner so
+  its `workspace-org.v1` document validates and `org apply` can bootstrap the
+  three-position workspace (#295).
 - Use pinned development-only c8 12.0.0 with tsx 4.23.13 to merge mixed TSX
   and compiled subprocess source maps without order-dependent loss of executed
   source lines. Retain all nine production domains and the 85/65/80 coverage

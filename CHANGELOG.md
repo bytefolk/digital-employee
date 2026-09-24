@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Record the employee-package `policy.network` effective mode on every built-in
+  engine turn evidence record. S1 cannot enforce egress: `allowlist` and
+  `host_policy` are recorded as declared-but-unenforceable rather than silently
+  claimed as deny (#309).
+
 - Document a proposed next direction joining safety, trustworthy results and
   a minimal business ontology, with a read-only pilot, controlled-action gates,
   ownership boundaries and measurable acceptance criteria (#346). Design only;

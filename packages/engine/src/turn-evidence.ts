@@ -10,6 +10,7 @@ import type {
   PermissionDecisionSummary,
   PermissionDenialAttempt,
 } from "./org-permissions.js"
+import type { TurnEvidenceNetwork } from "./network-projection.js"
 
 export const TURN_EVIDENCE_VERSION = "turn-evidence.v1" as const
 
@@ -177,6 +178,8 @@ export interface TurnEvidenceRecord {
   memory?: TurnEvidenceMemory
   /** Digest-only workbench-context consumption evidence (#179 seam). */
   context?: TurnEvidenceContext
+  /** S1 network-policy projection (#309). Digest-free enum record only. */
+  network?: TurnEvidenceNetwork
   /** Assembly manifest digest from context-assembly.v1. */
   assemblyManifestDigest: string
   timeBounds: {
@@ -310,6 +313,7 @@ const ALLOWED_TOP_LEVEL_KEYS: ReadonlySet<string> = new Set([
   "permissions",
   "memory",
   "context",
+  "network",
   "assemblyManifestDigest",
   "timeBounds",
 ])

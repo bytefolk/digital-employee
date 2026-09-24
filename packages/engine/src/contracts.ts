@@ -232,6 +232,11 @@ export interface EngineTurnRequest {
   /** Tools this turn requests to call (enforced vs Authority Scope). */
   toolRequests?: readonly string[]
   /**
+   * Employee-package `policy.network` for this position (#309). Absent means
+   * undeclared. S1 records honesty; it does not enforce egress.
+   */
+  networkPolicy?: "deny" | "host_policy" | "allowlist"
+  /**
    * Write action declared at the capability gate (#187). Requires a
    * validated write-approval.v1 preview; the requesting turn settles as a
    * retryable failure carrying approval.requested. Mutually exclusive with

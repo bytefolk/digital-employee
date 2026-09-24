@@ -108,6 +108,13 @@ Recall mode is explicit:
 
 ## First-party CLI binding
 
+The ContextPort counterpart is the optional sibling object `contextPort`
+(`workspace-context.v1`, #304). It cannot reuse the existing `context` path
+field. Env-name indirection only; `command` paths do not belong in the
+workspace file. Absence or `enabled: false` leaves `turn run` unchanged.
+Required-mode outages fail closed with zero model consumption; optional mode
+degrades with a warning.
+
 `workspace init` writes a disabled `memory` block into `workspace.json` and a
 stable `workspaceInstanceId`. Enable it only after provisioning a position-
 scoped mem token and grant. The workspace file contains variable names, never

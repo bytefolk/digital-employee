@@ -90,7 +90,7 @@ Agent-native usage:
   digital-employee init <directory> [--recipe minimal-answer.v1|structured-action.v1] [--name employee-name] [--author author]
   digital-employee validate [directory] [--engine claude-code|qoder|codex|qwen-code|codebuddy] [--json]
   digital-employee eval [directory] [--json]
-  digital-employee run [directory] --engine claude-code|qoder|qwen-code|codebuddy (--stdin | --input-file path | --question "..." | --input '{"message":"..."}') [--json]
+  digital-employee run [directory] --engine claude-code|qoder|codex|qwen-code|codebuddy (--stdin | --input-file path | --question "..." | --input '{"message":"..."}') [--json]
   digital-employee stdio-host <config.json> [--question "..."] [--json]
 
 Standalone-v1 compatibility:
@@ -98,7 +98,7 @@ Standalone-v1 compatibility:
 
 Agent host diagnosis may execute a bounded local '<host> --version' probe.
 It does not attempt authentication, invoke a model, execute tools, or start an Agent run.
-Codex is probe-only.
+Codex is a fail-closed Adapter: doctor and run share one readiness view; --version is not entitlement.
 Eval is offline fixture conformance; it never invokes a model, Agent Host, MCP, or online service.
 The compatibility namespace uses the frozen model/retriever loop, not an Agent host.
 `;

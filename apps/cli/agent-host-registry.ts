@@ -14,6 +14,7 @@ import { createClaudeAgentHostAdapter } from "./claude-agent-host.js"
 import { createCodeBuddyAgentHostAdapter } from "./codebuddy-agent-host.js"
 import { createQoderAgentHostAdapter } from "./qoder-agent-host.js"
 import { createQwenAgentHostAdapter } from "./qwen-agent-host.js"
+import { createCodexAgentHostAdapter } from "./codex-agent-host.js"
 
 export interface BuiltInAgentHostRegistryOptions {
   /** Explicit environment seam for embedders and deterministic tests. */
@@ -37,6 +38,7 @@ const BUILT_IN_ADAPTER_FACTORIES: Readonly<
   qoder: () => createQoderAgentHostAdapter(),
   "qwen-code": () => createQwenAgentHostAdapter(),
   codebuddy: () => createCodeBuddyAgentHostAdapter(),
+  codex: () => createCodexAgentHostAdapter(),
 }
 
 /**
@@ -58,7 +60,13 @@ export function createBuiltInAgentHostRegistry(
                   ? { environment: options.environment }
                   : {}),
               })
-            : createAdapter()
+            : hostId === "codex"
+              ? createCodexAgentHostAdapter({
+                  ...(options.environment
+                    ? { environment: options.environment }
+                    : {}),
+                })
+              : createAdapter()
       : undefined
     registry.register({
       id: hostId,

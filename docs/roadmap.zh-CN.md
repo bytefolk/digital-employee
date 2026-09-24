@@ -24,7 +24,7 @@ GitHub Release 可用；必须以 release receipt 为准。下文的公开 `0.6.
 | 显式单跳委派 | 负责人到一个直接下属的 `task delegate` 路径，权限 scope 只取交集 | 公开 `0.6.0` 的**已发布预览 / deterministic E3**（最初随 `0.5.0` 发布）；不声称通用 graph、Workbench 持久化/UI 或逐 Host E4 |
 | Memory 与 Context 引擎接缝 | 可选、绑定 scope 的 `MemoryPort` 与只读 `ContextPort` wiring | `0.6.0` 的**已发布预览**；可生产长期记忆、Workbench 连续性与 context 蒸馏尚未交付 |
 | 本机 Agent Host 执行 | 对 Qoder CLI、Claude Code、Qwen Code、CodeBuddy Code 提供版本锁定的 one-shot 路径 | **preview** 且 **fixture-conformant**；尚未证明真实模型权益 |
-| Codex | 发现与 readiness 诊断 | **probe-only**；不是可运行 Adapter |
+| Codex | Fail-closed Adapter | **fail-closed runnable**；`--version` 不是 entitlement；无具名回执则 live HOLD |
 | Runner 内核 | 单任务的包摘要与密封快照、签名任务/租约校验、replay 端口、hash-chain 事件和签名回执 | 可嵌入的 **preview** 内核；未交付长期 Runner 或公开网络 SDK |
 | 兼容运行时 | `standalone-v1` 答疑员工运行时与 connectors | 已 **shipped** 的兼容路径；不是新主线能力的目标路径 |
 | 部署命令 | 绑定员工包的 `deploy`，诚实的本地结果与失败关闭恢复 | **preview** 能力面；HTTP 可到 `ready`；钉钉对账处于外部 HOLD |

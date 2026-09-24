@@ -31,7 +31,7 @@ boundary is recorded in [ADR 0002](decisions/0002-runner-execution-boundary.md).
 flowchart LR
   U["User or channel"] --> O["Digital Employee outer runtime"]
   O --> H["AgentHostAdapter"]
-  H --> A["Claude Code · Qoder CLI · Qwen Code · CodeBuddy Code<br/>Codex probe-only"]
+  H --> A["Claude Code · Qoder CLI · Qwen Code · CodeBuddy Code<br/>Codex fail-closed"]
   A --> T["Native tools · Skills · MCP"]
   O -. target service .-> G["Queue · policy · audit · escalation"]
   P["Portable employee package"] --> O
@@ -74,7 +74,7 @@ require private chain-of-thought.
 | Boundary | Target owner | Current source maturity |
 | --- | --- | --- |
 | Employee package, CLI and Host projection | Open framework on the operator machine | Authoring commands are shipped in source |
-| Agent execution and native tool loop | Installed Agent Host | Four locked one-shot paths are preview and fixture-conformant; Codex is probe-only |
+| Agent execution and native tool loop | Installed Agent Host | Four locked one-shot paths are preview and fixture-conformant; Codex is a fail-closed Adapter (live HOLD without a named receipt) |
 | Single-host package-bound deploy | Open framework on the operator machine | One local slot is shipped in source; HTTP has verified readiness, Console remains pending, DingTalk is blocked by the external DWS pagination contract, Lark/WeCom unsupported |
 | One-shot task verification and receipt | Open Runner kernel on the operator machine | Preview embeddable implementation is delivered |
 | Long-running Runner lifecycle, local deployment registry, durable replay/outbox and reconnect | Open framework on the operator machine | Target design; not delivered |
@@ -245,10 +245,12 @@ identity checks apply before launch as well as during execution. The final
 result must pass the employee output Schema. These fixtures are not a reusable
 third-party certification harness; live model entitlement has not been tested.
 
-Codex remains probe-only. Codex CLI 0.148.0 cannot reliably remove every
-model-visible built-in tool: disabling shell and unified execution still leaves
-paths such as `apply_patch`. Consequently it cannot claim the required
-default-deny `tool_allowlist`, even with a read-only filesystem policy.
+Codex is a fail-closed Adapter: `doctor` and `run` share one readiness view,
+and `--version` is not entitlement. Live Codex remains HOLD without a named
+receipt because Codex CLI 0.148.0 cannot reliably remove every model-visible
+built-in tool: disabling shell and unified execution still leaves paths such
+as `apply_patch`. Consequently it cannot claim the required default-deny
+`tool_allowlist`, even with a read-only filesystem policy.
 
 `network: deny` applies to employee tool and MCP data-plane egress. The Agent
 host's authentication and model control plane remains available; this

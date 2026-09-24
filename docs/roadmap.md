@@ -27,7 +27,7 @@ evidence, not a claim about another version's availability.
 | Explicit single-hop delegation | One owner-to-direct-report `task delegate` route with intersection-only scope | **released preview / deterministic E3** in public `0.6.0` (first published in `0.5.0`); no general graph, Workbench persistence/UI, or per-Host E4 claim |
 | Memory and Context engine seams | Opt-in scope-bound `MemoryPort` and read-only `ContextPort` wiring | **released preview** in `0.6.0`; productive long-term memory, Workbench continuity, and context distillation remain unshipped |
 | Local Agent Host execution | Version-gated one-shot paths for Qoder CLI, Claude Code, Qwen Code and CodeBuddy Code | **preview** and **fixture-conformant**; live entitlement is not proven |
-| Codex | Discovery and readiness diagnosis | **probe-only**; it is not a runnable Adapter |
+| Codex | Fail-closed Adapter | **fail-closed runnable**; `--version` is not entitlement; live HOLD without a named receipt |
 | Runner kernel | Package digest and sealed snapshot, signed task/lease verification, replay port, hash-chained events and signed receipt for one task | **preview** embeddable kernel; no long-running Runner or public network SDK is shipped |
 | Compatibility runtime | `standalone-v1` answer-agent runtime and connectors | **shipped** compatibility path; not the target for new mainline capabilities |
 | Deploy command | Package-bound `deploy` with truthful local outcome and fail-closed recovery | **preview** surface; HTTP can reach `ready`; DingTalk reconciliation is externally HOLD |

@@ -23,6 +23,11 @@ import {
   normalizeContextPath,
   positionDirectorySegments,
 } from "../../apps/cli/org/permissions.js"
+import {
+  OSS_MAINTAINER_TEMPLATE,
+  OSS_MAINTAINER_ZH_TEMPLATE,
+  workspaceWorkTerritory,
+} from "../../apps/cli/workspace/templates.js"
 
 const DIGEST = `sha256:${"a".repeat(64)}`
 
@@ -31,6 +36,7 @@ function makeRole(overrides: {
   reportTo: string | null
   toolAllow?: string[]
   toolDeny?: string[]
+  memoryScope?: string
 }): ValidatedOrganizationDocument["roles"][number] {
   return {
     id: overrides.id,
@@ -44,7 +50,7 @@ function makeRole(overrides: {
       localReference: `/tmp/oss/positions/${overrides.id}`,
     },
     mode: "read_only",
-    memoryScope: "/",
+    memoryScope: overrides.memoryScope ?? "/",
     toolAllow: overrides.toolAllow ?? ["Read", "Grep", "Glob"],
     toolDeny: overrides.toolDeny ?? [],
     metadata: {},
@@ -356,4 +362,123 @@ test("AC-011: a malformed mode fails org apply closed", () => {
       error instanceof TypeError &&
       error.message === "workspace_org_document_invalid:role_0_mode",
   )
+})
+
+test("#335 AC-001: worker memoryScope `/` derives exactly as today", () => {
+  const permissions = deriveOrganizationPermissions(BASE_MODEL)
+  assert.equal(BASE_MODEL.roles[1]!.memoryScope, "/")
+  assert.deepEqual(permissions.positions["issue-researcher"]!.contextScope.read, [
+    "./positions/repo-owner/issue-researcher/",
+    "./context/",
+  ])
+})
+
+test("#335 AC-001: worker memoryScope `./` is a legacy no-op", () => {
+  const model = makeDocument([
+    makeRole({ id: "repo-owner", reportTo: null }),
+    makeRole({
+      id: "issue-researcher",
+      reportTo: "repo-owner",
+      memoryScope: "./",
+    }),
+  ])
+  const permissions = deriveOrganizationPermissions(model)
+  assert.deepEqual(permissions.positions["issue-researcher"]!.contextScope.read, [
+    "./positions/repo-owner/issue-researcher/",
+    "./context/",
+  ])
+})
+
+test("#335 AC-002: worker `./work/<id>/` appends the work territory", () => {
+  const model = makeDocument([
+    makeRole({ id: "repo-owner", reportTo: null }),
+    makeRole({
+      id: "issue-researcher",
+      reportTo: "repo-owner",
+      memoryScope: "./work/issue-researcher/",
+    }),
+  ])
+  const permissions = deriveOrganizationPermissions(model)
+  assert.deepEqual(permissions.positions["issue-researcher"]!.contextScope.read, [
+    "./positions/repo-owner/issue-researcher/",
+    "./context/",
+    "./work/issue-researcher/",
+  ])
+  assert.deepEqual(
+    evaluateContextAccess(
+      permissions,
+      "issue-researcher",
+      "./work/issue-researcher/notes.md",
+    ),
+    { status: "allowed" },
+  )
+  const denied = [
+    "./work/release-engineer/notes.md",
+    "./positions/repo-owner/release-notes.md",
+    "./workspace.json",
+  ]
+  for (const requested of denied) {
+    assert.deepEqual(
+      evaluateContextAccess(permissions, "issue-researcher", requested),
+      {
+        status: "denied",
+        code: "workspace_org_context_denied",
+        redirectTo: "repo-owner",
+      },
+      requested,
+    )
+  }
+})
+
+test("#335 AC-003: memoryScope failing normalizeContextPath is rejected at org apply", () => {
+  for (const bad of ["/abs/path", "../escape", "a\\b", "C:/windows"]) {
+    const roles = [
+      rawRole({ id: "repo-owner", reportTo: null }),
+      {
+        ...rawRole({ id: "issue-researcher", reportTo: "repo-owner" }),
+        memoryScope: bad,
+      },
+    ]
+    assert.throws(
+      () => validateOrganizationDocument(rawDocument(roles)),
+      (error: unknown) =>
+        error instanceof TypeError &&
+        error.message === "workspace_org_document_invalid:role_1_memory_scope",
+      `expected rejection for ${JSON.stringify(bad)}`,
+    )
+  }
+})
+
+test("#335 AC-004: owner derivation remains [`./`] regardless of memoryScope", () => {
+  const model = makeDocument([
+    makeRole({
+      id: "repo-owner",
+      reportTo: null,
+      memoryScope: "./work/repo-owner/",
+    }),
+    makeRole({
+      id: "issue-researcher",
+      reportTo: "repo-owner",
+      memoryScope: "./work/issue-researcher/",
+    }),
+  ])
+  const permissions = deriveOrganizationPermissions(model)
+  assert.deepEqual(permissions.positions["repo-owner"]!.contextScope.read, ["./"])
+})
+
+test("#335 AC-005: templated worker roles default to `./work/<positionId>/`", () => {
+  for (const template of [OSS_MAINTAINER_TEMPLATE, OSS_MAINTAINER_ZH_TEMPLATE]) {
+    for (const role of template.roles) {
+      if (role.id === template.owner) {
+        assert.equal(role.memoryScope, "/", `${template.id} owner`)
+        continue
+      }
+      assert.equal(
+        role.memoryScope,
+        workspaceWorkTerritory(role.id),
+        `${template.id} ${role.id}`,
+      )
+      assert.equal(role.memoryScope, `./work/${role.id}/`)
+    }
+  }
 })

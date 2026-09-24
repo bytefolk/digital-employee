@@ -22,7 +22,7 @@
 
 | 映射 | 含义 |
 | --- | --- |
-| 一个目录 = 一家企业 | `workspace init` 把本地目录变成业务工作区：组织树、岗位和业务 Context 区域。 |
+| 一个目录 = 一家企业 | `workspace init` 把本地目录变成业务工作区：组织树、岗位、共享 `context/`，以及按岗位划分的 `work/<positionId>/` 工作领地。`positions/` 是摘要封印的定义平面。 |
 | 一个岗位 = 一名可寻址数字员工 | `chat @position` 直接按名称寻址岗位；岗位 id 是跨会话、跨 Host 不变的稳定身份。每个新招岗位必须先配预算，变更才能生效。 |
 | 一次对话 = 带岗位 Context 与权限边界的工作 | 对话只加载该岗位的 Context 切片，并在其 Authority Scope 内运行；越界请求被拒绝，而不是被悄悄放宽。 |
 | 组织层级 = 业务负责人 → 数字员工 | 负责人看到业务全局、委派工作并对结果负责；员工只看到岗位被允许看到的切片。预算超限沿汇报线升级——汇报链与预算治理共用同一套升级机制。 |
@@ -103,7 +103,10 @@ Digital Employee 不再实现另一套通用模型。岗位运行在内建的、
 - 岗位预算治理：每个新招岗位必须先配预算，变更才能生效；预算上限由引擎 loop 层
   执行；预算超限沿汇报线升级（#157）；
 - 岗位权限边界：Context Scope（岗位可以召回的业务切片）与 Authority Scope（岗位
-  可调用的工具），owner/worker 默认档位，无静默继承；
+  可调用的工具），owner/worker 默认档位，无静默继承。Worker 读范围是
+  `[./positions/<汇报链分段>/, ./context/, <memoryScope>]`；`/` 与 `./` 是遗留
+  no-op。Owner 仍为 `["./"]`。模板化 worker 的 `memoryScope` 默认为
+  `./work/<positionId>/`；
 - 长期 Context 集成：`mem` R1 级记忆平面写入与召回，加上基于规则的 `context` 事实
   蒸馏，将持续性与 Host 原生会话恢复解耦；
 - 作为默认 Host 方向的内建 TypeScript 原生执行引擎（S1/turn 核心已有已发布预览；

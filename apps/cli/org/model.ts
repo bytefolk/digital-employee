@@ -485,8 +485,9 @@ function buildRoleRecord(
     },
     mode: manifest.policy.mode,
     // Fail-closed defaults for a fresh hire: the position sees its own
-    // package slice only and declares no tools until granted (#159).
-    memoryScope: "./",
+    // package slice plus its work territory, and declares no tools until
+    // granted (#159, #335).
+    memoryScope: `./work/${position.id}/`,
     toolAllow: [],
     toolDeny: [],
     metadata: {},

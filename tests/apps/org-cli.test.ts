@@ -369,6 +369,7 @@ test("AC-004: adding a position directory with a valid package and budget hires 
   )
   // Hire default-deny posture: no tools granted until declared (#159).
   assert.deepEqual(hired.toolAllow, [])
+  assert.equal(hired.memoryScope, "./work/support-engineer/")
 
   // The audit entry records the full hired position (budget included).
   const audit = await readAuditEntries(paths.audit)
@@ -740,6 +741,31 @@ test("org tree/apply reject multiple directory arguments", async (t) => {
   )
 })
 
+test("#335 AC-003: hostile memoryScope fails org apply closed", async (t) => {
+  const home = await freshHome(t)
+  const env = cliEnvironment(home)
+  const target = await initWorkspace(t, home, env)
+  const organizationPath = path.join(target, "organization.v1alpha1.json")
+  const organization = await readJson(organizationPath)
+  const roles = organization.roles as Array<Record<string, unknown>>
+  const worker = roles.find((role) => role.id === "issue-researcher")
+  assert.ok(worker)
+  worker.memoryScope = "../escape"
+  await writeFile(organizationPath, `${JSON.stringify(organization, null, 2)}\n`)
+
+  const result = runCli(["org", "apply", target, "--json"], env, home)
+  assert.equal(result.status, 1, result.stdout)
+  assert.equal(
+    (JSON.parse(result.stdout) as Record<string, unknown>).code,
+    "workspace_org_file_invalid",
+  )
+  assert.equal(
+    (await readdir(target)).includes(".digital-employee"),
+    false,
+    "invalid apply must not write org state",
+  )
+})
+
 test("#159 AC-001: org scope derives owner vs worker tiers from the org model", async (t) => {
   const home = await freshHome(t)
   const env = cliEnvironment(home)
@@ -771,7 +797,11 @@ test("#159 AC-001: org scope derives owner vs worker tiers from the org model", 
   const workerScope = JSON.parse(worker.stdout) as Record<string, unknown>
   assert.equal(workerScope.tier, "worker")
   assert.deepEqual(workerScope.contextScope, {
-    read: ["./positions/repo-owner/issue-researcher/", "./context/"],
+    read: [
+      "./positions/repo-owner/issue-researcher/",
+      "./context/",
+      "./work/issue-researcher/",
+    ],
   })
   const workerAuthority = workerScope.authorityScope as Record<string, unknown>
   assert.equal(workerAuthority.writes, "deny")
@@ -896,6 +926,41 @@ test("#159 AC-002: a worker asking owner-only context is rejected and pointed at
     home,
   )
   assert.equal(shared.status, 0, shared.stderr)
+
+  const ownWork = runCli(
+    [
+      "org",
+      "scope",
+      "issue-researcher",
+      target,
+      "--context",
+      "./work/issue-researcher/notes.md",
+      "--json",
+    ],
+    env,
+    home,
+  )
+  assert.equal(ownWork.status, 0, ownWork.stderr)
+  assert.equal((JSON.parse(ownWork.stdout) as Record<string, unknown>).status, "allowed")
+
+  const siblingWork = runCli(
+    [
+      "org",
+      "scope",
+      "issue-researcher",
+      target,
+      "--context",
+      "./work/release-engineer/notes.md",
+      "--json",
+    ],
+    env,
+    home,
+  )
+  assert.equal(siblingWork.status, 1)
+  assert.equal(
+    (JSON.parse(siblingWork.stdout) as Record<string, unknown>).code,
+    "workspace_org_context_denied",
+  )
 
   // The owner reads everything, including the organization state.
   const ownerRead = runCli(

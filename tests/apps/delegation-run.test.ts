@@ -212,6 +212,7 @@ test("AC-009: Qoder and Claude Code pass the identical deterministic E3 path", a
         read: [
           "./context/**",
           "./positions/repo-owner/issue-researcher/**",
+          "./work/issue-researcher/**",
         ],
         write: [],
       },

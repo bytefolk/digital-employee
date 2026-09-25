@@ -330,8 +330,9 @@ docker run --rm -p 3000:3000 digital-employee:candidate \
 ## What the product owns
 
 - the workspace skeleton and organization model: the directory tree is the org
-  chart, and every hire carries a budget (`workspace init`, `org tree`, and
-  `org apply` are released previews);
+  chart, `work/<positionId>/` is each position's work territory, `positions/`
+  stays a digest-sealed definition plane, and every hire carries a budget
+  (`workspace init`, `org tree`, and `org apply` are released previews);
 - position conversation with Context and permission boundaries (the turn,
   permission, and explicit single-hop seams are released previews; the
   `chat @position` Workbench product path remains planned);

@@ -58,6 +58,9 @@
     "context": {
       "$ref": "#/$defs/portablePath"
     },
+    "work": {
+      "$ref": "#/$defs/portablePath"
+    },
     "memory": {
       "$ref": "#/$defs/memory"
     }

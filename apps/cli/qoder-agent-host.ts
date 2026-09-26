@@ -42,6 +42,10 @@ import {
   waitForAgentHostProcessTreeExit,
 } from "./agent-host-process-tree.js"
 import { prepareOutputSchemaSnapshot } from "./output-schema-guard.js"
+import {
+  buildQoderMcpConfig,
+  QoderMcpConfigError,
+} from "./qoder-mcp-config.js"
 
 const QODER_HOST_ID = "qoder"
 const QODER_DISPLAY_NAME = "Qoder CLI"
@@ -176,6 +180,7 @@ function capabilities(): AgentHostCapabilities {
     "tool_allowlist",
     "filesystem_scope",
     "network_policy",
+    "mcp",
     "cancellation",
     "structured_output",
   ] as const) {
@@ -184,7 +189,6 @@ function capabilities(): AgentHostCapabilities {
   for (const capability of [
     "session_resume",
     "attachments",
-    "mcp",
     "approval_callback",
     "sandbox",
   ] as const) {
@@ -386,15 +390,23 @@ function validateRequestShape(
   if (request.policy.tools.default !== "deny") {
     throw new QoderAdapterError("qoder_tool_policy_must_default_deny")
   }
-  if (
-    request.policy.tools.allow.some(
-      (tool) =>
-        tool.mode !== "read" ||
-        (tool.name !== "filesystem.read" &&
-          tool.name !== "filesystem.search"),
-    )
-  ) {
-    throw new QoderAdapterError("qoder_tool_policy_unsupported")
+  const mcpServerNameSet = new Set(
+    (request.mcpServers ?? []).map((server) => server.name),
+  )
+  for (const tool of request.policy.tools.allow) {
+    if (tool.mode !== "read") {
+      throw new QoderAdapterError("qoder_tool_policy_unsupported")
+    }
+    if (tool.name === "filesystem.read" || tool.name === "filesystem.search") {
+      continue
+    }
+    // Non-filesystem tools are only the MCP toolbox an employee declares as
+    // `<server>.<tool>`. Each must map back to a declared MCP server or it is
+    // rejected fail-closed rather than silently dropped.
+    const server = tool.name.split(".")[0]
+    if (!server || !mcpServerNameSet.has(server)) {
+      throw new QoderAdapterError("qoder_tool_policy_unsupported")
+    }
   }
   const hasFilesystemTool = request.policy.tools.allow.some(
     (tool) =>
@@ -419,7 +431,15 @@ function validateRequestShape(
     throw new QoderAdapterError("qoder_attachments_unsupported")
   }
   if (request.mcpServers?.length) {
-    throw new QoderAdapterError("qoder_mcp_unsupported")
+    try {
+      buildQoderMcpConfig(request.mcpServers)
+    } catch (error) {
+      throw new QoderAdapterError(
+        error instanceof QoderMcpConfigError
+          ? error.code
+          : "qoder_mcp_config_invalid",
+      )
+    }
   }
   if (request.session?.mode === "resume") {
     throw new QoderAdapterError("qoder_session_resume_unsupported")
@@ -685,6 +705,7 @@ function filteredRunEnvironment(
   configDirectory: string,
   temporaryDirectory: string,
   authPayloadPath: string,
+  mcpEnvironmentNames: string[] = [],
 ): NodeJS.ProcessEnv {
   const result: NodeJS.ProcessEnv = {
     HOME: home,
@@ -711,6 +732,12 @@ function filteredRunEnvironment(
     "WINDIR",
   ]) {
     if (source[key]) result[key] = source[key]
+  }
+  // MCP stdio transports reference credentials by name only. Forward exactly
+  // those declared names so `${NAME}` references inside the emitted config
+  // resolve against the adapter's own (filtered) environment.
+  for (const name of mcpEnvironmentNames) {
+    if (!result[name] && source[name]) result[name] = source[name]
   }
   return result
 }
@@ -1151,6 +1178,11 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
         }
       }
 
+      const mcpConfig = buildQoderMcpConfig(request.mcpServers)
+      const mcpEnvironmentNames = (request.mcpServers ?? []).flatMap(
+        (server) =>
+          server.transport === "stdio" ? server.environment ?? [] : [],
+      )
       const deniedTools = [
         "Write",
         "Edit",
@@ -1162,10 +1194,13 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
         "Agent",
         "Task",
         "Skill",
-        "mcp__*",
+        // No MCP servers declared: deny the whole MCP tool namespace fail-closed.
+        // When servers are declared, the server-level allowlist
+        // (--allowed-mcp-server-names) replaces this blanket deny instead.
+        ...(mcpConfig.serverNames.length === 0 ? ["mcp__*"] : []),
       ]
       const settingsPath = path.join(configDirectory, "adapter-settings.json")
-      const mcpPath = path.join(configDirectory, "empty-mcp.json")
+      const mcpPath = path.join(configDirectory, "mcp-config.json")
       authPayloadPath = path.join(configDirectory, "auth-payload.json")
       credential = this.environment.QODER_PERSONAL_ACCESS_TOKEN?.trim() ?? ""
       if (!credential) {
@@ -1177,7 +1212,7 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
           `${JSON.stringify({ permissions: { deny: deniedTools } })}\n`,
           { flag: "wx", mode: 0o600 },
         ),
-        writeFile(mcpPath, '{"mcpServers":{}}\n', {
+        writeFile(mcpPath, mcpConfig.json, {
           flag: "wx",
           mode: 0o600,
         }),
@@ -1252,6 +1287,9 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
         "--strict-mcp-config",
         "--mcp-config",
         mcpPath,
+        ...(mcpConfig.serverNames.length
+          ? ["--allowed-mcp-server-names", mcpConfig.serverNames.join(",")]
+          : []),
         "--disable-builtin-skills",
         "--disallowed-tools",
         deniedTools.join(","),
@@ -1277,6 +1315,7 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
           configDirectory,
           temporaryDirectory,
           authPayloadPath,
+          mcpEnvironmentNames,
         ),
       })
       active.child = child
@@ -1427,14 +1466,27 @@ export class QoderAgentHostAdapter implements AgentHostAdapter {
               ? await realpath(event.cwd).catch(() => "")
               : ""
           const actualTools = tools ? [...new Set(tools)].sort() : undefined
+          const actualMcpNames = Array.isArray(mcpServers)
+            ? mcpServers
+                .map((server) =>
+                  server &&
+                  typeof server === "object" &&
+                  typeof (server as Record<string, unknown>).name === "string"
+                    ? (server as Record<string, unknown>).name
+                    : undefined,
+                )
+                .sort()
+            : undefined
+          const expectedMcpNames = [...mcpConfig.serverNames].sort()
           const policyOk =
             !!actualTools &&
             JSON.stringify(actualTools) ===
               JSON.stringify([...expectedTools].sort()) &&
             actualCwd === (await realpath(workspace)) &&
             (mode === "dontAsk" || mode === "dont_ask") &&
-            !!mcpServers &&
-            mcpServers.length === 0 &&
+            !!actualMcpNames &&
+            JSON.stringify(actualMcpNames) ===
+              JSON.stringify(expectedMcpNames) &&
             !!plugins &&
             plugins.length === 0 &&
             !!skills &&

@@ -61,6 +61,33 @@ async function employeeRequest(
   }
 }
 
+/**
+ * A minimal, self-contained run request that does not depend on
+ * `createEmployeePackage` (whose recipe skill rename is line-ending sensitive
+ * on Windows). Used by the MCP wiring tests so they stay platform-agnostic.
+ */
+function mcpRequest(
+  parent: string,
+  runId: string,
+  mcpServers: AgentHostRunRequest["mcpServers"],
+): AgentHostRunRequest {
+  return {
+    runId,
+    employeeId: "mcp-employee",
+    workingDirectory: parent,
+    workspaceFiles: [],
+    prompt: "Complete the task.",
+    session: { mode: "new" },
+    mcpServers,
+    policy: {
+      tools: { default: "deny", allow: [] },
+      filesystem: { read: [], write: [] },
+      network: { mode: "deny" },
+      approval: { mode: "never" },
+    },
+  }
+}
+
 function adapter(
   parent: string,
   mode = "success",
@@ -137,7 +164,7 @@ test("Qoder probe reports only the fixture-verified stateless capabilities", asy
   assert.equal(probe.capabilities.filesystem_scope, "supported")
   assert.equal(probe.capabilities.network_policy, "supported")
   assert.equal(probe.capabilities.structured_output, "supported")
-  assert.equal(probe.capabilities.mcp, "unsupported")
+  assert.equal(probe.capabilities.mcp, "supported")
   assert.equal(probe.capabilities.usage_events, "unknown")
   const disclosure = probe.issues.find(
     (entry) => entry.code === "qoder_handshake_verified_by_conformance_only",
@@ -1342,4 +1369,74 @@ test("Qoder adapter honours an explicit options.command without walking the fall
     { command: "/custom/qoder", args: ["--version"] },
   ])
   assert.equal(probe.issues.find((issue) => issue.code === "qoder_command_selected")?.message, "Qoder command: /custom/qoder")
+})
+
+test("Qoder run translates declared stdio MCP servers into a pinned qoder config", async (t) => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "qoder-mcp-"))
+  t.after(() => rm(parent, { recursive: true, force: true }))
+  const capture = path.join(parent, "capture.json")
+  const request = mcpRequest(parent, "run-mcp-stdio", [
+    {
+      name: "search",
+      transport: "stdio",
+      command: "search-mcp",
+      environment: ["SEARCH_API_KEY"],
+    },
+  ])
+
+  const events = await collect(
+    adapter(parent, "zero-tool", capture, 30_000, {
+      environment: {
+        PATH: process.env.PATH,
+        QODER_PERSONAL_ACCESS_TOKEN:"fixture-service-token",
+        SEARCH_API_KEY: "top-secret-value",
+      },
+    }).run(request),
+  )
+  assert.equal(events.at(-1)?.type, "run.completed")
+
+  const captured = JSON.parse(await readFile(capture, "utf8"))
+  const mcpConfigIndex = captured.args.indexOf("--mcp-config")
+  assert.notEqual(mcpConfigIndex, -1)
+  const mcpConfigPath = captured.args[mcpConfigIndex + 1]
+  assert.equal(typeof mcpConfigPath, "string")
+
+  // The allowed-server-names flag must pin the declared server explicitly.
+  const allowedIndex = captured.args.indexOf("--allowed-mcp-server-names")
+  assert.notEqual(allowedIndex, -1)
+  assert.equal(captured.args[allowedIndex + 1], "search")
+
+  // The secret value must not leak into argv; only the env reference is safe.
+  assert.equal(JSON.stringify(captured.args).includes("top-secret-value"), false)
+
+  // The emitted config file must never contain the literal secret.
+  const parsedConfig = captured.mcpConfigContent
+  assert.deepEqual(Object.keys(parsedConfig.mcpServers), ["search"])
+  assert.equal(
+    JSON.stringify(parsedConfig).includes("top-secret-value"),
+    false,
+  )
+
+  // The declared environment name must be forwarded to the run process so the
+  // `${NAME}` reference can resolve at runtime.
+  assert.equal(
+    captured.environmentKeys.includes("SEARCH_API_KEY"),
+    true,
+  )
+})
+
+test("Qoder preflight rejects an unsupported http MCP transport before any run", async (t) => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "qoder-mcp-http-"))
+  t.after(() => rm(parent, { recursive: true, force: true }))
+  const request = mcpRequest(parent, "run-mcp-http", [
+    { name: "remote", transport: "http", url: "https://mcp.example.test" },
+  ])
+  const preflight = await adapter(parent).preflight(request)
+  assert.equal(preflight.status, "not_ready")
+  assert.equal(
+    preflight.issues.some(
+      (issue) => issue.code === "qoder_mcp_http_transport_unsupported:remote",
+    ),
+    true,
+  )
 })

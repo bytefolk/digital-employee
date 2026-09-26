@@ -14,6 +14,17 @@ import type { AgentHostMcpServer } from "../../packages/core/src/agent-host.js"
 
 const SERVER_NAME_PATTERN = /^[a-z0-9](?:[a-z0-9._-]{0,127})$/
 const ENV_NAME_PATTERN = /^[A-Z][A-Z0-9_]{0,127}$/
+const DENIED_MCP_ENV_NAMES = new Set([
+  // Adapter / cloud credentials the parent must not hand to an MCP server wholesale.
+  "AWS_SECRET_ACCESS_KEY",
+  "AWS_SESSION_TOKEN",
+  "GITHUB_TOKEN",
+  "GITLAB_TOKEN",
+  "QODER_PERSONAL_ACCESS_TOKEN",
+  "QODER_SERVICE_TOKEN",
+  "QODER_API_KEY",
+])
+
 
 export const MAX_QODER_MCP_SERVERS = 16
 const MAX_COMMAND_LENGTH = 1_024
@@ -73,13 +84,19 @@ function requireArgs(value: unknown, label: string): string[] {
   return [...(value as string[])]
 }
 
-function requireEnvNames(value: unknown, label: string): string[] {
+function requireEnvNames(
+  value: unknown,
+  label: string,
+): string[] {
   if (value === undefined) return []
   if (
     !Array.isArray(value) ||
     value.length > MAX_ENV_ENTRIES ||
     value.some(
-      (entry) => typeof entry !== "string" || !ENV_NAME_PATTERN.test(entry),
+      (entry) =>
+        typeof entry !== "string" ||
+        !ENV_NAME_PATTERN.test(entry) ||
+        DENIED_MCP_ENV_NAMES.has(entry),
     )
   ) {
     fail(`qoder_mcp_invalid_field:${label}`)

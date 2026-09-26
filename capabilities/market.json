@@ -1,0 +1,212 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fullstack-ai-infra/digital-employee/main/configs/capability-market.schema.json",
+  "schemaVersion": "capability-market.v1alpha1",
+  "capabilities": [
+    {
+      "id": "playwright",
+      "kind": "mcp",
+      "title": "Playwright (browser automation)",
+      "description": "Microsoft's official browser-automation MCP server. Drives Chromium/Firefox/WebKit through the accessibility tree, so models act on structured page state instead of screenshots. This is the default computer-use / chrome-use capability.",
+      "homepage": "https://github.com/microsoft/playwright-mcp",
+      "license": "Apache-2.0",
+      "tags": ["browser", "computer-use", "chrome-use", "automation", "accessibility"],
+      "transport": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["@playwright/mcp@latest"]
+      },
+      "auth": { "required": [], "optional": [] },
+      "network": { "required": true, "hosts": [] },
+      "risk": "high"
+    },
+    {
+      "id": "browser-use",
+      "kind": "mcp",
+      "title": "Browser Use",
+      "description": "Agentic browser automation that navigates the web like a human: it handles forms, clicks, and CAPTCHA flows through a real browser. Exposed as MCP under com.browser-use/browser-use. Requires a model provider key because it is itself an agent.",
+      "homepage": "https://github.com/browser-use/browser-use",
+      "license": "MIT",
+      "tags": ["browser", "computer-use", "agent", "captcha", "automation"],
+      "transport": {
+        "type": "stdio",
+        "command": "uvx",
+        "args": ["browser-use"]
+      },
+      "auth": {
+        "required": [],
+        "optional": ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "BROWSER_USE_API_KEY"]
+      },
+      "network": { "required": true, "hosts": [] },
+      "risk": "high"
+    },
+    {
+      "id": "invisible-playwright",
+      "kind": "mcp",
+      "title": "Invisible Playwright (anti-bot)",
+      "description": "Playwright MCP server on anti-detect stealth Firefox, tuned to be invisible to anti-bots and CAPTCHAs. Use for scraping and computer-use on sites that block vanilla browsers.",
+      "homepage": "https://github.com/feder-cr/invisible_playwright_mcp",
+      "license": "MIT",
+      "tags": ["browser", "computer-use", "anti-bot", "captcha", "scraping"],
+      "transport": {
+        "type": "stdio",
+        "command": "uvx",
+        "args": ["invisible-playwright-mcp"]
+      },
+      "auth": { "required": [], "optional": ["OPENROUTER_API_KEY"] },
+      "network": { "required": true, "hosts": [] },
+      "risk": "high"
+    },
+    {
+      "id": "searxng",
+      "kind": "mcp",
+      "title": "SearXNG (self-hosted metasearch)",
+      "description": "Self-hosted metasearch that aggregates multiple engines (Google, Bing, Brave, DuckDuckGo and more) behind one privacy-respecting API. Recommended as the primary search capability to avoid per-engine ads and rate limits.",
+      "homepage": "https://github.com/searxng/searxng",
+      "license": "AGPL-3.0",
+      "tags": ["search", "metasearch", "self-hosted", "privacy"],
+      "transport": {
+        "type": "http",
+        "url": "https://searxng.example.test/search",
+        "headers": []
+      },
+      "auth": { "required": [], "optional": ["SEARXNG_URL"] },
+      "network": { "required": true, "hosts": ["searxng.example.test"] },
+      "risk": "medium"
+    },
+    {
+      "id": "brave-search",
+      "kind": "mcp",
+      "title": "Brave Search API",
+      "description": "Brave's independent search index over a clean JSON API. A compliant alternative to scraping Google results. Requires a Brave Search API key.",
+      "homepage": "https://github.com/brave/brave-search-mcp",
+      "license": "MIT",
+      "tags": ["search", "api", "compliance"],
+      "transport": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@brave/brave-search-mcp"]
+      },
+      "auth": { "required": ["BRAVE_API_KEY"], "optional": [] },
+      "network": { "required": true, "hosts": ["api.search.brave.com"] },
+      "risk": "medium"
+    },
+    {
+      "id": "tavily",
+      "kind": "mcp",
+      "title": "Tavily Search API",
+      "description": "Search and extract API purpose-built for agents, with a ready MCP server. Requires a Tavily API key.",
+      "homepage": "https://github.com/tavily-ai/tavily-mcp",
+      "license": "MIT",
+      "tags": ["search", "api", "agent"],
+      "transport": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "tavily-mcp"]
+      },
+      "auth": { "required": ["TAVILY_API_KEY"], "optional": [] },
+      "network": { "required": true, "hosts": ["api.tavily.com"] },
+      "risk": "medium"
+    },
+    {
+      "id": "google-custom-search",
+      "kind": "mcp",
+      "title": "Google Custom Search (official API)",
+      "description": "The compliant way to query Google: Google's official Custom Search JSON API, not result-page scraping. Requires GOOGLE_API_KEY and a GOOGLE_CSE_ID; subject to Google's quota and terms.",
+      "homepage": "https://developers.google.com/custom-search/v1/overview",
+      "tags": ["search", "api", "google", "compliance"],
+      "transport": {
+        "type": "stdio",
+        "command": "uvx",
+        "args": ["google-custom-search-mcp"]
+      },
+      "auth": { "required": ["GOOGLE_API_KEY", "GOOGLE_CSE_ID"], "optional": [] },
+      "network": { "required": true, "hosts": ["www.googleapis.com"] },
+      "risk": "medium"
+    },
+    {
+      "id": "filesystem",
+      "kind": "mcp",
+      "title": "Filesystem (official)",
+      "description": "Official MCP reference server exposing a configurable directory root for read/write file operations. Mirrors the employee filesystem scope.",
+      "homepage": "https://github.com/modelcontextprotocol/servers",
+      "license": "MIT",
+      "tags": ["filesystem", "official"],
+      "transport": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
+      },
+      "auth": { "required": [], "optional": [] },
+      "network": { "required": false, "hosts": [] },
+      "risk": "medium"
+    },
+    {
+      "id": "memory",
+      "kind": "mcp",
+      "title": "Memory (official)",
+      "description": "Official MCP reference server for a knowledge-graph-based persistent memory store.",
+      "homepage": "https://github.com/modelcontextprotocol/servers",
+      "license": "MIT",
+      "tags": ["memory", "knowledge-graph", "official"],
+      "transport": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-memory"]
+      },
+      "auth": { "required": [], "optional": [] },
+      "network": { "required": false, "hosts": [] },
+      "risk": "low"
+    },
+    {
+      "id": "git",
+      "kind": "mcp",
+      "title": "Git (official)",
+      "description": "Official MCP reference server for git operations: status, diff, log, and commit against a local repository.",
+      "homepage": "https://github.com/modelcontextprotocol/servers",
+      "license": "MIT",
+      "tags": ["git", "vcs", "official"],
+      "transport": {
+        "type": "stdio",
+        "command": "uvx",
+        "args": ["mcp-server-git"]
+      },
+      "auth": { "required": [], "optional": [] },
+      "network": { "required": false, "hosts": [] },
+      "risk": "low"
+    },
+    {
+      "id": "fetch",
+      "kind": "mcp",
+      "title": "Fetch (official)",
+      "description": "Official MCP reference server that fetches a URL and returns its content as Markdown, bound to host policy for egress.",
+      "homepage": "https://github.com/modelcontextprotocol/servers",
+      "license": "MIT",
+      "tags": ["fetch", "http", "official"],
+      "transport": {
+        "type": "stdio",
+        "command": "uvx",
+        "args": ["mcp-server-fetch"]
+      },
+      "auth": { "required": [], "optional": [] },
+      "network": { "required": true, "hosts": [] },
+      "risk": "medium"
+    },
+    {
+      "id": "playwright-cli",
+      "kind": "cli",
+      "title": "Playwright CLI (SKILLS)",
+      "description": "Token-efficient browser automation as a CLI exposed through skills, preferred for high-throughput coding agents that want concise commands instead of verbose MCP tool schemas.",
+      "homepage": "https://github.com/microsoft/playwright-cli",
+      "license": "Apache-2.0",
+      "tags": ["browser", "computer-use", "cli", "skills"],
+      "command": {
+        "command": "npx",
+        "args": ["@playwright/cli@latest"],
+        "install": "npm install -g @playwright/cli"
+      },
+      "auth": { "required": [], "optional": [] },
+      "network": { "required": true, "hosts": [] },
+      "risk": "high"
+    }
+  ]
+}

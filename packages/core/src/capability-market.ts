@@ -19,8 +19,11 @@ export const CAPABILITY_MARKET_SCHEMA_VERSION = "capability-market.v1alpha1"
 const IDENTIFIER_PATTERN = /^[a-z0-9](?:[a-z0-9._-]{0,127})$/
 const ENVIRONMENT_NAME_PATTERN = /^[A-Z][A-Z0-9_]{0,127}$/
 const HEADER_NAME_PATTERN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,128}$/
-const HOST_PATTERN =
-  /^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/i
+// Rejects loopback-ish/single-label placeholders and malformed DNS labels
+// such as `localhost` or `a..b`. Real hosts must be at least two labels
+// (subdomain + TLD) with no consecutive or trailing dots.
+const HOST_PATTERN = /^(?!localhost$)(?!.*\.\.)[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?\.[a-z]{2,}$/
+
 
 const CAPABILITY_KINDS = ["mcp", "cli", "connector"] as const
 const RISK_LEVELS = ["low", "medium", "high"] as const
@@ -136,6 +139,7 @@ function stringList(
   label: string,
   pattern?: RegExp,
   maxItems = 128,
+  unique = true,
 ): string[] {
   if (!Array.isArray(value) || value.length > maxItems) {
     throw marketError(`capability_market_invalid_field:${label}`)
@@ -143,7 +147,7 @@ function stringList(
   const result = value.map((item, index) =>
     requireString(item, `${label}[${index}]`, pattern, 4_096),
   )
-  if (new Set(result).size !== result.length) {
+  if (unique && new Set(result).size !== result.length) {
     throw marketError(`capability_market_duplicate_value:${label}`)
   }
   return result
@@ -182,7 +186,7 @@ function validateTransport(
     return {
       type: "stdio",
       command: requireString(transport.command, `${label}.command`, undefined, 1_024),
-      args: stringList(transport.args ?? [], `${label}.args`, undefined, 128),
+      args: stringList(transport.args ?? [], `${label}.args`, undefined, 128, false),
       environment: stringList(
         transport.environment ?? [],
         `${label}.environment`,
@@ -239,7 +243,7 @@ function validateCommand(value: unknown, label: string): CapabilityCliCommand {
   const command = assertKnownKeys(value, ["command", "args", "install"], label)
   const result: CapabilityCliCommand = {
     command: requireString(command.command, `${label}.command`, undefined, 1_024),
-    args: stringList(command.args ?? [], `${label}.args`, undefined, 128),
+    args: stringList(command.args ?? [], `${label}.args`, undefined, 128, false),
   }
   const install = optionalString(command.install, `${label}.install`, undefined, 1_024)
   if (install !== undefined) result.install = install

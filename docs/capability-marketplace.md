@@ -2,6 +2,8 @@
 
 > 状态：能力市场清单 + 校验层已落地（本仓库）。qoder Agent Host 的 MCP stdio 打通已完成、http 传输待与 network 政策一并决定；RoleWeave 桌面端集成为后续阶段。
 
+> **http transport 条目的 UI 处置**：`capabilities/market.json` 里 searxng 等 http transport 条目**先上架但 UI 标为「暂不可用」**——它们作为合法的 capability 声明可浏览、可看安全元数据，但在 qoder adapter 的 http 传输未落地前（`qoder_mcp_http_transport_unsupported`），不能装配到员工包、不能被宿主运行时加载。待 http + network 政策一并决定后再放开装配。
+
 ## 1. 它是什么
 
 「员工配置能力中心」是 digital-employee 里给数字员工装配**可复用能力**的目录/市场。一个「能力（capability）」是员工可以挂载的一块东西，目前分三类：

@@ -146,6 +146,49 @@ test("rejects conflicting shapes and missing kind-specific fields", () => {
   )
 })
 
+test("args may repeat flags without deduplication", () => {
+  const result = validateCapabilityMarketManifest({
+    schemaVersion: "capability-market.v1alpha1",
+    capabilities: [
+      {
+        id: "repeat-args",
+        kind: "cli",
+        title: "T",
+        description: "d",
+        risk: "low",
+        auth: { required: [], optional: [] },
+        network: { required: false, hosts: [] },
+        command: { command: "tool", args: ["-v", "-v", "-v"] },
+      },
+    ],
+  })
+  assert.deepEqual(result.capabilities[0].command?.args, ["-v", "-v", "-v"])
+})
+
+test("hosts reject loopback and malformed labels", () => {
+  for (const host of ["localhost", "a..b", "127.0.0.1", "example.", "-bad.com"]) {
+    assert.throws(
+      () =>
+        validateCapabilityMarketManifest({
+          schemaVersion: "capability-market.v1alpha1",
+          capabilities: [
+            {
+              id: "host",
+              kind: "mcp",
+              title: "T",
+              description: "d",
+              risk: "low",
+              auth: { required: [], optional: [] },
+              network: { required: true, hosts: [host] },
+              transport: { type: "stdio", command: "npx" },
+            },
+          ],
+        }),
+      /capability_market_invalid_field/,
+    )
+  }
+})
+
 test("rejects non-HTTPS transport URLs and lowercase env names", () => {
   assert.throws(
     () =>

@@ -91,7 +91,7 @@
   "devDependencies": {
     "@types/node": "26.6.1",
     "c8": "12.0.0",
-    "tsx": "4.23.13",
+    "tsx": "4.23.15",
     "typescript": "7.0.2"
   },
   "c8": {

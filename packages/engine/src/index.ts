@@ -148,6 +148,7 @@ export type {
   TurnEvidencePermissions,
   TurnEvidenceMemory,
   TurnEvidenceMemoryItem,
+  TurnEvidenceMemoryOmission,
   TurnEvidenceMemoryWarning,
   TurnEvidenceContext,
   TurnEvidenceContextItem,
@@ -155,6 +156,17 @@ export type {
   TurnEvidenceRecord,
   TurnEvidenceTerminal,
 } from "./turn-evidence.js"
+
+export {
+  MEMORY_OMISSION_REASON,
+  detectMemoryInjectionShape,
+  screenMemoryTexts,
+} from "./memory-injection-guard.js"
+export type {
+  MemoryInjectionShape,
+  MemoryOmissionFinding,
+  MemoryOmissionReason,
+} from "./memory-injection-guard.js"
 
 export {
   DELEGATION_ENVELOPE_VERSION,

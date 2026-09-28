@@ -56,6 +56,10 @@ import {
 } from "./escalation.js"
 import type { ModelPort, OutputViolation } from "./model-port.js"
 import {
+  MEMORY_OMISSION_REASON,
+  detectMemoryInjectionShape,
+} from "./memory-injection-guard.js"
+import {
   createPermissionGate,
   validateOrganizationPermissionsArtifact,
   type OrganizationPermissions,
@@ -440,6 +444,7 @@ export async function* executeTurn(
           totalBytes: 0,
           items: [],
           warnings: [{ code: "MEMORY_UNAVAILABLE" }],
+          omissions: [],
         }
       } else if (portCode === "MEMORY_UNAVAILABLE") {
         // Required-mode outage: stable retryable failure before model call.
@@ -474,26 +479,52 @@ export async function* executeTurn(
         )
         return
       }
-      recallLines = recall.items.map((item) => item.text)
+      // Injection-shape screen at the assembly seam (roleweave #351
+      // REQ-002): recalled memory is untrusted data. Records whose content
+      // shape looks like a tool call, system prompt, role-confusion
+      // directive, approval grant, or credential are omitted from the
+      // assembled context with the stable reason `injection_shape`; the
+      // omission is recorded as digest-only evidence (never raw text).
+      const admittedItems = recall.items.filter(
+        (item) => detectMemoryInjectionShape(item.text) === undefined,
+      )
+      const omittedItems = recall.items.filter(
+        (item) => detectMemoryInjectionShape(item.text) !== undefined,
+      )
+      recallLines = admittedItems.map((item) => item.text)
       memoryEvidence = {
         mode: memoryOptions.mode,
         adapterIdentity: memoryOptions.adapterIdentity,
         memoryScope: memoryOptions.memoryScope,
         retrievedAt: recall.retrievedAt,
-        itemCount: recall.items.length,
-        totalBytes: recall.items.reduce(
+        itemCount: admittedItems.length,
+        totalBytes: admittedItems.reduce(
           (sum, item) => sum + Buffer.byteLength(item.text, "utf8"),
           0,
         ),
-        items: recall.items.map((item) => ({
+        items: admittedItems.map((item) => ({
           digest: item.digest,
           locator: item.locator,
           kind: item.kind,
           stateVersion: item.stateVersion,
           byteLength: Buffer.byteLength(item.text, "utf8"),
           provenanceDigest: digestProvenance(item.provenance),
+          // Assembly tags every admitted item untrusted with no authority
+          // (roleweave #351 REQ-001).
+          trust: "untrusted" as const,
+          authority: "none" as const,
         })),
         warnings: recall.warnings.map((warning) => ({ code: warning.code })),
+        omissions: omittedItems.map((item) => ({
+          digest: item.digest,
+          locator: item.locator,
+          kind: item.kind,
+          stateVersion: item.stateVersion,
+          byteLength: Buffer.byteLength(item.text, "utf8"),
+          provenanceDigest: digestProvenance(item.provenance),
+          reason: MEMORY_OMISSION_REASON,
+          shape: detectMemoryInjectionShape(item.text)!,
+        })),
       }
     }
   }

@@ -78,10 +78,37 @@ export interface TurnEvidenceMemoryItem {
   byteLength: number
   /** sha256 over the canonical provenance block of the recalled item. */
   provenanceDigest: string
+  /**
+   * Assembly tags every admitted memory item as untrusted with no
+   * authority (roleweave #351 REQ-001): admitted text is quoted data for
+   * the memory_recall slot, never an instruction source.
+   */
+  trust: "untrusted"
+  authority: "none"
 }
 
 export interface TurnEvidenceMemoryWarning {
   code: string
+}
+
+/**
+ * Digest-only omission evidence for one recalled memory item screened out
+ * at the assembly seam (roleweave #351 REQ-002). The raw text never enters
+ * evidence — only the stable omission reason, the detected injection shape,
+ * and the same digest/locator fields admitted items carry. This is the
+ * receipt that makes the omission auditable before a dedicated UI exists
+ * (#351 AC-003).
+ */
+export interface TurnEvidenceMemoryOmission {
+  digest: string
+  locator: string
+  kind: string
+  stateVersion: number
+  byteLength: number
+  /** sha256 over the canonical provenance block of the omitted item. */
+  provenanceDigest: string
+  reason: "injection_shape"
+  shape: string
 }
 
 /**
@@ -101,6 +128,13 @@ export interface TurnEvidenceMemory {
   totalBytes: number
   items: TurnEvidenceMemoryItem[]
   warnings: TurnEvidenceMemoryWarning[]
+  /**
+   * Recalled items omitted at the assembly seam with the reason
+   * `injection_shape` (roleweave #351 REQ-002). itemCount and items cover
+   * admitted entries only; omitted entries appear here with digests and
+   * locators, never raw text.
+   */
+  omissions: TurnEvidenceMemoryOmission[]
 }
 
 /**

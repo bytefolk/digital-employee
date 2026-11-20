@@ -177,7 +177,7 @@ jobs:
           package_file="$(node --input-type=module -e "import fs from 'node:fs'; const [entry] = JSON.parse(fs.readFileSync('$RUNNER_TEMP/root-pack.json', 'utf8')); process.stdout.write(entry.filename)")"
           node ./scripts/distribution-smoke.js "$artifact_directory/$package_file"
           cp ./scripts/distribution-smoke.js "$artifact_directory/distribution-smoke.js"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: digital-employee-distribution-candidate
           path: ${{ runner.temp }}/distribution-artifact

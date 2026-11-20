@@ -186,7 +186,7 @@ jobs:
             )
           done
       - name: Retain verified npm packages for every release channel
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ needs.prepare.outputs.artifact }}
           path: ${{ runner.temp }}/release-pack

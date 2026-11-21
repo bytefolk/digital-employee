@@ -29,8 +29,24 @@ if (launchLog) {
 const cwd = option("--cwd")
 const permissionMode = option("--permission-mode")
 const tools = (option("--tools") || "").split(",").filter(Boolean)
+const mcpConfigPath = option("--mcp-config")
+const allowedMcpNames = (option("--allowed-mcp-server-names") || "")
+  .split(",")
+  .filter(Boolean)
 const sessionId = "fixture-session"
 const inputLines = []
+
+async function readMcpServerNames() {
+  if (!mcpConfigPath) return []
+  try {
+    const parsed = JSON.parse(await readFile(mcpConfigPath, "utf8"))
+    const servers = parsed && typeof parsed === "object" ? parsed.mcpServers : undefined
+    if (!servers || typeof servers !== "object") return []
+    return Object.keys(servers).sort()
+  } catch {
+    return []
+  }
+}
 
 function emit(value) {
   process.stdout.write(`${JSON.stringify(value)}\n`)
@@ -61,6 +77,14 @@ async function writeCapture() {
   } catch {
     authPayloadMetadata = null
   }
+  let mcpConfigContent = null
+  if (mcpConfigPath) {
+    try {
+      mcpConfigContent = JSON.parse(await readFile(mcpConfigPath, "utf8"))
+    } catch {
+      mcpConfigContent = null
+    }
+  }
   await writeFile(
     capture,
     JSON.stringify({
@@ -72,6 +96,7 @@ async function writeCapture() {
       sdkEntrypoint: process.env.QODER_AGENT_SDK_ENTRYPOINT,
       sdkVersion: process.env.QODER_AGENT_SDK_VERSION,
       authPayloadMetadata,
+      mcpConfigContent,
       environmentContainsSchemaMarker: Object.values(process.env).some(
         (value) => value?.includes("SCHEMA_ARGV_MARKER"),
       ),
@@ -103,7 +128,10 @@ const init = {
   cwd,
   permissionMode,
   tools: mode === "policy-mismatch" ? [...tools, "Bash"] : tools,
-  mcp_servers: [],
+  mcp_servers: (await readMcpServerNames()).map((name) => ({
+    name,
+    status: "connected",
+  })),
   ...(mode === "plugins-missing" ? {} : { plugins: [] }),
   ...(mode === "skills-missing" ? {} : { skills: [] }),
 }

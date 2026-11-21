@@ -332,6 +332,21 @@ export {
   validateEmployeeMcpManifest,
 } from "./src/employee-mcp.js"
 export type { EmployeeMcpManifest } from "./src/employee-mcp.js"
+export {
+  CAPABILITY_MARKET_SCHEMA_VERSION,
+  validateCapabilityMarketManifest,
+} from "./src/capability-market.js"
+export type {
+  CapabilityAuth,
+  CapabilityCliCommand,
+  CapabilityConnectorRef,
+  CapabilityEntry,
+  CapabilityMarketKind,
+  CapabilityMarketManifest,
+  CapabilityMcpTransport,
+  CapabilityNetwork,
+  CapabilityRisk,
+} from "./src/capability-market.js"
 export { RuntimeComponentRegistry } from "./src/component-registry.js"
 export type {
   RuntimeChannelComponent,

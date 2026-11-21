@@ -13,6 +13,7 @@ export const DISTRIBUTION_ROOT_FILES = Object.freeze([
 ]);
 
 export const DISTRIBUTION_ASSET_MAPPINGS = Object.freeze([
+  ["capabilities/market.json", "dist/capabilities/market.json"],
   ["configs/demo.json", "dist/configs/demo.json"],
   ["configs/dingtalk-dws.example.json", "dist/configs/dingtalk-dws.example.json"],
   ["configs/employee-mcp.schema.json", "dist/configs/employee-mcp.schema.json"],
@@ -25,6 +26,7 @@ export const DISTRIBUTION_ASSET_MAPPINGS = Object.freeze([
   ["configs/turn-envelope.schema.json", "dist/configs/turn-envelope.schema.json"],
   ["configs/workspace.schema.json", "dist/configs/workspace.schema.json"],
   ["configs/workspace-org.schema.json", "dist/configs/workspace-org.schema.json"],
+  ["configs/capability-market.schema.json", "dist/configs/capability-market.schema.json"],
   ["locales/README.md", "dist/locales/README.md"],
   ["locales/en.json", "dist/locales/en.json"],
   ["locales/ja.json", "dist/locales/ja.json"],
